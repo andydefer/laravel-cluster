@@ -13,7 +13,7 @@ final class ClusterVO extends AbstractValueObject
     private readonly StrictAssociative $value;
 
     /**
-     * @param  array<string, mixed>  $value
+     * @param  array<string, int|float|string|null>  $value
      */
     public function __construct(array $value)
     {
@@ -21,20 +21,17 @@ final class ClusterVO extends AbstractValueObject
             throw new InvalidArgumentException('Cluster cannot be empty');
         }
 
-        // Vérification que les clés sont des strings
-        foreach (array_keys($value) as $key) {
+        foreach ($value as $key => $val) {
+            // Les clés doivent être des strings
             if (! is_string($key)) {
                 throw new InvalidArgumentException('Cluster keys must be strings');
             }
-        }
 
-        // Empêcher les valeurs imbriquées (nested)
-        foreach ($value as $val) {
-            if (is_array($val)) {
-                throw new InvalidArgumentException('Cluster values cannot be nested arrays. Only scalar values are allowed.');
-            }
-            if (is_object($val) && ! is_scalar($val)) {
-                throw new InvalidArgumentException('Cluster values cannot be objects. Only scalar values are allowed.');
+            // Les valeurs doivent être string, int, float ou null
+            if (! is_string($val) && ! is_int($val) && ! is_float($val) && $val !== null) {
+                throw new InvalidArgumentException(
+                    sprintf('Cluster values must be string, int, float or null. Got %s for key "%s"', gettype($val), $key)
+                );
             }
         }
 
@@ -46,17 +43,11 @@ final class ClusterVO extends AbstractValueObject
         return $this->value;
     }
 
-    /**
-     * Vérifie si une clé existe dans le cluster
-     */
     public function has(string $key): bool
     {
         return $this->value->has($key);
     }
 
-    /**
-     * Récupère une valeur du cluster
-     */
     public function get(string $key, mixed $default = null): mixed
     {
         return $this->value->get($key, $default);
@@ -71,7 +62,7 @@ final class ClusterVO extends AbstractValueObject
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array<string, int|float|string|null>
      */
     public function toArray(): array
     {

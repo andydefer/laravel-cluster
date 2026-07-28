@@ -12,7 +12,6 @@ use AndyDefer\LaravelCluster\Enums\TokenType;
 use AndyDefer\LaravelCluster\Nodes\ConditionNode;
 use AndyDefer\LaravelCluster\Nodes\GroupNode;
 use AndyDefer\LaravelCluster\Nodes\Node;
-use AndyDefer\LaravelCluster\Nodes\NotNode;
 use AndyDefer\LaravelCluster\Records\TokenRecord;
 
 final class Parser implements ParserInterface
@@ -80,11 +79,17 @@ final class Parser implements ParserInterface
             throw new \RuntimeException('Unexpected end of expression');
         }
 
+        // NOT suivi d'un identifiant: "!lang_fr" → convert to "lang_fr=false"
         if ($token->type === TokenType::OPERATOR && $token->value === 'NOT') {
-            $this->position++;
-            $node = $this->parseTerm();
+            $nextToken = $this->getToken($this->position + 1);
 
-            return new NotNode($node);
+            if ($nextToken && $nextToken->type === TokenType::IDENTIFIER) {
+                $this->position += 2;
+
+                return new ConditionNode($nextToken->value, ComparisonOperator::EQUAL, 'false');
+            }
+
+            throw new \RuntimeException('Expected identifier after NOT');
         }
 
         if ($token->type === TokenType::PAREN && $token->value === '(') {
@@ -115,21 +120,19 @@ final class Parser implements ParserInterface
 
         $next = $this->getToken($this->position);
 
-        // Condition simple: "lang_fr" → PRESENCE
+        // Condition simple: "lang_fr" → "lang_fr=true"
         if (! $next || $next->type !== TokenType::OPERATOR) {
-            return new ConditionNode($key, ComparisonOperator::PRESENCE);
+            return new ConditionNode($key, ComparisonOperator::EQUAL, 'true');
         }
 
         $operator = $next->value;
 
         // Vérifier si c'est un opérateur logique (AND, OR)
-        // Si c'est le cas, ce n'est pas une condition, on retourne PRESENCE
-        // et on laisse parseExpression() gérer l'opérateur
         if (in_array($operator, ['AND', 'OR'], true)) {
-            return new ConditionNode($key, ComparisonOperator::PRESENCE);
+            return new ConditionNode($key, ComparisonOperator::EQUAL, 'true');
         }
 
-        // NOT suivi d'un identifiant: "!lang_fr" → ABSENCE
+        // NOT suivi d'un identifiant: "!lang_fr" → "lang_fr=false"
         if ($operator === 'NOT') {
             $valueToken = $this->getToken($this->position + 1);
 
@@ -139,7 +142,7 @@ final class Parser implements ParserInterface
 
             $this->position += 2;
 
-            return new ConditionNode($valueToken->value, ComparisonOperator::ABSENCE);
+            return new ConditionNode($valueToken->value, ComparisonOperator::EQUAL, 'false');
         }
 
         // Opérateur de comparaison

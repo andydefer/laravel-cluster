@@ -22,9 +22,9 @@ final class ClusterVOCollectionTest extends TestCase
             'id' => 1,
             'status' => 'active',
             'role' => 'admin',
-            'verified' => true,
-            'lang_fr' => true,
-            'lang_en' => false,
+            'verified' => 'true',
+            'lang_fr' => 'true',
+            'lang_en' => 'false',
             'age' => 25,
             'name' => 'John Doe',
         ]));
@@ -33,9 +33,9 @@ final class ClusterVOCollectionTest extends TestCase
             'id' => 2,
             'status' => 'active',
             'role' => 'doctor',
-            'verified' => true,
-            'lang_fr' => false,
-            'lang_en' => true,
+            'verified' => 'true',
+            'lang_fr' => 'false',
+            'lang_en' => 'true',
             'age' => 30,
             'name' => 'Jane Smith',
         ]));
@@ -44,9 +44,9 @@ final class ClusterVOCollectionTest extends TestCase
             'id' => 3,
             'status' => 'inactive',
             'role' => 'admin',
-            'verified' => false,
-            'lang_fr' => true,
-            'lang_en' => false,
+            'verified' => 'false',
+            'lang_fr' => 'true',
+            'lang_en' => 'false',
             'age' => 22,
             'name' => 'Bob Johnson',
         ]));
@@ -55,9 +55,9 @@ final class ClusterVOCollectionTest extends TestCase
             'id' => 4,
             'status' => 'pending',
             'role' => 'guest',
-            'verified' => false,
-            'lang_fr' => false,
-            'lang_en' => true,
+            'verified' => 'false',
+            'lang_fr' => 'false',
+            'lang_en' => 'true',
             'age' => 18,
             'name' => 'Alice Brown',
         ]));
@@ -66,9 +66,9 @@ final class ClusterVOCollectionTest extends TestCase
             'id' => 5,
             'status' => 'active',
             'role' => 'admin',
-            'verified' => true,
-            'lang_fr' => true,
-            'lang_en' => false,
+            'verified' => 'true',
+            'lang_fr' => 'true',
+            'lang_en' => 'false',
             'age' => 40,
             'name' => 'Charlie Wilson',
         ]));
@@ -107,7 +107,7 @@ final class ClusterVOCollectionTest extends TestCase
         $result = $this->collection->whereTrue('verified');
 
         $this->assertCount(3, $result);
-        $this->assertTrue($result->first()?->get('verified'));
+        $this->assertEquals('true', $result->first()?->get('verified'));
     }
 
     public function test_where_false(): void
@@ -115,7 +115,7 @@ final class ClusterVOCollectionTest extends TestCase
         $result = $this->collection->whereFalse('verified');
 
         $this->assertCount(2, $result);
-        $this->assertFalse($result->first()?->get('verified'));
+        $this->assertEquals('false', $result->first()?->get('verified'));
     }
 
     public function test_or_where(): void
@@ -132,19 +132,16 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_group(): void
     {
-        // (status=active OR status=pending)
         $result = $this->collection->whereGroup(function (ClusterVOCollection $q) {
             return $q->where('status', 'active')
                 ->orWhere('status', 'pending');
         });
 
-        // ID 1, 2, 4, 5 (status=active ou pending) → 4 clusters
         $this->assertCount(4, $result);
     }
 
     public function test_where_group_with_and_condition(): void
     {
-        // (status=active OR status=pending) AND role=admin
         $result = $this->collection
             ->whereGroup(function (ClusterVOCollection $q) {
                 return $q->where('status', 'active')
@@ -152,14 +149,12 @@ final class ClusterVOCollectionTest extends TestCase
             })
             ->andWhere('role', 'admin');
 
-        // ID 1, 5 (status=active ou pending ET role=admin) → 2 clusters
         $this->assertCount(2, $result);
         $this->assertEquals('admin', $result->first()?->get('role'));
     }
 
     public function test_where_group_nested(): void
     {
-        // (status=active AND role=admin) OR (status=active AND role=doctor)
         $result = $this->collection->whereGroup(function (ClusterVOCollection $q) {
             return $q->whereGroup(function (ClusterVOCollection $q2) {
                 return $q2->where('status', 'active')
@@ -170,42 +165,33 @@ final class ClusterVOCollectionTest extends TestCase
             });
         });
 
-        // ID 1, 2, 5 (status=active ET (role=admin OU doctor)) → 3 clusters
         $this->assertCount(3, $result);
     }
 
     public function test_or_where_group_without_prior_filter(): void
     {
-        // OR group sans condition préexistante
-        // (role=admin AND verified=true)
         $result = $this->collection->orWhereGroup(function (ClusterVOCollection $q) {
             return $q->where('role', 'admin')
-                ->where('verified', true);
+                ->where('verified', 'true');
         });
 
-        // ID 1, 5 (role=admin ET verified=true) → 2 clusters
         $this->assertCount(2, $result);
     }
 
     public function test_or_where_group_with_prior_filter(): void
     {
-        // status=active OR (role=admin AND verified=true)
         $result = $this->collection
             ->where('status', 'active')
             ->orWhereGroup(function (ClusterVOCollection $q) {
                 return $q->where('role', 'admin')
-                    ->where('verified', true);
+                    ->where('verified', 'true');
             });
 
-        // ID 1, 2, 5 (status=active) → 3 clusters
-        // ID 3 (role=admin ET verified=true) mais status=inactive → NON inclus
-        // ID 4 (pending) → NON inclus
         $this->assertCount(3, $result);
     }
 
     public function test_chain_with_or_where_after_group(): void
     {
-        // (status=active AND role=admin) OR status=pending
         $result = $this->collection
             ->whereGroup(function (ClusterVOCollection $q) {
                 return $q->where('status', 'active')
@@ -213,33 +199,25 @@ final class ClusterVOCollectionTest extends TestCase
             })
             ->orWhere('status', 'pending');
 
-        // ID 1, 5 (status=active ET role=admin) → 2 clusters
-        // ID 4 (status=pending) → 1 cluster
-        // Total → 3 clusters
         $this->assertCount(3, $result);
     }
 
     public function test_or_where_group_with_multiple_conditions(): void
     {
-        // status=active OR (role=admin AND verified=true)
         $result = $this->collection
             ->whereGroup(function (ClusterVOCollection $q) {
                 return $q->where('status', 'active');
             })
             ->orWhereGroup(function (ClusterVOCollection $q) {
                 return $q->where('role', 'admin')
-                    ->where('verified', true);
+                    ->where('verified', 'true');
             });
 
-        // ID 1, 2, 5 (status=active) → 3 clusters
-        // ID 1, 5 (role=admin ET verified=true) → déjà inclus
-        // Total → 3 clusters
         $this->assertCount(3, $result);
     }
 
     public function test_nested_groups(): void
     {
-        // (status=active AND role=admin) OR (status=active AND role=doctor) AND verified=true
         $result = $this->collection->whereGroup(function (ClusterVOCollection $q) {
             return $q->whereGroup(function (ClusterVOCollection $q2) {
                 return $q2->where('status', 'active')
@@ -248,17 +226,13 @@ final class ClusterVOCollectionTest extends TestCase
                 return $q2->where('status', 'active')
                     ->where('role', 'doctor');
             });
-        })->andWhere('verified', true);
+        })->andWhere('verified', 'true');
 
-        // ID 1, 5 (status=active ET role=admin ET verified=true) → 2 clusters
-        // ID 2 (status=active ET role=doctor ET verified=true) → 1 cluster
-        // Total → 3 clusters
         $this->assertCount(3, $result);
     }
 
     public function test_complex_chaining_with_groups(): void
     {
-        // (status=active OR status=pending) AND role=admin AND verified=true AND age>=25
         $result = $this->collection
             ->whereGroup(function (ClusterVOCollection $q) {
                 return $q->where('status', 'active')
@@ -268,27 +242,19 @@ final class ClusterVOCollectionTest extends TestCase
             ->whereTrue('verified')
             ->whereGreaterThanOrEqual('age', 25);
 
-        // ID 1 (status=active, role=admin, verified=true, age=25) → 1 cluster
-        // ID 5 (status=active, role=admin, verified=true, age=40) → 1 cluster
-        // ID 4 (status=pending, role=guest) → NON inclus (role != admin)
-        // Total → 2 clusters
         $this->assertCount(2, $result);
     }
 
     public function test_complex_chaining_with_or_groups(): void
     {
-        // status=active OR (status=pending AND role=guest) AND verified=true
         $result = $this->collection
             ->where('status', 'active')
             ->orWhereGroup(function (ClusterVOCollection $q) {
                 return $q->where('status', 'pending')
                     ->where('role', 'guest');
             })
-            ->andWhere('verified', true);
+            ->andWhere('verified', 'true');
 
-        // ID 1, 2, 5 (status=active ET verified=true) → 3 clusters
-        // ID 4 (status=pending ET role=guest) mais verified=false → NON inclus
-        // Total → 3 clusters
         $this->assertCount(3, $result);
     }
 
@@ -459,9 +425,6 @@ final class ClusterVOCollectionTest extends TestCase
                 fn (ClusterVO $cluster) => $cluster->get('role') === 'admin'
             );
 
-        // ID 1, 2, 5 (status=active) → 3 clusters
-        // ID 3 (role=admin mais status=inactive) → NON inclus car pas status=active
-        // Total → 3 clusters
         $this->assertCount(3, $result);
     }
 
@@ -470,11 +433,9 @@ final class ClusterVOCollectionTest extends TestCase
         $result = $this->collection
             ->where('status', 'active')
             ->whereClosure(
-                fn (ClusterVO $cluster) => $cluster->get('age') >= 25 && $cluster->get('verified') === true
+                fn (ClusterVO $cluster) => $cluster->get('age') >= 25 && $cluster->get('verified') === 'true'
             );
 
-        // ID 1, 2, 5 (status=active) → 3 clusters
-        // ID 1, 2, 5 (age>=25 ET verified=true) → ID 1, 2, 5 → 3 clusters
         $this->assertCount(3, $result);
     }
 
@@ -533,7 +494,7 @@ final class ClusterVOCollectionTest extends TestCase
         $result = $collection->whereNull('key');
 
         $this->assertCount(1, $result);
-        $this->assertNull($result->first()?->get('key'));
+        $this->assertEquals(null, $result->first()?->get('key'));
     }
 
     public function test_numeric_strings(): void
@@ -555,8 +516,8 @@ final class ClusterVOCollectionTest extends TestCase
             ->whereFalse('lang_en');
 
         $this->assertCount(2, $result);
-        $this->assertTrue($result->first()?->get('verified'));
-        $this->assertFalse($result->first()?->get('lang_en'));
+        $this->assertEquals('true', $result->first()?->get('verified'));
+        $this->assertEquals('false', $result->first()?->get('lang_en'));
     }
 
     public function test_where_in_with_empty_array(): void
@@ -582,7 +543,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_chain_with_where_not_after_group(): void
     {
-        // (status=active OR status=pending) AND role != guest
         $result = $this->collection
             ->whereGroup(function (ClusterVOCollection $q) {
                 return $q->where('status', 'active')
@@ -590,8 +550,6 @@ final class ClusterVOCollectionTest extends TestCase
             })
             ->whereNot('role', 'guest');
 
-        // ID 1, 2, 5 (status=active ou pending ET role != guest) → 3 clusters
-        // ID 4 (status=pending mais role=guest) → NON inclus
         $this->assertCount(3, $result);
     }
 }

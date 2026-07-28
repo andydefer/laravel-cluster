@@ -23,16 +23,7 @@ abstract class IntegrationTestCase extends Orchestra
         ];
     }
 
-    protected function defineEnvironment($app): void
-    {
-        $app['config']->set('database.default', 'testbench');
-        $app['config']->set('database.connections.testbench', [
-            'driver' => 'sqlite',
-            'database' => ':memory:',
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-        ]);
-    }
+    protected function defineEnvironment($app): void {}
 
     protected function setUp(): void
     {

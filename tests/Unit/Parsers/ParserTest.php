@@ -6,7 +6,6 @@ namespace AndyDefer\LaravelCluster\Tests\Unit\Parser;
 
 use AndyDefer\LaravelCluster\Nodes\ConditionNode;
 use AndyDefer\LaravelCluster\Nodes\GroupNode;
-use AndyDefer\LaravelCluster\Nodes\NotNode;
 use AndyDefer\LaravelCluster\Parser;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use PHPUnit\Framework\TestCase;
@@ -55,10 +54,10 @@ final class ParserTest extends TestCase
 
         $this->assertInstanceOf(ConditionNode::class, $ast);
 
-        $cluster = new ClusterVO(['age' => 30]);
+        $cluster = new ClusterVO(['age' => '30']);
         $this->assertTrue($ast->evaluate($cluster));
 
-        $cluster2 = new ClusterVO(['age' => 20]);
+        $cluster2 = new ClusterVO(['age' => '20']);
         $this->assertFalse($ast->evaluate($cluster2));
     }
 
@@ -68,10 +67,10 @@ final class ParserTest extends TestCase
 
         $this->assertInstanceOf(ConditionNode::class, $ast);
 
-        $cluster = new ClusterVO(['age' => 20]);
+        $cluster = new ClusterVO(['age' => '20']);
         $this->assertTrue($ast->evaluate($cluster));
 
-        $cluster2 = new ClusterVO(['age' => 30]);
+        $cluster2 = new ClusterVO(['age' => '30']);
         $this->assertFalse($ast->evaluate($cluster2));
     }
 
@@ -81,10 +80,10 @@ final class ParserTest extends TestCase
 
         $this->assertInstanceOf(ConditionNode::class, $ast);
 
-        $cluster = new ClusterVO(['age' => 25]);
+        $cluster = new ClusterVO(['age' => '25']);
         $this->assertTrue($ast->evaluate($cluster));
 
-        $cluster2 = new ClusterVO(['age' => 20]);
+        $cluster2 = new ClusterVO(['age' => '20']);
         $this->assertFalse($ast->evaluate($cluster2));
     }
 
@@ -94,10 +93,10 @@ final class ParserTest extends TestCase
 
         $this->assertInstanceOf(ConditionNode::class, $ast);
 
-        $cluster = new ClusterVO(['age' => 25]);
+        $cluster = new ClusterVO(['age' => '25']);
         $this->assertTrue($ast->evaluate($cluster));
 
-        $cluster2 = new ClusterVO(['age' => 30]);
+        $cluster2 = new ClusterVO(['age' => '30']);
         $this->assertFalse($ast->evaluate($cluster2));
     }
 
@@ -133,7 +132,7 @@ final class ParserTest extends TestCase
 
         $this->assertInstanceOf(ConditionNode::class, $ast);
 
-        $cluster = new ClusterVO(['age' => 25]);
+        $cluster = new ClusterVO(['age' => '25']);
         $this->assertEquals(-1, $ast->evaluate($cluster));
     }
 
@@ -141,27 +140,29 @@ final class ParserTest extends TestCase
 
     public function test_parse_presence(): void
     {
+        // "lang_fr" est converti en "lang_fr=true"
         $ast = $this->parser->parse('lang_fr');
 
         $this->assertInstanceOf(ConditionNode::class, $ast);
 
-        $cluster = new ClusterVO(['lang_fr' => true]);
+        $cluster = new ClusterVO(['lang_fr' => 'true']);
         $this->assertTrue($ast->evaluate($cluster));
 
-        $cluster2 = new ClusterVO(['lang_fr' => false]);
+        $cluster2 = new ClusterVO(['lang_fr' => 'false']);
         $this->assertFalse($ast->evaluate($cluster2));
     }
 
     public function test_parse_absence(): void
     {
+        // "!lang_fr" est converti en "lang_fr=false"
         $ast = $this->parser->parse('!lang_fr');
 
-        $this->assertInstanceOf(NotNode::class, $ast);
+        $this->assertInstanceOf(ConditionNode::class, $ast);
 
-        $cluster = new ClusterVO(['lang_fr' => false]);
+        $cluster = new ClusterVO(['lang_fr' => 'false']);
         $this->assertTrue($ast->evaluate($cluster));
 
-        $cluster2 = new ClusterVO(['lang_fr' => true]);
+        $cluster2 = new ClusterVO(['lang_fr' => 'true']);
         $this->assertFalse($ast->evaluate($cluster2));
     }
 
@@ -227,13 +228,13 @@ final class ParserTest extends TestCase
 
         $this->assertInstanceOf(GroupNode::class, $ast);
 
-        $cluster = new ClusterVO(['status' => 'active', 'role' => 'admin', 'lang_fr' => false]);
+        $cluster = new ClusterVO(['status' => 'active', 'role' => 'admin', 'lang_fr' => 'false']);
         $this->assertTrue($ast->evaluate($cluster));
 
-        $cluster2 = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'lang_fr' => true]);
+        $cluster2 = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'lang_fr' => 'true']);
         $this->assertTrue($ast->evaluate($cluster2));
 
-        $cluster3 = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'lang_fr' => false]);
+        $cluster3 = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'lang_fr' => 'false']);
         $this->assertFalse($ast->evaluate($cluster3));
     }
 
@@ -275,13 +276,14 @@ final class ParserTest extends TestCase
         $this->assertFalse($ast->evaluate($cluster4));
     }
 
-    // ==================== NOT TESTS ====================
+    // ==================== NOT EQUAL TESTS ====================
 
-    public function test_parse_not(): void
+    public function test_parse_not_equal(): void
     {
-        $ast = $this->parser->parse('!status=active');
+        // "status!=active" est un ConditionNode avec NOT_EQUAL
+        $ast = $this->parser->parse('status!=active');
 
-        $this->assertInstanceOf(NotNode::class, $ast);
+        $this->assertInstanceOf(ConditionNode::class, $ast);
 
         $cluster = new ClusterVO(['status' => 'inactive']);
         $this->assertTrue($ast->evaluate($cluster));
@@ -290,63 +292,42 @@ final class ParserTest extends TestCase
         $this->assertFalse($ast->evaluate($cluster2));
     }
 
-    public function test_parse_not_with_parentheses(): void
-    {
-        $ast = $this->parser->parse('!(status=active & role=admin)');
-
-        $this->assertInstanceOf(NotNode::class, $ast);
-
-        $cluster = new ClusterVO(['status' => 'active', 'role' => 'guest']);
-        $this->assertTrue($ast->evaluate($cluster));
-
-        $cluster2 = new ClusterVO(['status' => 'active', 'role' => 'admin']);
-        $this->assertFalse($ast->evaluate($cluster2));
-    }
-
-    public function test_parse_double_not(): void
-    {
-        $ast = $this->parser->parse('!!status=active');
-
-        $this->assertInstanceOf(NotNode::class, $ast);
-
-        $cluster = new ClusterVO(['status' => 'active']);
-        $this->assertTrue($ast->evaluate($cluster));
-    }
-
     // ==================== COMBINED TESTS ====================
 
     public function test_parse_combined_and_or_not(): void
     {
+        // "!lang_fr" est converti en "lang_fr=false"
         $ast = $this->parser->parse('status=active & !lang_fr & (role=admin | role=doctor)');
 
         $this->assertInstanceOf(GroupNode::class, $ast);
 
-        $cluster = new ClusterVO(['status' => 'active', 'lang_fr' => false, 'role' => 'admin']);
+        $cluster = new ClusterVO(['status' => 'active', 'lang_fr' => 'false', 'role' => 'admin']);
         $this->assertTrue($ast->evaluate($cluster));
 
-        $cluster2 = new ClusterVO(['status' => 'active', 'lang_fr' => true, 'role' => 'admin']);
+        $cluster2 = new ClusterVO(['status' => 'active', 'lang_fr' => 'true', 'role' => 'admin']);
         $this->assertFalse($ast->evaluate($cluster2));
 
-        $cluster3 = new ClusterVO(['status' => 'active', 'lang_fr' => false, 'role' => 'guest']);
+        $cluster3 = new ClusterVO(['status' => 'active', 'lang_fr' => 'false', 'role' => 'guest']);
         $this->assertFalse($ast->evaluate($cluster3));
     }
 
     public function test_parse_complex_expression(): void
     {
+        // "lang_fr" et "!lang_en" sont convertis en "lang_fr=true" et "lang_en=false"
         $ast = $this->parser->parse('(status=active | status=pending) & lang_fr & !lang_en & age>=25');
 
         $this->assertInstanceOf(GroupNode::class, $ast);
 
-        $cluster = new ClusterVO(['status' => 'active', 'lang_fr' => true, 'lang_en' => false, 'age' => 30]);
+        $cluster = new ClusterVO(['status' => 'active', 'lang_fr' => 'true', 'lang_en' => 'false', 'age' => '30']);
         $this->assertTrue($ast->evaluate($cluster));
 
-        $cluster2 = new ClusterVO(['status' => 'pending', 'lang_fr' => true, 'lang_en' => false, 'age' => 25]);
+        $cluster2 = new ClusterVO(['status' => 'pending', 'lang_fr' => 'true', 'lang_en' => 'false', 'age' => '25']);
         $this->assertTrue($ast->evaluate($cluster2));
 
-        $cluster3 = new ClusterVO(['status' => 'inactive', 'lang_fr' => true, 'lang_en' => false, 'age' => 30]);
+        $cluster3 = new ClusterVO(['status' => 'inactive', 'lang_fr' => 'true', 'lang_en' => 'false', 'age' => '30']);
         $this->assertFalse($ast->evaluate($cluster3));
 
-        $cluster4 = new ClusterVO(['status' => 'active', 'lang_fr' => true, 'lang_en' => true, 'age' => 30]);
+        $cluster4 = new ClusterVO(['status' => 'active', 'lang_fr' => 'true', 'lang_en' => 'true', 'age' => '30']);
         $this->assertFalse($ast->evaluate($cluster4));
     }
 

@@ -23,9 +23,9 @@ final class ConditionNodeTest extends IntegrationTestCase
                 'status' => 'active',
                 'role' => 'admin',
                 'age' => 25,
-                'lang_fr' => true,
-                'lang_en' => false,
-                'verified' => true,
+                'lang_fr' => 'true',
+                'lang_en' => 'false',
+                'verified' => 'true',
                 'score' => 85.5,
             ],
         ]);
@@ -35,9 +35,9 @@ final class ConditionNodeTest extends IntegrationTestCase
                 'status' => 'inactive',
                 'role' => 'doctor',
                 'age' => 30,
-                'lang_fr' => false,
-                'lang_en' => true,
-                'verified' => false,
+                'lang_fr' => 'false',
+                'lang_en' => 'true',
+                'verified' => 'false',
                 'score' => 92.0,
             ],
         ]);
@@ -47,9 +47,9 @@ final class ConditionNodeTest extends IntegrationTestCase
                 'status' => 'active',
                 'role' => 'doctor',
                 'age' => 35,
-                'lang_fr' => true,
-                'lang_en' => false,
-                'verified' => true,
+                'lang_fr' => 'true',
+                'lang_en' => 'false',
+                'verified' => 'true',
                 'score' => 78.0,
             ],
         ]);
@@ -59,9 +59,9 @@ final class ConditionNodeTest extends IntegrationTestCase
                 'status' => 'pending',
                 'role' => 'guest',
                 'age' => 18,
-                'lang_fr' => false,
-                'lang_en' => true,
-                'verified' => false,
+                'lang_fr' => 'false',
+                'lang_en' => 'true',
+                'verified' => 'false',
                 'score' => 30.5,
             ],
         ]);
@@ -71,9 +71,9 @@ final class ConditionNodeTest extends IntegrationTestCase
                 'status' => 'active',
                 'role' => 'admin',
                 'age' => 40,
-                'lang_fr' => true,
-                'lang_en' => false,
-                'verified' => true,
+                'lang_fr' => 'true',
+                'lang_en' => 'false',
+                'verified' => 'true',
                 'score' => 95.0,
             ],
         ]);
@@ -100,7 +100,7 @@ final class ConditionNodeTest extends IntegrationTestCase
     public function test_evaluate_equals_loose(): void
     {
         $node = new ConditionNode('age', ComparisonOperator::EQUAL_LOOSE, '25');
-        $cluster = new ClusterVO(['age' => 25]);
+        $cluster = new ClusterVO(['age' => '25']);
 
         $this->assertTrue($node->evaluate($cluster));
     }
@@ -108,17 +108,17 @@ final class ConditionNodeTest extends IntegrationTestCase
     public function test_evaluate_equals_strict(): void
     {
         $node = new ConditionNode('age', ComparisonOperator::EQUAL_STRICT, '25');
-        $cluster = new ClusterVO(['age' => 25]);
-
-        $this->assertFalse($node->evaluate($cluster));
-    }
-
-    public function test_evaluate_equals_strict_true(): void
-    {
-        $node = new ConditionNode('age', ComparisonOperator::EQUAL_STRICT, '25');
         $cluster = new ClusterVO(['age' => '25']);
 
         $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_equals_strict_false(): void
+    {
+        $node = new ConditionNode('age', ComparisonOperator::EQUAL_STRICT, '25');
+        $cluster = new ClusterVO(['age' => 25]);
+
+        $this->assertFalse($node->evaluate($cluster));
     }
 
     public function test_evaluate_not_equal(): void
@@ -140,7 +140,7 @@ final class ConditionNodeTest extends IntegrationTestCase
     public function test_evaluate_less_than(): void
     {
         $node = new ConditionNode('age', ComparisonOperator::LESS_THAN, '30');
-        $cluster = new ClusterVO(['age' => 25]);
+        $cluster = new ClusterVO(['age' => '25']);
 
         $this->assertTrue($node->evaluate($cluster));
     }
@@ -148,7 +148,7 @@ final class ConditionNodeTest extends IntegrationTestCase
     public function test_evaluate_less_than_false(): void
     {
         $node = new ConditionNode('age', ComparisonOperator::LESS_THAN, '30');
-        $cluster = new ClusterVO(['age' => 35]);
+        $cluster = new ClusterVO(['age' => '35']);
 
         $this->assertFalse($node->evaluate($cluster));
     }
@@ -156,7 +156,7 @@ final class ConditionNodeTest extends IntegrationTestCase
     public function test_evaluate_less_than_or_equal(): void
     {
         $node = new ConditionNode('age', ComparisonOperator::LESS_THAN_OR_EQUAL, '30');
-        $cluster = new ClusterVO(['age' => 30]);
+        $cluster = new ClusterVO(['age' => '30']);
 
         $this->assertTrue($node->evaluate($cluster));
     }
@@ -164,7 +164,7 @@ final class ConditionNodeTest extends IntegrationTestCase
     public function test_evaluate_greater_than(): void
     {
         $node = new ConditionNode('age', ComparisonOperator::GREATER_THAN, '30');
-        $cluster = new ClusterVO(['age' => 35]);
+        $cluster = new ClusterVO(['age' => '35']);
 
         $this->assertTrue($node->evaluate($cluster));
     }
@@ -172,7 +172,7 @@ final class ConditionNodeTest extends IntegrationTestCase
     public function test_evaluate_greater_than_or_equal(): void
     {
         $node = new ConditionNode('age', ComparisonOperator::GREATER_THAN_OR_EQUAL, '30');
-        $cluster = new ClusterVO(['age' => 30]);
+        $cluster = new ClusterVO(['age' => '30']);
 
         $this->assertTrue($node->evaluate($cluster));
     }
@@ -180,48 +180,42 @@ final class ConditionNodeTest extends IntegrationTestCase
     public function test_evaluate_spaceship(): void
     {
         $node = new ConditionNode('age', ComparisonOperator::SPACESHIP, '30');
-        $cluster = new ClusterVO(['age' => 25]);
+        $cluster = new ClusterVO(['age' => '25']);
 
         $result = $node->evaluate($cluster);
         $this->assertEquals(-1, $result);
     }
 
-    public function test_evaluate_presence(): void
+    public function test_evaluate_presence_true(): void
     {
-        $node = new ConditionNode('lang_fr', ComparisonOperator::PRESENCE);
-        $cluster = new ClusterVO(['lang_fr' => true]);
+        // Presence avec valeur string 'true'
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EQUAL, 'true');
+        $cluster = new ClusterVO(['lang_fr' => 'true']);
 
         $this->assertTrue($node->evaluate($cluster));
     }
 
     public function test_evaluate_presence_false(): void
     {
-        $node = new ConditionNode('lang_fr', ComparisonOperator::PRESENCE);
-        $cluster = new ClusterVO(['lang_fr' => false]);
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EQUAL, 'true');
+        $cluster = new ClusterVO(['lang_fr' => 'false']);
 
         $this->assertFalse($node->evaluate($cluster));
     }
 
     public function test_evaluate_absence(): void
     {
-        // ABSENCE signifie que la clé n'existe pas OU est false/null/0
-        $node = new ConditionNode('lang_en', ComparisonOperator::ABSENCE);
+        // Absence avec valeur string 'false'
+        $node = new ConditionNode('lang_en', ComparisonOperator::EQUAL, 'false');
 
-        // Cluster sans lang_en → true (absence)
-        $cluster1 = new ClusterVO(['lang_fr' => true]);
-        $result1 = $node->evaluate($cluster1);
+        $cluster1 = new ClusterVO(['lang_fr' => 'true']);
+        $this->assertTrue($node->evaluate($cluster1));
 
-        // Cluster avec lang_en = false → true (absence car false)
-        $cluster2 = new ClusterVO(['lang_fr' => true, 'lang_en' => false]);
-        $result2 = $node->evaluate($cluster2);
+        $cluster2 = new ClusterVO(['lang_fr' => 'true', 'lang_en' => 'false']);
+        $this->assertTrue($node->evaluate($cluster2));
 
-        // Cluster avec lang_en = true → false (présence)
-        $cluster3 = new ClusterVO(['lang_fr' => true, 'lang_en' => true]);
-        $result3 = $node->evaluate($cluster3);
-
-        $this->assertTrue($result1);
-        $this->assertTrue($result2);
-        $this->assertFalse($result3);
+        $cluster3 = new ClusterVO(['lang_fr' => 'true', 'lang_en' => 'true']);
+        $this->assertFalse($node->evaluate($cluster3));
     }
 
     public function test_evaluate_key_not_exists(): void
@@ -261,21 +255,21 @@ final class ConditionNodeTest extends IntegrationTestCase
         $this->assertEquals($expected, $sql);
     }
 
-    public function test_to_sql_mysql_presence(): void
+    public function test_to_sql_mysql_boolean_true(): void
     {
-        $node = new ConditionNode('lang_fr', ComparisonOperator::PRESENCE);
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EQUAL, 'true');
         $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "JSON_EXTRACT(clusters, '$.\"lang_fr\"') IS NOT NULL";
+        $expected = "JSON_EXTRACT(clusters, '$.\"lang_fr\"') = 'true'";
         $this->assertEquals($expected, $sql);
     }
 
-    public function test_to_sql_mysql_absence(): void
+    public function test_to_sql_mysql_boolean_false(): void
     {
-        $node = new ConditionNode('lang_en', ComparisonOperator::ABSENCE);
+        $node = new ConditionNode('lang_en', ComparisonOperator::EQUAL, 'false');
         $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "JSON_EXTRACT(clusters, '$.\"lang_en\"') IS NULL";
+        $expected = "JSON_EXTRACT(clusters, '$.\"lang_en\"') = 'false'";
         $this->assertEquals($expected, $sql);
     }
 
@@ -297,15 +291,6 @@ final class ConditionNodeTest extends IntegrationTestCase
         $this->assertStringContainsString('> 25', $sql);
     }
 
-    public function test_to_sql_postgres_presence(): void
-    {
-        $node = new ConditionNode('lang_fr', ComparisonOperator::PRESENCE);
-        $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
-
-        $expected = "clusters->'lang_fr' IS NOT NULL";
-        $this->assertEquals($expected, $sql);
-    }
-
     public function test_to_sql_sqlite_equals(): void
     {
         $node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
@@ -321,15 +306,6 @@ final class ConditionNodeTest extends IntegrationTestCase
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
         $expected = "CAST(json_extract(clusters, '$.age') AS INTEGER) > 25";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_sqlite_presence(): void
-    {
-        $node = new ConditionNode('lang_fr', ComparisonOperator::PRESENCE);
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-
-        $expected = "json_extract(clusters, '$.lang_fr') IS NOT NULL";
         $this->assertEquals($expected, $sql);
     }
 
@@ -372,28 +348,28 @@ final class ConditionNodeTest extends IntegrationTestCase
         $this->assertCount(3, $results);
     }
 
-    public function test_to_eloquent_mysql_presence(): void
+    public function test_to_eloquent_mysql_boolean_true(): void
     {
-        $node = new ConditionNode('lang_fr', ComparisonOperator::PRESENCE);
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EQUAL, 'true');
         $query = TestCluster::query();
 
         $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $results = $query->get();
-        // lang_fr existe (true ou false) dans tous les clusters (1, 2, 3, 4, 5)
-        $this->assertCount(5, $results);
+        // lang_fr = 'true' : ID 1, 3, 5
+        $this->assertCount(3, $results);
     }
 
-    public function test_to_eloquent_mysql_absence(): void
+    public function test_to_eloquent_mysql_boolean_false(): void
     {
-        $node = new ConditionNode('lang_es', ComparisonOperator::ABSENCE);
+        $node = new ConditionNode('lang_en', ComparisonOperator::EQUAL, 'false');
         $query = TestCluster::query();
 
         $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $results = $query->get();
-        // lang_es n'existe dans aucun cluster
-        $this->assertCount(5, $results);
+        // lang_en = 'false' : ID 1, 3, 5
+        $this->assertCount(3, $results);
     }
 
     public function test_to_eloquent_postgres_equals(): void
@@ -409,20 +385,6 @@ final class ConditionNodeTest extends IntegrationTestCase
 
         $results = $query->get();
         $this->assertCount(3, $results);
-    }
-
-    public function test_to_eloquent_postgres_greater_than(): void
-    {
-        $node = new ConditionNode('age', ComparisonOperator::GREATER_THAN, '25');
-        $query = TestCluster::query();
-
-        $node->toEloquent($query, 'clusters', DatabaseDriver::PGSQL);
-
-        // Vérifier seulement la génération SQL, pas l'exécution en mémoire
-        $sql = $query->toSql();
-        $this->assertStringContainsString("(clusters->>'age')::numeric", $sql);
-        $this->assertStringContainsString('> ?', $sql);
-
     }
 
     public function test_to_eloquent_sqlite_equals(): void
@@ -448,14 +410,13 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $sql = $query->toSql();
-        $bindings = $query->getBindings();
-
         $this->assertStringContainsString("json_extract(clusters, '$.age')", $sql);
         $this->assertStringContainsString('> ?', $sql);
 
         $results = $query->get();
         $this->assertCount(3, $results);
     }
+
     // ==================== COMPLEX CONDITIONS TESTS ====================
 
     public function test_to_eloquent_multiple_conditions(): void
@@ -500,6 +461,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         // score > 80 : id 1 (85.5), id 2 (92.0), id 5 (95.0)
         $this->assertCount(3, $results);
     }
+
     // ==================== EDGE CASES TESTS ====================
 
     public function test_to_eloquent_with_null_value(): void

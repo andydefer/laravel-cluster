@@ -4,9 +4,19 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelCluster\Enums;
 
+/**
+ * Enumeration of operator symbols used in the lexer.
+ *
+ * This enum maps symbolic operators from the input string to their
+ * corresponding ComparisonOperator or LogicalOperator enums.
+ *
+ * @example
+ * $token = OperatorToken::fromSymbol('>=');
+ * $comparison = $token->getComparisonOperator(); // ComparisonOperator::GREATER_THAN_OR_EQUAL
+ */
 enum OperatorToken: string
 {
-    // Comparaison operators
+    // Comparison operators
     case EQUAL_STRICT = '===';
     case NOT_EQUAL_STRICT = '!==';
     case NOT_EQUAL = '!=';
@@ -23,6 +33,11 @@ enum OperatorToken: string
     case OR = '|';
     case NOT = '!';
 
+    /**
+     * Returns the actual operator value as a string.
+     *
+     * @return string The operator value string
+     */
     public function getValue(): string
     {
         return match ($this) {
@@ -42,6 +57,11 @@ enum OperatorToken: string
         };
     }
 
+    /**
+     * Converts the operator token to a ComparisonOperator enum.
+     *
+     * @return ?ComparisonOperator The comparison operator or null
+     */
     public function getComparisonOperator(): ?ComparisonOperator
     {
         return match ($this) {
@@ -59,30 +79,57 @@ enum OperatorToken: string
         };
     }
 
+    /**
+     * Converts the operator token to a LogicalOperator enum.
+     *
+     * @return ?LogicalOperator The logical operator or null
+     */
     public function getLogicalOperator(): ?LogicalOperator
     {
         return match ($this) {
             self::AND => LogicalOperator::AND,
             self::OR => LogicalOperator::OR,
+            self::NOT => LogicalOperator::NOT,
             default => null,
         };
     }
 
+    /**
+     * Determines if the token is a comparison operator.
+     *
+     * @return bool True if the token is a comparison operator
+     */
     public function isComparison(): bool
     {
         return $this->getComparisonOperator() !== null;
     }
 
+    /**
+     * Determines if the token is a logical operator.
+     *
+     * @return bool True if the token is a logical operator
+     */
     public function isLogical(): bool
     {
         return $this->getLogicalOperator() !== null;
     }
 
+    /**
+     * Determines if the token is the NOT operator.
+     *
+     * @return bool True if the token is NOT
+     */
     public function isNot(): bool
     {
         return $this === self::NOT;
     }
 
+    /**
+     * Creates an enum instance from a symbol string.
+     *
+     * @param  string  $symbol  The operator symbol
+     * @return ?self The enum instance or null if not found
+     */
     public static function fromSymbol(string $symbol): ?self
     {
         return match ($symbol) {
@@ -104,7 +151,9 @@ enum OperatorToken: string
     }
 
     /**
-     * @return array<string, string>
+     * Returns a mapping of operator symbols to their values.
+     *
+     * @return array<string, string> An array mapping symbols to values
      */
     public static function mapping(): array
     {
@@ -117,7 +166,9 @@ enum OperatorToken: string
     }
 
     /**
-     * @return array<string>
+     * Returns all operator symbols as an array.
+     *
+     * @return array<string> Array of all operator symbols
      */
     public static function symbols(): array
     {

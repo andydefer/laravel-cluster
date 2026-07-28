@@ -16,8 +16,6 @@ enum ComparisonOperator: string
     case GREATER_THAN = '>';
     case GREATER_THAN_OR_EQUAL = '>=';
     case SPACESHIP = '<=>';
-    case PRESENCE = 'PRESENCE';
-    case ABSENCE = 'ABSENCE';
 
     public static function values(): array
     {
@@ -37,8 +35,6 @@ enum ComparisonOperator: string
             '>' => self::GREATER_THAN,
             '>=' => self::GREATER_THAN_OR_EQUAL,
             '<=>' => self::SPACESHIP,
-            'PRESENCE' => self::PRESENCE,
-            'ABSENCE' => self::ABSENCE,
             default => null,
         };
     }
@@ -78,11 +74,6 @@ enum ComparisonOperator: string
         ], true);
     }
 
-    public function isPresence(): bool
-    {
-        return $this === self::PRESENCE || $this === self::ABSENCE;
-    }
-
     public function evaluate(mixed $actual, ?string $value): bool|int
     {
         return match ($this) {
@@ -96,8 +87,6 @@ enum ComparisonOperator: string
             self::GREATER_THAN => $this->compareGreater($actual, $value),
             self::GREATER_THAN_OR_EQUAL => $this->compareGreaterOrEqual($actual, $value),
             self::SPACESHIP => $this->compareSpaceship($actual, $value),
-            self::PRESENCE => $actual !== null && $actual !== false && $actual !== 'false' && $actual !== '0',
-            self::ABSENCE => $actual === null || $actual === false || $actual === 'false' || $actual === '0' || $actual === '',
         };
     }
 
@@ -144,5 +133,18 @@ enum ComparisonOperator: string
         }
 
         return (string) $actual <=> (string) $value;
+    }
+
+    public function toSql(): string
+    {
+        return match ($this) {
+            self::EQUAL, self::EQUAL_LOOSE, self::EQUAL_STRICT => '=',
+            self::NOT_EQUAL, self::NOT_EQUAL_STRICT => '!=',
+            self::LESS_THAN => '<',
+            self::LESS_THAN_OR_EQUAL => '<=',
+            self::GREATER_THAN => '>',
+            self::GREATER_THAN_OR_EQUAL => '>=',
+            self::SPACESHIP => '<=>',
+        };
     }
 }

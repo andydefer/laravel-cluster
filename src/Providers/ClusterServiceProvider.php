@@ -25,12 +25,5 @@ final class ClusterServiceProvider extends ServiceProvider
         $this->app->alias(ClusterService::class, 'cluster.service');
     }
 
-    public function boot(): void
-    {
-        if ($this->app->runningInConsole()) {
-            $this->publishes([
-                __DIR__.'/../../config/cluster.php' => config_path('cluster.php'),
-            ], 'cluster-config');
-        }
-    }
+    public function boot(): void {}
 }
