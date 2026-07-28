@@ -13,6 +13,8 @@ final class ClusterVO extends AbstractValueObject
 {
     private readonly StrictAssociative $value;
 
+    private readonly StrictAssociative $unflattenedValue;
+
     private readonly FlatArrayService $flatArrayService;
 
     /**
@@ -36,11 +38,20 @@ final class ClusterVO extends AbstractValueObject
         $this->validateFlattened($flattened);
 
         $this->value = new StrictAssociative($flattened);
+
+        // Stocker la version unflattened
+        $unflattened = $this->flatArrayService->unflatten($flattened);
+        $this->unflattenedValue = new StrictAssociative($unflattened);
     }
 
     public function getValue(): StrictAssociative
     {
         return $this->value;
+    }
+
+    public function getUnflattened(): StrictAssociative
+    {
+        return $this->unflattenedValue;
     }
 
     public function has(string $key): bool
