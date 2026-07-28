@@ -39,9 +39,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
      */
     private array $originalItems = [];
 
-    /**
-     * Initializes the collection with ClusterVO type validation.
-     */
     public function __construct()
     {
         parent::__construct(ClusterVO::class);
@@ -156,7 +153,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         $addedIdentifiers = [];
         $originalItems = $this->getOriginalItems();
 
-        // Preserve already filtered results if they exist
         if ($this->hasPriorFilter()) {
             foreach ($this->items as $cluster) {
                 $identifier = $this->getClusterIdentifier($cluster);
@@ -167,7 +163,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
             }
         }
 
-        // Add clusters that match the OR condition from the original dataset
         foreach ($originalItems as $cluster) {
             $identifier = $this->getClusterIdentifier($cluster);
             if ($cluster->get($key) === $value && ! in_array($identifier, $addedIdentifiers, true)) {
@@ -223,7 +218,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         $addedIdentifiers = [];
         $originalItems = $this->getOriginalItems();
 
-        // Preserve already filtered results if they exist
         if ($this->hasPriorFilter()) {
             foreach ($this->items as $cluster) {
                 $identifier = $this->getClusterIdentifier($cluster);
@@ -234,7 +228,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
             }
         }
 
-        // Check each cluster from original dataset against the group condition
         foreach ($originalItems as $cluster) {
             $identifier = $this->getClusterIdentifier($cluster);
             if (! in_array($identifier, $addedIdentifiers, true)) {
@@ -570,127 +563,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
     }
 
     /**
-     * Filters clusters using a custom callback function.
-     *
-     * The callback receives a ClusterVO instance and should return true to include it.
-     *
-     * @param  Closure(ClusterVO): bool  $callback  The filter function
-     * @return self A new collection with clusters that pass the callback
-     */
-    public function whereClosure(Closure $callback): self
-    {
-        $filtered = [];
-
-        foreach ($this->items as $cluster) {
-            if ($callback($cluster)) {
-                $filtered[] = $cluster;
-            }
-        }
-
-        return $this->createFilteredResult($filtered);
-    }
-
-    /**
-     * Adds an OR condition using a custom callback.
-     *
-     * The callback receives a ClusterVO instance and should return true to include it.
-     * Clusters that match either the current filter OR the callback condition are included.
-     *
-     * @param  Closure(ClusterVO): bool  $callback  The filter function
-     * @return self A new collection with clusters that pass any condition
-     */
-    public function orWhereClosure(Closure $callback): self
-    {
-        $filtered = [];
-        $addedIdentifiers = [];
-        $currentItems = $this->items;
-
-        // Preserve already filtered results if they exist
-        if ($this->hasPriorFilter()) {
-            foreach ($currentItems as $cluster) {
-                $identifier = $this->getClusterIdentifier($cluster);
-                $filtered[] = $cluster;
-                $addedIdentifiers[] = $identifier;
-            }
-        }
-
-        // Add clusters that pass the callback condition
-        foreach ($currentItems as $cluster) {
-            $identifier = $this->getClusterIdentifier($cluster);
-            if ($callback($cluster) && ! in_array($identifier, $addedIdentifiers, true)) {
-                $filtered[] = $cluster;
-                $addedIdentifiers[] = $identifier;
-            }
-        }
-
-        return $this->createFilteredResult($filtered);
-    }
-
-    /**
-     * Returns the first cluster matching the given condition.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  mixed  $value  The value to match against
-     * @return ClusterVO|null The first matching cluster or null if none found
-     */
-    public function firstWhere(string $key, mixed $value): ?ClusterVO
-    {
-        foreach ($this->items as $cluster) {
-            if ($cluster->get($key) === $value) {
-                return $cluster;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Returns all clusters in the collection as an array.
-     *
-     * @return array<ClusterVO> The array of clusters
-     */
-    public function get(): array
-    {
-        return $this->items;
-    }
-
-    /**
-     * Filters clusters where the string value contains the search term (case-insensitive).
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  string  $search  The search term to look for
-     * @return self A new collection with clusters where value contains the search term
-     */
-    public function whereLike(string $key, string $search): self
-    {
-        return $this->whereContains($key, $search);
-    }
-
-    /**
-     * Filters clusters where the string value starts with the prefix (case-insensitive).
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  string  $prefix  The prefix to look for
-     * @return self A new collection with clusters where value starts with the prefix
-     */
-    public function whereStarts(string $key, string $prefix): self
-    {
-        return $this->whereStartsWith($key, $prefix);
-    }
-
-    /**
-     * Filters clusters where the string value ends with the suffix (case-insensitive).
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  string  $suffix  The suffix to look for
-     * @return self A new collection with clusters where value ends with the suffix
-     */
-    public function whereEnds(string $key, string $suffix): self
-    {
-        return $this->whereEndsWith($key, $suffix);
-    }
-
-    /**
      * Filters clusters where the string value does NOT contain the search term (case-insensitive).
      *
      * @param  string  $key  The attribute key to check
@@ -754,10 +626,560 @@ final class ClusterVOCollection extends AbstractTypedCollection
     }
 
     /**
-     * Initializes the original items if not already set.
+     * Filters clusters using a custom callback function.
      *
-     * The original items are preserved to support OR queries and to detect filtering.
+     * The callback receives a ClusterVO instance and should return true to include it.
+     *
+     * @param  Closure(ClusterVO): bool  $callback  The filter function
+     * @return self A new collection with clusters that pass the callback
      */
+    public function whereClosure(Closure $callback): self
+    {
+        $filtered = [];
+
+        foreach ($this->items as $cluster) {
+            if ($callback($cluster)) {
+                $filtered[] = $cluster;
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    /**
+     * Adds an OR condition using a custom callback.
+     *
+     * The callback receives a ClusterVO instance and should return true to include it.
+     * Clusters that match either the current filter OR the callback condition are included.
+     *
+     * @param  Closure(ClusterVO): bool  $callback  The filter function
+     * @return self A new collection with clusters that pass any condition
+     */
+    public function orWhereClosure(Closure $callback): self
+    {
+        $filtered = [];
+        $addedIdentifiers = [];
+        $currentItems = $this->items;
+
+        if ($this->hasPriorFilter()) {
+            foreach ($currentItems as $cluster) {
+                $identifier = $this->getClusterIdentifier($cluster);
+                $filtered[] = $cluster;
+                $addedIdentifiers[] = $identifier;
+            }
+        }
+
+        foreach ($currentItems as $cluster) {
+            $identifier = $this->getClusterIdentifier($cluster);
+            if ($callback($cluster) && ! in_array($identifier, $addedIdentifiers, true)) {
+                $filtered[] = $cluster;
+                $addedIdentifiers[] = $identifier;
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    /**
+     * Returns the first cluster matching the given condition.
+     *
+     * @param  string  $key  The attribute key to check
+     * @param  mixed  $value  The value to match against
+     * @return ClusterVO|null The first matching cluster or null if none found
+     */
+    public function firstWhere(string $key, mixed $value): ?ClusterVO
+    {
+        foreach ($this->items as $cluster) {
+            if ($cluster->get($key) === $value) {
+                return $cluster;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Returns all clusters in the collection as an array.
+     *
+     * @return array<ClusterVO> The array of clusters
+     */
+    public function get(): array
+    {
+        return $this->items;
+    }
+
+    /**
+     * Alias for whereContains() for string search.
+     *
+     * @param  string  $key  The attribute key to check
+     * @param  string  $search  The search term to look for
+     * @return self A new collection with clusters where value contains the search term
+     */
+    public function whereLike(string $key, string $search): self
+    {
+        return $this->whereContains($key, $search);
+    }
+
+    /**
+     * Alias for whereStartsWith().
+     *
+     * @param  string  $key  The attribute key to check
+     * @param  string  $prefix  The prefix to look for
+     * @return self A new collection with clusters where value starts with the prefix
+     */
+    public function whereStarts(string $key, string $prefix): self
+    {
+        return $this->whereStartsWith($key, $prefix);
+    }
+
+    /**
+     * Alias for whereEndsWith().
+     *
+     * @param  string  $key  The attribute key to check
+     * @param  string  $suffix  The suffix to look for
+     * @return self A new collection with clusters where value ends with the suffix
+     */
+    public function whereEnds(string $key, string $suffix): self
+    {
+        return $this->whereEndsWith($key, $suffix);
+    }
+
+    /**
+     * Filters clusters where an array key contains a specific value.
+     * Works with flattened keys like 'tags_php', 'tags_js', etc.
+     */
+    public function whereArrayContains(string $key, mixed $value): self
+    {
+        $filtered = [];
+
+        foreach ($this->items as $cluster) {
+            $prefix = $key.'_';
+            $found = false;
+            $clusterData = $cluster->toArray();
+
+            foreach ($clusterData as $clusterKey => $clusterValue) {
+                if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
+                    $suffix = substr($clusterKey, strlen($prefix));
+                    if ((string) $suffix === (string) $value) {
+                        $found = true;
+                        break;
+                    }
+                }
+            }
+
+            if ($found) {
+                $filtered[] = $cluster;
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    /**
+     * Filters clusters where an array key does NOT contain a specific value.
+     */
+    public function whereArrayNotContains(string $key, mixed $value): self
+    {
+        $filtered = [];
+
+        foreach ($this->items as $cluster) {
+            $prefix = $key.'_';
+            $found = false;
+            $clusterData = $cluster->toArray();
+
+            foreach ($clusterData as $clusterKey => $clusterValue) {
+                if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
+                    $suffix = substr($clusterKey, strlen($prefix));
+                    if ((string) $suffix === (string) $value) {
+                        $found = true;
+                        break;
+                    }
+                }
+            }
+
+            if (! $found) {
+                $filtered[] = $cluster;
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    /**
+     * Adds an OR condition for array contains.
+     */
+    public function orWhereArrayContains(string $key, mixed $value): self
+    {
+        $filtered = [];
+        $addedIdentifiers = [];
+        $originalItems = $this->getOriginalItems();
+
+        foreach ($this->items as $cluster) {
+            $identifier = $this->getClusterIdentifier($cluster);
+            if (! in_array($identifier, $addedIdentifiers, true)) {
+                $filtered[] = $cluster;
+                $addedIdentifiers[] = $identifier;
+            }
+        }
+
+        foreach ($originalItems as $cluster) {
+            $identifier = $this->getClusterIdentifier($cluster);
+            if (! in_array($identifier, $addedIdentifiers, true)) {
+                $prefix = $key.'_';
+                $found = false;
+                $clusterData = $cluster->toArray();
+
+                foreach ($clusterData as $clusterKey => $clusterValue) {
+                    if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
+                        $suffix = substr($clusterKey, strlen($prefix));
+                        if ((string) $suffix === (string) $value) {
+                            $found = true;
+                            break;
+                        }
+                    }
+                }
+
+                if ($found) {
+                    $filtered[] = $cluster;
+                    $addedIdentifiers[] = $identifier;
+                }
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    /**
+     * Adds an OR condition for array not contains.
+     */
+    public function orWhereArrayNotContains(string $key, mixed $value): self
+    {
+        $filtered = [];
+        $addedIdentifiers = [];
+        $originalItems = $this->getOriginalItems();
+
+        foreach ($this->items as $cluster) {
+            $identifier = $this->getClusterIdentifier($cluster);
+            if (! in_array($identifier, $addedIdentifiers, true)) {
+                $filtered[] = $cluster;
+                $addedIdentifiers[] = $identifier;
+            }
+        }
+
+        foreach ($originalItems as $cluster) {
+            $identifier = $this->getClusterIdentifier($cluster);
+            if (! in_array($identifier, $addedIdentifiers, true)) {
+                $prefix = $key.'_';
+                $found = false;
+                $clusterData = $cluster->toArray();
+
+                foreach ($clusterData as $clusterKey => $clusterValue) {
+                    if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
+                        $suffix = substr($clusterKey, strlen($prefix));
+                        if ((string) $suffix === (string) $value) {
+                            $found = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (! $found) {
+                    $filtered[] = $cluster;
+                    $addedIdentifiers[] = $identifier;
+                }
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    /**
+     * Filters clusters where an array key contains any of the values.
+     */
+    public function whereArrayContainsAny(string $key, array $values): self
+    {
+        $filtered = [];
+
+        foreach ($this->items as $cluster) {
+            $prefix = $key.'_';
+            $found = false;
+            $clusterData = $cluster->toArray();
+
+            foreach ($clusterData as $clusterKey => $clusterValue) {
+                if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
+                    $suffix = substr($clusterKey, strlen($prefix));
+                    if (in_array($suffix, $values, true)) {
+                        $found = true;
+                        break;
+                    }
+                }
+            }
+
+            if ($found) {
+                $filtered[] = $cluster;
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    /**
+     * Adds an OR condition for array contains any.
+     */
+    public function orWhereArrayContainsAny(string $key, array $values): self
+    {
+        $filtered = [];
+        $addedIds = [];
+        $originalItems = $this->getOriginalItems();
+
+        if ($this->hasPriorFilter()) {
+            foreach ($this->items as $cluster) {
+                $id = $this->getClusterIdentifier($cluster);
+                $filtered[] = $cluster;
+                $addedIds[] = $id;
+            }
+        }
+
+        foreach ($originalItems as $cluster) {
+            $id = $this->getClusterIdentifier($cluster);
+            if (! in_array($id, $addedIds, true) && $this->arrayContainsAny($cluster, $key, $values)) {
+                $filtered[] = $cluster;
+                $addedIds[] = $id;
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    /**
+     * Filters clusters where an array key contains ALL of the values.
+     */
+    public function whereArrayContainsAll(string $key, array $values): self
+    {
+        $filtered = [];
+
+        foreach ($this->items as $cluster) {
+            $prefix = $key.'_';
+            $foundValues = [];
+            $clusterData = $cluster->toArray();
+
+            foreach ($clusterData as $clusterKey => $clusterValue) {
+                if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
+                    $suffix = substr($clusterKey, strlen($prefix));
+                    if (in_array($suffix, $values, true)) {
+                        $foundValues[] = $suffix;
+                    }
+                }
+            }
+
+            $allFound = true;
+            foreach ($values as $value) {
+                if (! in_array($value, $foundValues, true)) {
+                    $allFound = false;
+                    break;
+                }
+            }
+
+            if ($allFound) {
+                $filtered[] = $cluster;
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    public function orWhereArrayContainsAll(string $key, array $values): self
+    {
+        $filtered = [];
+        $addedIdentifiers = [];
+        $originalItems = $this->getOriginalItems();
+
+        foreach ($this->items as $cluster) {
+            $identifier = $this->getClusterIdentifier($cluster);
+            if (! in_array($identifier, $addedIdentifiers, true)) {
+                $filtered[] = $cluster;
+                $addedIdentifiers[] = $identifier;
+            }
+        }
+
+        foreach ($originalItems as $cluster) {
+            $identifier = $this->getClusterIdentifier($cluster);
+            if (! in_array($identifier, $addedIdentifiers, true)) {
+                $prefix = $key.'_';
+                $foundValues = [];
+                $clusterData = $cluster->toArray();
+
+                foreach ($clusterData as $clusterKey => $clusterValue) {
+                    if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
+                        $suffix = substr($clusterKey, strlen($prefix));
+                        if (in_array($suffix, $values, true)) {
+                            $foundValues[] = $suffix;
+                        }
+                    }
+                }
+
+                $allFound = true;
+                foreach ($values as $value) {
+                    if (! in_array($value, $foundValues, true)) {
+                        $allFound = false;
+                        break;
+                    }
+                }
+
+                if ($allFound) {
+                    $filtered[] = $cluster;
+                    $addedIdentifiers[] = $identifier;
+                }
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    /**
+     * Filters clusters where an array key has a specific size.
+     */
+    public function whereArraySize(string $key, int $size): self
+    {
+        $filtered = [];
+
+        foreach ($this->items as $cluster) {
+            $prefix = $key.'_';
+            $count = 0;
+            $clusterData = $cluster->toArray();
+
+            foreach ($clusterData as $clusterKey => $clusterValue) {
+                if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
+                    $count++;
+                }
+            }
+
+            if ($count === $size) {
+                $filtered[] = $cluster;
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    /**
+     * Filters clusters where an array key has size greater than the given value.
+     */
+    public function whereArraySizeGreaterThan(string $key, int $size): self
+    {
+        $filtered = [];
+
+        foreach ($this->items as $cluster) {
+            $prefix = $key.'_';
+            $count = 0;
+            $clusterData = $cluster->toArray();
+
+            foreach ($clusterData as $clusterKey => $clusterValue) {
+                if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
+                    $count++;
+                }
+            }
+
+            if ($count > $size) {
+                $filtered[] = $cluster;
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    /**
+     * Filters clusters where an array key has size less than the given value.
+     */
+    public function whereArraySizeLessThan(string $key, int $size): self
+    {
+        $filtered = [];
+
+        foreach ($this->items as $cluster) {
+            $prefix = $key.'_';
+            $count = 0;
+            $clusterData = $cluster->toArray();
+
+            foreach ($clusterData as $clusterKey => $clusterValue) {
+                if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
+                    $count++;
+                }
+            }
+
+            if ($count < $size) {
+                $filtered[] = $cluster;
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    /**
+     * Filters clusters where an array key is empty.
+     *
+     * @param  string  $key  The base key to check (e.g., 'tags' for tags_php, tags_js)
+     * @return self A new collection with clusters where the array is empty
+     */
+    public function whereArrayEmpty(string $key): self
+    {
+        $filtered = [];
+
+        foreach ($this->items as $cluster) {
+            if (! $cluster->has($key)) {
+                continue;
+            }
+
+            $value = $cluster->get($key);
+            if ($value !== null) {
+                continue;
+            }
+
+            $prefix = $key.'_';
+            $hasItems = false;
+            $clusterData = $cluster->toArray();
+
+            foreach ($clusterData as $clusterKey => $clusterValue) {
+                if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
+                    $hasItems = true;
+                    break;
+                }
+            }
+
+            if (! $hasItems) {
+                $filtered[] = $cluster;
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    /**
+     * Filters clusters where an array key is not empty.
+     */
+    public function whereArrayNotEmpty(string $key): self
+    {
+        $filtered = [];
+
+        foreach ($this->items as $cluster) {
+            $prefix = $key.'_';
+            $hasItems = false;
+            $clusterData = $cluster->toArray();
+
+            foreach ($clusterData as $clusterKey => $clusterValue) {
+                if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
+                    $hasItems = true;
+                    break;
+                }
+            }
+
+            if ($hasItems) {
+                $filtered[] = $cluster;
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
     private function initializeOriginalItems(): void
     {
         if (empty($this->originalItems)) {
@@ -765,11 +1187,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         }
     }
 
-    /**
-     * Retrieves the original items, initializing them if necessary.
-     *
-     * @return array<ClusterVO> The original items
-     */
     private function getOriginalItems(): array
     {
         $this->initializeOriginalItems();
@@ -777,14 +1194,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->originalItems;
     }
 
-    /**
-     * Creates a new collection instance with the given items.
-     *
-     * Preserves the original items from this collection for future queries.
-     *
-     * @param  array<ClusterVO>  $items  The items for the new collection
-     * @return self A new collection with the given items
-     */
     private function createFilteredResult(array $items): self
     {
         $result = new self;
@@ -798,37 +1207,30 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $result;
     }
 
-    /**
-     * Checks if a filter has been applied to this collection.
-     *
-     * @return bool True if the current items differ from the original items
-     */
+    private function arrayContainsAny(ClusterVO $cluster, string $key, array $values): bool
+    {
+        $prefix = $key.'_';
+        $clusterData = $cluster->toArray();
+
+        foreach ($values as $value) {
+            if (isset($clusterData[$prefix.$value]) && $clusterData[$prefix.$value] === 'true') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function hasPriorFilter(): bool
     {
         return count($this->items) < count($this->getOriginalItems());
     }
 
-    /**
-     * Gets a unique identifier for a cluster instance.
-     *
-     * Uses spl_object_id to distinguish between different instances,
-     * even if they contain identical data.
-     *
-     * @param  ClusterVO  $cluster  The cluster instance
-     * @return int The unique identifier
-     */
     private function getClusterIdentifier(ClusterVO $cluster): int
     {
         return spl_object_id($cluster);
     }
 
-    /**
-     * Determines if a cluster exists in a result collection.
-     *
-     * @param  ClusterVO  $cluster  The cluster to check
-     * @param  self  $result  The collection to search in
-     * @return bool True if the cluster exists in the collection
-     */
     private function clusterExistsInResult(ClusterVO $cluster, self $result): bool
     {
         $clusterId = $this->getClusterIdentifier($cluster);

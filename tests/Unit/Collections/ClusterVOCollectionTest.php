@@ -74,8 +74,6 @@ final class ClusterVOCollectionTest extends TestCase
         ]));
     }
 
-    // ==================== WHERE TESTS ====================
-
     public function test_where(): void
     {
         $result = $this->collection->where('status', 'active');
@@ -127,8 +125,6 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(4, $result);
         $this->assertContains($result->first()?->get('status'), ['active', 'pending']);
     }
-
-    // ==================== GROUP TESTS ====================
 
     public function test_where_group(): void
     {
@@ -258,8 +254,6 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(3, $result);
     }
 
-    // ==================== WHERE HAS / MISSING TESTS ====================
-
     public function test_where_has(): void
     {
         $result = $this->collection->whereHas('lang_fr');
@@ -276,8 +270,6 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertFalse($result->first()?->has('deleted'));
     }
 
-    // ==================== WHERE IN / NOT IN TESTS ====================
-
     public function test_where_in(): void
     {
         $result = $this->collection->whereIn('role', ['admin', 'doctor']);
@@ -293,8 +285,6 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(1, $result);
         $this->assertEquals('inactive', $result->first()?->get('status'));
     }
-
-    // ==================== NUMERIC COMPARISON TESTS ====================
 
     public function test_where_greater_than(): void
     {
@@ -328,8 +318,6 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertLessThanOrEqual(25, $result->first()?->get('age'));
     }
 
-    // ==================== WHERE BETWEEN TESTS ====================
-
     public function test_where_between(): void
     {
         $result = $this->collection->whereBetween('age', 20, 30);
@@ -346,8 +334,6 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertTrue($result->first()?->get('age') < 20 || $result->first()?->get('age') > 30);
     }
 
-    // ==================== WHERE NULL / NOT NULL TESTS ====================
-
     public function test_where_null(): void
     {
         $result = $this->collection->whereNull('age');
@@ -362,8 +348,6 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(5, $result);
         $this->assertNotNull($result->first()?->get('age'));
     }
-
-    // ==================== STRING SEARCH TESTS ====================
 
     public function test_where_contains(): void
     {
@@ -394,8 +378,6 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertIsString($name);
         $this->assertStringEndsWith('n', (string) $name);
     }
-
-    // ==================== WHERE CLOSURE TESTS ====================
 
     public function test_where_closure(): void
     {
@@ -439,8 +421,6 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(3, $result);
     }
 
-    // ==================== FIRST WHERE TESTS ====================
-
     public function test_first_where(): void
     {
         $result = $this->collection->firstWhere('role', 'admin');
@@ -457,8 +437,6 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertNull($result);
     }
 
-    // ==================== GET TESTS ====================
-
     public function test_get(): void
     {
         $result = $this->collection->get();
@@ -466,8 +444,6 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(5, $result);
         $this->assertIsArray($result);
     }
-
-    // ==================== EDGE CASES TESTS ====================
 
     public function test_empty_collection(): void
     {
@@ -582,12 +558,8 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals('John_Doe', $result->first()?->get('name'));
     }
 
-    // ==================== LIKE / NOT LIKE TESTS ====================
-
     public function test_where_like(): void
     {
-        // 'John' est dans 'John Doe' et 'Bob Johnson' (Johnson contient John)
-        // Donc 2 résultats sont attendus
         $result = $this->collection->whereLike('name', 'John');
 
         $this->assertCount(2, $result);
@@ -608,7 +580,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_like_case_insensitive(): void
     {
-        // 'john' est dans 'John Doe' et 'Bob Johnson' (Johnson contient John)
         $result = $this->collection->whereLike('name', 'john');
 
         $this->assertCount(2, $result);
@@ -633,9 +604,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_ends(): void
     {
-        // 'e' à la fin : John Do**e**, Bob Johnso**n** (non), Alice Bro**wn** (non)
-        // Jane Smith (non), Charlie Wilson (non)
-        // Donc 1 résultat : John Doe
         $result = $this->collection->whereEnds('name', 'e');
 
         $this->assertCount(1, $result);
@@ -644,7 +612,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_ends_case_insensitive(): void
     {
-        // 'E' à la fin : John Do**e** → 1
         $result = $this->collection->whereEnds('name', 'E');
 
         $this->assertCount(1, $result);
@@ -655,8 +622,6 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereNotLike('name', 'John');
 
-        // Exclut John Doe et Bob Johnson (qui contient 'John' dans Johnson)
-        // Reste : Jane Smith, Alice Brown, Charlie Wilson → 3
         $this->assertCount(3, $result);
         $this->assertStringNotContainsString('John', (string) $result->first()?->get('name'));
     }
@@ -665,8 +630,6 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereNotStarts('name', 'J');
 
-        // Exclut John Doe et Jane Smith
-        // Reste : Bob Johnson, Alice Brown, Charlie Wilson → 3
         $this->assertCount(3, $result);
         $name = $result->first()?->get('name');
         $this->assertIsString($name);
@@ -677,11 +640,571 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereNotEnds('name', 'e');
 
-        // Exclut John Doe (fin par 'e')
-        // Reste : Jane Smith, Bob Johnson, Alice Brown, Charlie Wilson → 4
         $this->assertCount(4, $result);
         $name = $result->first()?->get('name');
         $this->assertIsString($name);
         $this->assertFalse(str_ends_with(strtolower((string) $name), 'e'));
+    }
+
+    public function test_where_array_contains(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'tags' => ['php', 'js', 'kotlin'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 2,
+            'name' => 'Jane',
+            'tags' => ['php', 'python'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 3,
+            'name' => 'Bob',
+            'tags' => ['ruby', 'go'],
+        ]));
+
+        $result = $collection->whereArrayContains('tags', 'php');
+
+        $this->assertCount(2, $result);
+        $this->assertEquals(1, $result->first()?->get('id'));
+    }
+
+    public function test_where_array_not_contains(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'tags' => ['php', 'js', 'kotlin'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 2,
+            'name' => 'Jane',
+            'tags' => ['php', 'python'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 3,
+            'name' => 'Bob',
+            'tags' => ['ruby', 'go'],
+        ]));
+
+        $result = $collection->whereArrayNotContains('tags', 'php');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals(3, $result->first()?->get('id'));
+    }
+
+    public function test_or_where_array_contains(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'status' => 'active',
+            'tags' => ['php', 'js'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 2,
+            'name' => 'Jane',
+            'status' => 'inactive',
+            'tags' => ['python', 'go'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 3,
+            'name' => 'Bob',
+            'status' => 'pending',
+            'tags' => ['php', 'ruby'],
+        ]));
+
+        $result = $collection
+            ->where('status', 'active')
+            ->orWhereArrayContains('tags', 'python');
+
+        $this->assertCount(2, $result);
+        $this->assertContains($result->first()?->get('id'), [1, 2]);
+    }
+
+    public function test_where_array_contains_any(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'tags' => ['php', 'js', 'kotlin'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 2,
+            'name' => 'Jane',
+            'tags' => ['python', 'ruby'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 3,
+            'name' => 'Bob',
+            'tags' => ['go', 'rust'],
+        ]));
+
+        $result = $collection->whereArrayContainsAny('tags', ['php', 'python']);
+
+        $this->assertCount(2, $result);
+        $this->assertContains($result->first()?->get('id'), [1, 2]);
+    }
+
+    public function test_where_array_contains_all(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'tags' => ['php', 'js', 'kotlin'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 2,
+            'name' => 'Jane',
+            'tags' => ['php', 'python'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 3,
+            'name' => 'Bob',
+            'tags' => ['php', 'js', 'ruby'],
+        ]));
+
+        $result = $collection->whereArrayContainsAll('tags', ['php', 'js']);
+
+        $this->assertCount(2, $result);
+        $this->assertContains($result->first()?->get('id'), [1, 3]);
+    }
+
+    public function test_array_empty_with_array_having_items(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'tags' => ['php', 'js'],
+        ]));
+
+        $result = $collection->whereArrayEmpty('tags');
+
+        $this->assertCount(0, $result);
+    }
+
+    public function test_array_empty_with_missing_key(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+        ]));
+
+        $result = $collection->whereArrayEmpty('tags');
+
+        $this->assertCount(0, $result);
+    }
+
+    public function test_array_empty_with_real_empty_array(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'tags' => [],
+        ]));
+
+        $result = $collection->whereArrayEmpty('tags');
+
+        $this->assertCount(1, $result);
+    }
+
+    public function test_or_where_array_contains_any(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'status' => 'active',
+            'tags' => ['php', 'js'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 2,
+            'name' => 'Jane',
+            'status' => 'inactive',
+            'tags' => ['python', 'go'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 3,
+            'name' => 'Bob',
+            'status' => 'pending',
+            'tags' => ['ruby', 'rust'],
+        ]));
+
+        $result = $collection
+            ->where('status', 'active')
+            ->orWhereArrayContainsAny('tags', ['python', 'ruby']);
+
+        $this->assertCount(3, $result);
+        $this->assertContains($result->first()?->get('id'), [1, 2, 3]);
+    }
+
+    public function test_or_where_array_contains_all(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'status' => 'active',
+            'tags' => ['php', 'js', 'kotlin'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 2,
+            'name' => 'Jane',
+            'status' => 'inactive',
+            'tags' => ['php', 'js'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 3,
+            'name' => 'Bob',
+            'status' => 'pending',
+            'tags' => ['php', 'python'],
+        ]));
+
+        $result = $collection
+            ->where('status', 'active')
+            ->orWhereArrayContainsAll('tags', ['php', 'js']);
+
+        $this->assertCount(2, $result);
+        $this->assertContains($result->first()?->get('id'), [1, 2]);
+    }
+
+    public function test_or_where_array_not_contains(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'status' => 'active',
+            'tags' => ['php', 'js'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 2,
+            'name' => 'Jane',
+            'status' => 'inactive',
+            'tags' => ['python', 'go'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 3,
+            'name' => 'Bob',
+            'status' => 'pending',
+            'tags' => ['php', 'ruby'],
+        ]));
+
+        $result = $collection
+            ->where('status', 'active')
+            ->orWhereArrayNotContains('tags', 'php');
+
+        $this->assertCount(2, $result);
+        $this->assertContains($result->first()?->get('id'), [1, 2]);
+    }
+
+    public function test_where_array_size(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'tags' => ['php', 'js'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 2,
+            'name' => 'Jane',
+            'tags' => ['python', 'go', 'ruby'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 3,
+            'name' => 'Bob',
+            'tags' => ['php'],
+        ]));
+
+        $result = $collection->whereArraySize('tags', 2);
+
+        $this->assertCount(1, $result);
+        $this->assertEquals(1, $result->first()?->get('id'));
+    }
+
+    public function test_where_array_size_greater_than(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'tags' => ['php', 'js'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 2,
+            'name' => 'Jane',
+            'tags' => ['python', 'go', 'ruby'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 3,
+            'name' => 'Bob',
+            'tags' => ['php'],
+        ]));
+
+        $result = $collection->whereArraySizeGreaterThan('tags', 1);
+
+        $this->assertCount(2, $result);
+        $this->assertContains($result->first()?->get('id'), [1, 2]);
+    }
+
+    public function test_where_array_size_less_than(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'tags' => ['php', 'js'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 2,
+            'name' => 'Jane',
+            'tags' => ['python', 'go', 'ruby'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 3,
+            'name' => 'Bob',
+            'tags' => ['php'],
+        ]));
+
+        $result = $collection->whereArraySizeLessThan('tags', 2);
+
+        $this->assertCount(1, $result);
+        $this->assertEquals(3, $result->first()?->get('id'));
+    }
+
+    public function test_where_array_empty(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'tags' => ['php', 'js'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 2,
+            'name' => 'Jane',
+            'tags' => [],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 3,
+            'name' => 'Bob',
+            'tags' => ['php'],
+        ]));
+
+        $result = $collection->whereArrayEmpty('tags');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals(2, $result->first()?->get('id'));
+    }
+
+    public function test_where_array_not_empty(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'tags' => ['php', 'js'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 2,
+            'name' => 'Jane',
+            'tags' => [],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 3,
+            'name' => 'Bob',
+            'tags' => ['php'],
+        ]));
+
+        $result = $collection->whereArrayNotEmpty('tags');
+
+        $this->assertCount(2, $result);
+        $this->assertContains($result->first()?->get('id'), [1, 3]);
+    }
+
+    public function test_combined_array_filters(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'status' => 'active',
+            'tags' => ['php', 'js', 'kotlin'],
+            'languages' => ['fr', 'en'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 2,
+            'name' => 'Jane',
+            'status' => 'active',
+            'tags' => ['php', 'python'],
+            'languages' => ['en'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 3,
+            'name' => 'Bob',
+            'status' => 'inactive',
+            'tags' => ['ruby', 'go'],
+            'languages' => ['fr'],
+        ]));
+
+        $result = $collection
+            ->where('status', 'active')
+            ->whereArrayContains('tags', 'php')
+            ->whereArraySizeGreaterThan('languages', 1);
+
+        $this->assertCount(1, $result);
+        $this->assertEquals(1, $result->first()?->get('id'));
+    }
+
+    public function test_array_contains_with_non_array_value(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'tags' => 'not_an_array',
+        ]));
+
+        $result = $collection->whereArrayContains('tags', 'php');
+
+        $this->assertCount(0, $result);
+    }
+
+    public function test_array_not_contains_with_non_array_value(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'tags' => 'not_an_array',
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 2,
+            'name' => 'Jane',
+            'tags' => ['php', 'js'],
+        ]));
+
+        $result = $collection->whereArrayNotContains('tags', 'php');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals(1, $result->first()?->get('id'));
+    }
+
+    public function test_array_size_with_non_array_value(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'tags' => 'not_an_array',
+        ]));
+
+        $result = $collection->whereArraySize('tags', 3);
+
+        $this->assertCount(0, $result);
+    }
+
+    public function test_array_empty_with_non_array_value(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'tags' => 'not_an_array',
+        ]));
+
+        $result = $collection->whereArrayEmpty('tags');
+
+        $this->assertCount(0, $result);
+    }
+
+    public function test_array_not_empty_with_non_array_value(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'tags' => 'not_an_array',
+        ]));
+
+        $result = $collection->whereArrayNotEmpty('tags');
+
+        $this->assertCount(0, $result);
+    }
+
+    public function test_complex_array_query_with_groups(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'status' => 'active',
+            'tags' => ['php', 'js'],
+            'languages' => ['fr', 'en'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 2,
+            'name' => 'Jane',
+            'status' => 'inactive',
+            'tags' => ['php', 'python'],
+            'languages' => ['en'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 3,
+            'name' => 'Bob',
+            'status' => 'pending',
+            'tags' => ['ruby', 'go'],
+            'languages' => ['fr', 'es'],
+        ]));
+
+        $result = $collection->whereGroup(function (ClusterVOCollection $q) {
+            return $q->where('status', 'active')
+                ->orWhere('status', 'pending');
+        })->whereArrayContainsAny('tags', ['php', 'python'])
+            ->whereArraySizeGreaterThan('languages', 1);
+
+        $this->assertCount(1, $result);
+        $this->assertEquals(1, $result->first()?->get('id'));
+    }
+
+    public function test_or_where_array_contains_with_chain(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'status' => 'active',
+            'tags' => ['php', 'js'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 2,
+            'name' => 'Jane',
+            'status' => 'active',
+            'tags' => ['python', 'go'],
+        ]));
+        $collection->add(new ClusterVO([
+            'id' => 3,
+            'name' => 'Bob',
+            'status' => 'inactive',
+            'tags' => ['php', 'ruby'],
+        ]));
+
+        $result = $collection
+            ->where('status', 'active')
+            ->whereArrayNotContains('tags', 'js')
+            ->orWhereArrayContains('tags', 'ruby');
+
+        $this->assertCount(2, $result);
+        $this->assertContains($result->first()?->get('id'), [2, 3]);
     }
 }

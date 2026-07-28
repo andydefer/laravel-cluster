@@ -9,100 +9,150 @@ use AndyDefer\DomainStructures\Utils\StrictAssociative;
 use AndyDefer\LaravelCluster\Services\FlatArrayService;
 use InvalidArgumentException;
 
+/**
+ * Value Object representing a cluster of data for query evaluation.
+ *
+ * A ClusterVO encapsulates a nested array structure that is both flattened
+ * and unflattened, providing efficient access to data by key paths.
+ *
+ * The cluster data is:
+ * - Validated at construction for supported types
+ * - Flattened to dot notation for fast key lookups
+ * - Preserved in original nested form for complete data access
+ *
+ * @example
+ * $cluster = new ClusterVO([
+ *     'user' => ['name' => 'John', 'age' => 30],
+ *     'roles' => ['admin', 'editor']
+ * ]);
+ *
+ * // Access flattened values
+ * $name = $cluster->get('user.name'); // 'John'
+ * $hasRole = $cluster->has('roles_admin'); // true
+ *
+ * // Access the full data
+ * $flat = $cluster->toArray();
+ * $nested = $cluster->getUnflattened();
+ */
 final class ClusterVO extends AbstractValueObject
 {
-    private readonly StrictAssociative $value;
+    private readonly StrictAssociative $flattenedData;
 
-    private readonly StrictAssociative $unflattenedValue;
+    private readonly StrictAssociative $nestedData;
 
     private readonly FlatArrayService $flatArrayService;
 
     /**
-     * @param  array<string, mixed>  $value
+     * @param  array<string, mixed>  $data  The cluster data
+     *
+     * @throws InvalidArgumentException If data contains unsupported types or is empty
      */
-    public function __construct(array $value)
+    public function __construct(array $data)
     {
-        if (empty($value)) {
+        if (empty($data)) {
             throw new InvalidArgumentException('Cluster cannot be empty');
         }
 
-        // Validation des types avant flatten
-        $this->validateInput($value);
-
         $this->flatArrayService = new FlatArrayService;
+        $this->validateInputData($data);
 
-        // Flatten le tableau
-        $flattened = $this->flatArrayService->flatten($value);
+        $flattened = $this->flatArrayService->flatten($data);
+        $this->validateFlattenedData($flattened);
 
-        // Valider le résultat flatten
-        $this->validateFlattened($flattened);
-
-        $this->value = new StrictAssociative($flattened);
-
-        // Stocker la version unflattened
-        $unflattened = $this->flatArrayService->unflatten($flattened);
-        $this->unflattenedValue = new StrictAssociative($unflattened);
-    }
-
-    public function getValue(): StrictAssociative
-    {
-        return $this->value;
-    }
-
-    public function getUnflattened(): StrictAssociative
-    {
-        return $this->unflattenedValue;
-    }
-
-    public function has(string $key): bool
-    {
-        return $this->value->has($key);
-    }
-
-    public function get(string $key, mixed $default = null): mixed
-    {
-        return $this->value->get($key, $default);
+        $this->flattenedData = new StrictAssociative($flattened);
+        $this->nestedData = new StrictAssociative(
+            $this->flatArrayService->unflatten($flattened)
+        );
     }
 
     /**
-     * @return array<int, string>
+     * Returns the flattened representation of the cluster data.
+     *
+     * @return StrictAssociative The flattened data with dot-notated keys
+     */
+    public function getValue(): StrictAssociative
+    {
+        return $this->flattenedData;
+    }
+
+    /**
+     * Returns the nested (unflattened) representation of the cluster data.
+     *
+     * @return StrictAssociative The original nested structure
+     */
+    public function getUnflattened(): StrictAssociative
+    {
+        return $this->nestedData;
+    }
+
+    /**
+     * Checks if a key exists in the flattened data.
+     *
+     * @param  string  $key  The dot-notated key to check
+     * @return bool True if the key exists
+     */
+    public function has(string $key): bool
+    {
+        return $this->flattenedData->has($key);
+    }
+
+    /**
+     * Retrieves a value from the flattened data by key.
+     *
+     * @param  string  $key  The dot-notated key
+     * @param  mixed  $default  The default value if key doesn't exist
+     * @return mixed The value or default
+     */
+    public function get(string $key, mixed $default = null): mixed
+    {
+        return $this->flattenedData->get($key, $default);
+    }
+
+    /**
+     * Returns all keys from the flattened data.
+     *
+     * @return array<int, string> The list of dot-notated keys
      */
     public function keys(): array
     {
-        return array_keys($this->value->toArray());
+        return array_keys($this->flattenedData->toArray());
     }
 
     /**
-     * @return array<string, int|float|string|null>
+     * Returns the flattened data as an array.
+     *
+     * @return array<string, int|float|string|null> The flattened data
      */
     public function toArray(): array
     {
-        return $this->value->toArray();
+        return $this->flattenedData->toArray();
     }
 
     /**
-     * Valide les types avant flatten
+     * Validates the input data before flattening.
      *
-     * @param  array<string, mixed>  $data
+     * Ensures all keys are strings and values are of supported types.
+     * Objects (except stdClass) and resources are not allowed.
+     *
+     * @param  array<string, mixed>  $data  The input data to validate
+     *
+     * @throws InvalidArgumentException If validation fails
      */
-    private function validateInput(array $data): void
+    private function validateInputData(array $data): void
     {
-        foreach ($data as $key => $val) {
-            if (! is_string($key)) {
-                throw new InvalidArgumentException('Cluster keys must be strings');
-            }
+        foreach ($data as $key => $value) {
+            $this->validateKeyIsString($key);
 
-            // Les booléens sont autorisés (ils seront convertis en 'true'/'false')
-            // Les tableaux sont autorisés (ils seront flatten)
-            // Les objets sont interdits
-            if (is_object($val) && ! $val instanceof \stdClass) {
+            if (is_object($value) && ! $value instanceof \stdClass) {
                 throw new InvalidArgumentException(
-                    sprintf('Cluster values must be string, int, float, bool, array or null. Got object for key "%s"', $key)
+                    sprintf(
+                        'Cluster values must be string, int, float, bool, array or null. Got object for key "%s"',
+                        $key
+                    )
                 );
             }
 
-            // Les ressources sont interdites
-            if (is_resource($val)) {
+            if (is_resource($value)) {
                 throw new InvalidArgumentException(
                     sprintf('Cluster values cannot be resources. Got resource for key "%s"', $key)
                 );
@@ -111,23 +161,56 @@ final class ClusterVO extends AbstractValueObject
     }
 
     /**
-     * Valide les types après flatten
+     * Validates the flattened data structure.
      *
-     * @param  array<string, mixed>  $data
+     * Ensures all keys are strings and values are of the expected simple types.
+     *
+     * @param  array<string, mixed>  $data  The flattened data to validate
+     *
+     * @throws InvalidArgumentException If validation fails
      */
-    private function validateFlattened(array $data): void
+    private function validateFlattenedData(array $data): void
     {
-        foreach ($data as $key => $val) {
-            if (! is_string($key)) {
-                throw new InvalidArgumentException('Cluster keys must be strings');
-            }
+        foreach ($data as $key => $value) {
+            $this->validateKeyIsString($key);
+            $this->validateFlattenedValueType($value, $key);
+        }
+    }
 
-            // Après flatten, on doit avoir string, int, float ou null
-            if (! is_string($val) && ! is_int($val) && ! is_float($val) && $val !== null) {
-                throw new InvalidArgumentException(
-                    sprintf('Cluster values must be string, int, float or null after flatten. Got %s for key "%s"', gettype($val), $key)
-                );
-            }
+    /**
+     * Validates that a key is a string.
+     *
+     * @param  mixed  $key  The key to validate
+     *
+     * @throws InvalidArgumentException If the key is not a string
+     */
+    private function validateKeyIsString(mixed $key): void
+    {
+        if (! is_string($key)) {
+            throw new InvalidArgumentException('Cluster keys must be strings');
+        }
+    }
+
+    /**
+     * Validates the type of a flattened value.
+     *
+     * @param  mixed  $value  The value to validate
+     * @param  string  $key  The key for error messages
+     *
+     * @throws InvalidArgumentException If the value type is invalid
+     */
+    private function validateFlattenedValueType(mixed $value, string $key): void
+    {
+        $validTypes = ['string', 'integer', 'double', 'NULL'];
+
+        if (! in_array(gettype($value), $validTypes, true)) {
+            throw new InvalidArgumentException(
+                sprintf(
+                    'Cluster values must be string, int, float or null after flatten. Got %s for key "%s"',
+                    gettype($value),
+                    $key
+                )
+            );
         }
     }
 }

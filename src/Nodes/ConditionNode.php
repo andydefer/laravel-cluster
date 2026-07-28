@@ -10,44 +10,85 @@ use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Builder;
 use InvalidArgumentException;
 
+/**
+ * Represents a condition node in a cluster query tree.
+ *
+ * This node evaluates a single condition against a JSON data structure,
+ * comparing a specific key's value using a specified operator.
+ * Supports multiple database drivers for SQL generation and Eloquent query building.
+ *
+ * @example
+ * $condition = new ConditionNode('user.age', ComparisonOperator::GREATER_THAN, '18');
+ * $isValid = $condition->evaluate($clusterData);
+ * $sql = $condition->toSql('json_column', DatabaseDriver::MYSQL);
+ */
 final class ConditionNode extends Node
 {
+    /**
+     * @param  string  $key  The JSON path key to evaluate
+     * @param  ComparisonOperator  $operator  The comparison operator to apply
+     * @param  string|null  $value  The value to compare against (null for existence checks)
+     */
     public function __construct(
         private readonly string $key,
         private readonly ComparisonOperator $operator,
         private readonly ?string $value = null
     ) {}
 
+    /**
+     * Evaluates this condition against the provided cluster data.
+     *
+     * Handles special cases for existence checks and treats 'false' and 'null'
+     * string values as actual false/null values for equality checks.
+     *
+     * @param  ClusterVO  $data  The data cluster to evaluate against
+     * @return bool True if the condition is satisfied, false otherwise
+     */
     public function evaluate(ClusterVO $data): bool
     {
         $dataArray = $data->toArray();
         $keyExists = array_key_exists($this->key, $dataArray);
 
-        return match (true) {
-            // Cas où la clé n'existe pas
-            ! $keyExists && $this->operator === ComparisonOperator::EXISTS => false,
-            ! $keyExists && $this->operator === ComparisonOperator::NOT_EXISTS => true,
-            ! $keyExists && $this->operator === ComparisonOperator::EQUAL && ($this->value === 'false' || $this->value === 'null') => true,
-            ! $keyExists => false,
+        if (! $keyExists) {
+            return $this->evaluateMissingKey();
+        }
 
-            // Cas où la clé existe
-            $keyExists && $this->operator === ComparisonOperator::EXISTS => true,
-            $keyExists && $this->operator === ComparisonOperator::NOT_EXISTS => false,
+        if ($this->operator === ComparisonOperator::EXISTS || $this->operator === ComparisonOperator::NOT_EXISTS) {
+            return $this->operator === ComparisonOperator::EXISTS;
+        }
 
-            // Cas général
-            default => (bool) $this->operator->evaluate($dataArray[$this->key], $this->value)
-        };
+        return (bool) $this->operator->evaluate($dataArray[$this->key], $this->value);
     }
 
+    /**
+     * Generates a SQL condition string for the specified database driver.
+     *
+     * @param  string  $column  The JSON column name in the database
+     * @param  DatabaseDriver  $driver  The database driver to generate SQL for
+     * @return string The SQL condition string
+     *
+     * @throws InvalidArgumentException If an unsupported operator is encountered
+     */
     public function toSql(string $column, DatabaseDriver $driver = DatabaseDriver::MYSQL): string
     {
         return match ($driver) {
-            DatabaseDriver::MYSQL => $this->toMySql($column),
-            DatabaseDriver::PGSQL => $this->toPostgreSql($column),
-            DatabaseDriver::SQLITE => $this->toSqlite($column),
+            DatabaseDriver::MYSQL => $this->buildMySqlCondition($column),
+            DatabaseDriver::PGSQL => $this->buildPostgreSqlCondition($column),
+            DatabaseDriver::SQLITE => $this->buildSqliteCondition($column),
         };
     }
 
+    /**
+     * Applies this condition to an Eloquent query builder.
+     *
+     * Uses parameter binding for all values to prevent SQL injection.
+     *
+     * @param  Builder  $query  The Eloquent query builder
+     * @param  string  $column  The JSON column name
+     * @param  DatabaseDriver  $driver  The database driver
+     *
+     * @throws InvalidArgumentException If an unsupported operator is encountered
+     */
     public function toEloquent(Builder $query, string $column, DatabaseDriver $driver): void
     {
         match ($driver) {
@@ -57,14 +98,46 @@ final class ConditionNode extends Node
         };
     }
 
+    /**
+     * Returns an empty array as this is a leaf node in the condition tree.
+     *
+     * @return array<int, Node> Empty array
+     */
     public function getChildren(): array
     {
         return [];
     }
 
+    /**
+     * Evaluates the condition when the key is missing from the data.
+     *
+     * Special cases:
+     * - EXISTS operator: key missing means condition fails
+     * - NOT_EXISTS operator: key missing means condition passes
+     * - EQUAL operator with 'false' or 'null': key missing means condition passes
+     * - All other operators: key missing means condition fails
+     *
+     * @return bool The evaluation result
+     */
+    private function evaluateMissingKey(): bool
+    {
+        return match ($this->operator) {
+            ComparisonOperator::EXISTS => false,
+            ComparisonOperator::NOT_EXISTS => true,
+            ComparisonOperator::EQUAL => $this->value === 'false' || $this->value === 'null',
+            default => false,
+        };
+    }
+
+    /**
+     * Validates and returns the JSON path for SQL operations.
+     *
+     * @return string The JSON path (e.g., '$."key"')
+     *
+     * @throws InvalidArgumentException If the key contains invalid characters
+     */
     private function getJsonPath(): string
     {
-        // ✅ Valider la clé pour éviter l'injection
         if (! preg_match('/^[a-zA-Z0-9_\-]+$/', $this->key)) {
             throw new InvalidArgumentException("Invalid JSON key: {$this->key}");
         }
@@ -72,19 +145,31 @@ final class ConditionNode extends Node
         return '$."'.$this->key.'"';
     }
 
-    private function getMySqlColumn(string $column): string
+    /**
+     * Builds a MySQL JSON column expression with proper casting.
+     *
+     * @param  string  $column  The JSON column name
+     * @return string The SQL expression
+     */
+    private function buildMySqlJsonExpression(string $column): string
     {
         $path = $this->getJsonPath();
-        $sqlColumn = "JSON_EXTRACT({$column}, '{$path}')";
+        $expression = "JSON_EXTRACT({$column}, '{$path}')";
 
         if ($this->operator->isNumeric()) {
-            $sqlColumn = "CAST(JSON_EXTRACT({$column}, '{$path}') AS DECIMAL(10,2))";
+            return "CAST(JSON_EXTRACT({$column}, '{$path}') AS DECIMAL(10,2))";
         }
 
-        return $sqlColumn;
+        return $expression;
     }
 
-    private function getPostgreSqlColumn(string $column): string
+    /**
+     * Builds a PostgreSQL JSON column expression.
+     *
+     * @param  string  $column  The JSON column name
+     * @return string The SQL expression
+     */
+    private function buildPostgreSqlJsonExpression(string $column): string
     {
         if ($this->operator->isNumeric()) {
             return "({$column}->>'{$this->key}')::numeric";
@@ -93,7 +178,13 @@ final class ConditionNode extends Node
         return "{$column}->>'{$this->key}'";
     }
 
-    private function getSqliteColumn(string $column): string
+    /**
+     * Builds an SQLite JSON column expression.
+     *
+     * @param  string  $column  The JSON column name
+     * @return string The SQL expression
+     */
+    private function buildSqliteJsonExpression(string $column): string
     {
         if ($this->operator->isNumeric()) {
             return "CAST(json_extract({$column}, '$.{$this->key}') AS INTEGER)";
@@ -102,10 +193,17 @@ final class ConditionNode extends Node
         return "json_extract({$column}, '$.{$this->key}')";
     }
 
-    private function getComparisonSql(string $sqlColumn): string
+    /**
+     * Builds a generic comparison SQL string.
+     *
+     * @param  string  $sqlColumn  The SQL column expression
+     * @return string The comparison SQL string
+     *
+     * @throws InvalidArgumentException If the operator doesn't support direct comparison
+     */
+    private function buildComparisonSql(string $sqlColumn): string
     {
-        // ✅ Échapper la valeur pour éviter l'injection SQL
-        $escapedValue = $this->escapeString($this->value ?? '');
+        $escapedValue = $this->escapeSqlString($this->value ?? '');
 
         return match ($this->operator) {
             ComparisonOperator::EQUAL,
@@ -122,28 +220,46 @@ final class ConditionNode extends Node
         };
     }
 
-    private function escapeString(string $value): string
+    /**
+     * Escapes a string for safe SQL usage.
+     *
+     * @param  string  $value  The value to escape
+     * @return string The escaped string
+     */
+    private function escapeSqlString(string $value): string
     {
-        // Échapper les caractères dangereux pour SQL
         return addslashes($value);
     }
 
+    /**
+     * Escapes special characters in a LIKE pattern.
+     *
+     * @param  string  $pattern  The pattern to escape
+     * @return string The escaped pattern
+     */
     private function escapeLikePattern(string $pattern): string
     {
-        // Échapper les caractères spéciaux LIKE
         $search = ['%', '_', '\\'];
         $replace = ['\\%', '\\_', '\\\\'];
 
         return str_replace($search, $replace, $pattern);
     }
 
+    /**
+     * Converts a value to a LIKE pattern.
+     *
+     * If the value already contains '%', returns it as-is (escaped).
+     * Otherwise, wraps it with '%' for partial matching.
+     *
+     * @param  string|null  $value  The value to convert
+     * @return string The LIKE pattern
+     */
     private function convertToLikePattern(?string $value): string
     {
         if ($value === null) {
             return '%';
         }
 
-        // ✅ Échapper les caractères spéciaux LIKE
         $escaped = $this->escapeLikePattern($value);
 
         if (str_contains($value, '%')) {
@@ -153,7 +269,13 @@ final class ConditionNode extends Node
         return '%'.$escaped.'%';
     }
 
-    private function toMySql(string $column): string
+    /**
+     * Builds a MySQL condition SQL string.
+     *
+     * @param  string  $column  The JSON column name
+     * @return string The MySQL condition SQL
+     */
+    private function buildMySqlCondition(string $column): string
     {
         $path = $this->getJsonPath();
 
@@ -162,38 +284,56 @@ final class ConditionNode extends Node
             ComparisonOperator::NOT_EXISTS => sprintf("JSON_EXTRACT({$column}, '{$path}') IS NULL"),
             ComparisonOperator::LIKE => sprintf("JSON_EXTRACT({$column}, '{$path}') LIKE '%s'", $this->convertToLikePattern($this->value)),
             ComparisonOperator::NOT_LIKE => sprintf("JSON_EXTRACT({$column}, '{$path}') NOT LIKE '%s'", $this->convertToLikePattern($this->value)),
-            ComparisonOperator::EQUAL => sprintf("JSON_EXTRACT({$column}, '{$path}') = '%s'", $this->escapeString($this->value ?? '')),
-            ComparisonOperator::NOT_EQUAL => sprintf("JSON_EXTRACT({$column}, '{$path}') != '%s'", $this->escapeString($this->value ?? '')),
-            default => $this->getComparisonSql($this->getMySqlColumn($column)),
+            ComparisonOperator::EQUAL => sprintf("JSON_EXTRACT({$column}, '{$path}') = '%s'", $this->escapeSqlString($this->value ?? '')),
+            ComparisonOperator::NOT_EQUAL => sprintf("JSON_EXTRACT({$column}, '{$path}') != '%s'", $this->escapeSqlString($this->value ?? '')),
+            default => $this->buildComparisonSql($this->buildMySqlJsonExpression($column)),
         };
     }
 
-    private function toPostgreSql(string $column): string
+    /**
+     * Builds a PostgreSQL condition SQL string.
+     *
+     * @param  string  $column  The JSON column name
+     * @return string The PostgreSQL condition SQL
+     */
+    private function buildPostgreSqlCondition(string $column): string
     {
         return match ($this->operator) {
             ComparisonOperator::EXISTS => sprintf("{$column}->'%s' IS NOT NULL", $this->key),
             ComparisonOperator::NOT_EXISTS => sprintf("{$column}->'%s' IS NULL", $this->key),
             ComparisonOperator::LIKE => sprintf("{$column}->>'%s' LIKE '%s'", $this->key, $this->convertToLikePattern($this->value)),
             ComparisonOperator::NOT_LIKE => sprintf("{$column}->>'%s' NOT LIKE '%s'", $this->key, $this->convertToLikePattern($this->value)),
-            ComparisonOperator::EQUAL => sprintf("{$column}->>'%s' = '%s'", $this->key, $this->escapeString($this->value ?? '')),
-            ComparisonOperator::NOT_EQUAL => sprintf("{$column}->>'%s' != '%s'", $this->key, $this->escapeString($this->value ?? '')),
-            default => $this->getComparisonSql($this->getPostgreSqlColumn($column)),
+            ComparisonOperator::EQUAL => sprintf("{$column}->>'%s' = '%s'", $this->key, $this->escapeSqlString($this->value ?? '')),
+            ComparisonOperator::NOT_EQUAL => sprintf("{$column}->>'%s' != '%s'", $this->key, $this->escapeSqlString($this->value ?? '')),
+            default => $this->buildComparisonSql($this->buildPostgreSqlJsonExpression($column)),
         };
     }
 
-    private function toSqlite(string $column): string
+    /**
+     * Builds an SQLite condition SQL string.
+     *
+     * @param  string  $column  The JSON column name
+     * @return string The SQLite condition SQL
+     */
+    private function buildSqliteCondition(string $column): string
     {
         return match ($this->operator) {
             ComparisonOperator::EXISTS => sprintf("json_extract({$column}, '$.%s') IS NOT NULL", $this->key),
             ComparisonOperator::NOT_EXISTS => sprintf("json_extract({$column}, '$.%s') IS NULL", $this->key),
             ComparisonOperator::LIKE => sprintf("json_extract({$column}, '$.%s') LIKE '%s'", $this->key, $this->convertToLikePattern($this->value)),
             ComparisonOperator::NOT_LIKE => sprintf("json_extract({$column}, '$.%s') NOT LIKE '%s'", $this->key, $this->convertToLikePattern($this->value)),
-            ComparisonOperator::EQUAL => sprintf("json_extract({$column}, '$.%s') = '%s'", $this->key, $this->escapeString($this->value ?? '')),
-            ComparisonOperator::NOT_EQUAL => sprintf("json_extract({$column}, '$.%s') != '%s'", $this->key, $this->escapeString($this->value ?? '')),
-            default => $this->getComparisonSql($this->getSqliteColumn($column)),
+            ComparisonOperator::EQUAL => sprintf("json_extract({$column}, '$.%s') = '%s'", $this->key, $this->escapeSqlString($this->value ?? '')),
+            ComparisonOperator::NOT_EQUAL => sprintf("json_extract({$column}, '$.%s') != '%s'", $this->key, $this->escapeSqlString($this->value ?? '')),
+            default => $this->buildComparisonSql($this->buildSqliteJsonExpression($column)),
         };
     }
 
+    /**
+     * Applies this condition to a MySQL Eloquent query.
+     *
+     * @param  Builder  $query  The Eloquent query builder
+     * @param  string  $column  The JSON column name
+     */
     private function applyMySqlEloquent(Builder $query, string $column): void
     {
         $path = $this->getJsonPath();
@@ -201,46 +341,62 @@ final class ConditionNode extends Node
         match ($this->operator) {
             ComparisonOperator::EXISTS => $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') IS NOT NULL"),
             ComparisonOperator::NOT_EXISTS => $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') IS NULL"),
-            // ✅ Sécurisé avec des paramètres liés
             ComparisonOperator::LIKE => $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') LIKE ?", [$this->convertToLikePattern($this->value)]),
             ComparisonOperator::NOT_LIKE => $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') NOT LIKE ?", [$this->convertToLikePattern($this->value)]),
             ComparisonOperator::EQUAL => $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') = ?", [$this->value]),
             ComparisonOperator::NOT_EQUAL => $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') != ?", [$this->value]),
-            default => $this->applyComparisonEloquent($query, $this->getMySqlColumn($column)),
+            default => $this->applyComparisonEloquent($query, $this->buildMySqlJsonExpression($column)),
         };
     }
 
+    /**
+     * Applies this condition to a PostgreSQL Eloquent query.
+     *
+     * @param  Builder  $query  The Eloquent query builder
+     * @param  string  $column  The JSON column name
+     */
     private function applyPostgreSqlEloquent(Builder $query, string $column): void
     {
         match ($this->operator) {
             ComparisonOperator::EXISTS => $query->whereRaw("{$column}->'{$this->key}' IS NOT NULL"),
             ComparisonOperator::NOT_EXISTS => $query->whereRaw("{$column}->'{$this->key}' IS NULL"),
-            // ✅ Sécurisé avec des paramètres liés
             ComparisonOperator::LIKE => $query->whereRaw("{$column}->>'{$this->key}' LIKE ?", [$this->convertToLikePattern($this->value)]),
             ComparisonOperator::NOT_LIKE => $query->whereRaw("{$column}->>'{$this->key}' NOT LIKE ?", [$this->convertToLikePattern($this->value)]),
             ComparisonOperator::EQUAL => $query->whereRaw("{$column}->>'{$this->key}' = ?", [$this->value]),
             ComparisonOperator::NOT_EQUAL => $query->whereRaw("{$column}->>'{$this->key}' != ?", [$this->value]),
-            default => $this->applyComparisonEloquent($query, $this->getPostgreSqlColumn($column)),
+            default => $this->applyComparisonEloquent($query, $this->buildPostgreSqlJsonExpression($column)),
         };
     }
 
+    /**
+     * Applies this condition to an SQLite Eloquent query.
+     *
+     * @param  Builder  $query  The Eloquent query builder
+     * @param  string  $column  The JSON column name
+     */
     private function applySqliteEloquent(Builder $query, string $column): void
     {
         match ($this->operator) {
             ComparisonOperator::EXISTS => $query->whereRaw("json_extract({$column}, '$.{$this->key}') IS NOT NULL"),
             ComparisonOperator::NOT_EXISTS => $query->whereRaw("json_extract({$column}, '$.{$this->key}') IS NULL"),
-            // ✅ Sécurisé avec des paramètres liés
             ComparisonOperator::LIKE => $query->whereRaw("json_extract({$column}, '$.{$this->key}') LIKE ?", [$this->convertToLikePattern($this->value)]),
             ComparisonOperator::NOT_LIKE => $query->whereRaw("json_extract({$column}, '$.{$this->key}') NOT LIKE ?", [$this->convertToLikePattern($this->value)]),
             ComparisonOperator::EQUAL => $query->whereRaw("json_extract({$column}, '$.{$this->key}') = ?", [$this->value]),
             ComparisonOperator::NOT_EQUAL => $query->whereRaw("json_extract({$column}, '$.{$this->key}') != ?", [$this->value]),
-            default => $this->applyComparisonEloquent($query, $this->getSqliteColumn($column)),
+            default => $this->applyComparisonEloquent($query, $this->buildSqliteJsonExpression($column)),
         };
     }
 
+    /**
+     * Applies a comparison condition to an Eloquent query using parameter binding.
+     *
+     * @param  Builder  $query  The Eloquent query builder
+     * @param  string  $sqlColumn  The SQL column expression
+     *
+     * @throws InvalidArgumentException If the operator doesn't support direct comparison
+     */
     private function applyComparisonEloquent(Builder $query, string $sqlColumn): void
     {
-        // ✅ Sécurisé avec des paramètres liés
         match ($this->operator) {
             ComparisonOperator::EQUAL,
             ComparisonOperator::EQUAL_LOOSE,
