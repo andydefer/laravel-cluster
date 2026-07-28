@@ -1,0 +1,126 @@
+<?php
+
+declare(strict_types=1);
+
+namespace AndyDefer\LaravelCluster\Enums;
+
+enum OperatorToken: string
+{
+    // Comparaison operators
+    case EQUAL_STRICT = '===';
+    case NOT_EQUAL_STRICT = '!==';
+    case NOT_EQUAL = '!=';
+    case LESS_THAN_OR_EQUAL = '<=';
+    case GREATER_THAN_OR_EQUAL = '>=';
+    case SPACESHIP = '<=>';
+    case EQUAL_LOOSE = '==';
+    case EQUAL = '=';
+    case LESS_THAN = '<';
+    case GREATER_THAN = '>';
+
+    // Logical operators
+    case AND = '&';
+    case OR = '|';
+    case NOT = '!';
+
+    public function getValue(): string
+    {
+        return match ($this) {
+            self::EQUAL_STRICT => ComparisonOperator::EQUAL_STRICT->value,
+            self::NOT_EQUAL_STRICT => ComparisonOperator::NOT_EQUAL_STRICT->value,
+            self::NOT_EQUAL => ComparisonOperator::NOT_EQUAL->value,
+            self::LESS_THAN_OR_EQUAL => ComparisonOperator::LESS_THAN_OR_EQUAL->value,
+            self::GREATER_THAN_OR_EQUAL => ComparisonOperator::GREATER_THAN_OR_EQUAL->value,
+            self::SPACESHIP => ComparisonOperator::SPACESHIP->value,
+            self::EQUAL_LOOSE => ComparisonOperator::EQUAL_LOOSE->value,
+            self::EQUAL => ComparisonOperator::EQUAL->value,
+            self::LESS_THAN => ComparisonOperator::LESS_THAN->value,
+            self::GREATER_THAN => ComparisonOperator::GREATER_THAN->value,
+            self::AND => LogicalOperator::AND->value,
+            self::OR => LogicalOperator::OR->value,
+            self::NOT => 'NOT',
+        };
+    }
+
+    public function getComparisonOperator(): ?ComparisonOperator
+    {
+        return match ($this) {
+            self::EQUAL_STRICT => ComparisonOperator::EQUAL_STRICT,
+            self::NOT_EQUAL_STRICT => ComparisonOperator::NOT_EQUAL_STRICT,
+            self::NOT_EQUAL => ComparisonOperator::NOT_EQUAL,
+            self::LESS_THAN_OR_EQUAL => ComparisonOperator::LESS_THAN_OR_EQUAL,
+            self::GREATER_THAN_OR_EQUAL => ComparisonOperator::GREATER_THAN_OR_EQUAL,
+            self::SPACESHIP => ComparisonOperator::SPACESHIP,
+            self::EQUAL_LOOSE => ComparisonOperator::EQUAL_LOOSE,
+            self::EQUAL => ComparisonOperator::EQUAL,
+            self::LESS_THAN => ComparisonOperator::LESS_THAN,
+            self::GREATER_THAN => ComparisonOperator::GREATER_THAN,
+            default => null,
+        };
+    }
+
+    public function getLogicalOperator(): ?LogicalOperator
+    {
+        return match ($this) {
+            self::AND => LogicalOperator::AND,
+            self::OR => LogicalOperator::OR,
+            default => null,
+        };
+    }
+
+    public function isComparison(): bool
+    {
+        return $this->getComparisonOperator() !== null;
+    }
+
+    public function isLogical(): bool
+    {
+        return $this->getLogicalOperator() !== null;
+    }
+
+    public function isNot(): bool
+    {
+        return $this === self::NOT;
+    }
+
+    public static function fromSymbol(string $symbol): ?self
+    {
+        return match ($symbol) {
+            '===' => self::EQUAL_STRICT,
+            '!==' => self::NOT_EQUAL_STRICT,
+            '!=' => self::NOT_EQUAL,
+            '<=' => self::LESS_THAN_OR_EQUAL,
+            '>=' => self::GREATER_THAN_OR_EQUAL,
+            '<=>' => self::SPACESHIP,
+            '==' => self::EQUAL_LOOSE,
+            '=' => self::EQUAL,
+            '<' => self::LESS_THAN,
+            '>' => self::GREATER_THAN,
+            '&' => self::AND,
+            '|' => self::OR,
+            '!' => self::NOT,
+            default => null,
+        };
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function mapping(): array
+    {
+        $map = [];
+        foreach (self::cases() as $case) {
+            $map[$case->value] = $case->getValue();
+        }
+
+        return $map;
+    }
+
+    /**
+     * @return array<string>
+     */
+    public static function symbols(): array
+    {
+        return array_keys(self::mapping());
+    }
+}
