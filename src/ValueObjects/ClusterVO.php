@@ -6,14 +6,17 @@ namespace AndyDefer\LaravelCluster\ValueObjects;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractValueObject;
 use AndyDefer\DomainStructures\Utils\StrictAssociative;
+use AndyDefer\LaravelCluster\Services\FlatArrayService;
 use InvalidArgumentException;
 
 final class ClusterVO extends AbstractValueObject
 {
     private readonly StrictAssociative $value;
 
+    private readonly FlatArrayService $flatArrayService;
+
     /**
-     * @param  array<string, int|float|string|null>  $value
+     * @param  array<string, mixed>  $value
      */
     public function __construct(array $value)
     {
@@ -21,21 +24,18 @@ final class ClusterVO extends AbstractValueObject
             throw new InvalidArgumentException('Cluster cannot be empty');
         }
 
-        foreach ($value as $key => $val) {
-            // Les clés doivent être des strings
-            if (! is_string($key)) {
-                throw new InvalidArgumentException('Cluster keys must be strings');
-            }
+        // Validation des types avant flatten
+        $this->validateInput($value);
 
-            // Les valeurs doivent être string, int, float ou null
-            if (! is_string($val) && ! is_int($val) && ! is_float($val) && $val !== null) {
-                throw new InvalidArgumentException(
-                    sprintf('Cluster values must be string, int, float or null. Got %s for key "%s"', gettype($val), $key)
-                );
-            }
-        }
+        $this->flatArrayService = new FlatArrayService;
 
-        $this->value = new StrictAssociative($value);
+        // Flatten le tableau
+        $flattened = $this->flatArrayService->flatten($value);
+
+        // Valider le résultat flatten
+        $this->validateFlattened($flattened);
+
+        $this->value = new StrictAssociative($flattened);
     }
 
     public function getValue(): StrictAssociative
@@ -67,5 +67,56 @@ final class ClusterVO extends AbstractValueObject
     public function toArray(): array
     {
         return $this->value->toArray();
+    }
+
+    /**
+     * Valide les types avant flatten
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function validateInput(array $data): void
+    {
+        foreach ($data as $key => $val) {
+            if (! is_string($key)) {
+                throw new InvalidArgumentException('Cluster keys must be strings');
+            }
+
+            // Les booléens sont autorisés (ils seront convertis en 'true'/'false')
+            // Les tableaux sont autorisés (ils seront flatten)
+            // Les objets sont interdits
+            if (is_object($val) && ! $val instanceof \stdClass) {
+                throw new InvalidArgumentException(
+                    sprintf('Cluster values must be string, int, float, bool, array or null. Got object for key "%s"', $key)
+                );
+            }
+
+            // Les ressources sont interdites
+            if (is_resource($val)) {
+                throw new InvalidArgumentException(
+                    sprintf('Cluster values cannot be resources. Got resource for key "%s"', $key)
+                );
+            }
+        }
+    }
+
+    /**
+     * Valide les types après flatten
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function validateFlattened(array $data): void
+    {
+        foreach ($data as $key => $val) {
+            if (! is_string($key)) {
+                throw new InvalidArgumentException('Cluster keys must be strings');
+            }
+
+            // Après flatten, on doit avoir string, int, float ou null
+            if (! is_string($val) && ! is_int($val) && ! is_float($val) && $val !== null) {
+                throw new InvalidArgumentException(
+                    sprintf('Cluster values must be string, int, float or null after flatten. Got %s for key "%s"', gettype($val), $key)
+                );
+            }
+        }
     }
 }
