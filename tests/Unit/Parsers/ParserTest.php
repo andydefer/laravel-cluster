@@ -415,4 +415,95 @@ final class ParserTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->parser->parse('');
     }
+
+    // ==================== EXISTS / NOT_EXISTS TESTS ====================
+
+    public function test_parse_exists_operator(): void
+    {
+        // "*name" vérifie l'existence de la clé
+        $ast = $this->parser->parse('*name');
+
+        $this->assertInstanceOf(ConditionNode::class, $ast);
+
+        $cluster = new ClusterVO(['name' => 'John']);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['status' => 'active']);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_not_exists_operator(): void
+    {
+        // "#profile" vérifie l'absence de la clé
+        $ast = $this->parser->parse('#profile');
+
+        $this->assertInstanceOf(ConditionNode::class, $ast);
+
+        $cluster = new ClusterVO(['status' => 'active']);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['profile' => 'admin']);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_exists_with_and_condition(): void
+    {
+        $ast = $this->parser->parse('*verified & status=active');
+
+        $this->assertInstanceOf(GroupNode::class, $ast);
+
+        $cluster = new ClusterVO(['verified' => 'true', 'status' => 'active']);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['status' => 'active']);
+        $this->assertFalse($ast->evaluate($cluster2));
+
+        $cluster3 = new ClusterVO(['verified' => 'true', 'status' => 'inactive']);
+        $this->assertFalse($ast->evaluate($cluster3));
+    }
+
+    public function test_parse_not_exists_with_or_condition(): void
+    {
+        $ast = $this->parser->parse('#lang_es | status=active');
+
+        $this->assertInstanceOf(GroupNode::class, $ast);
+
+        $cluster = new ClusterVO(['status' => 'active']);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['status' => 'inactive']);
+        $this->assertTrue($ast->evaluate($cluster2));
+
+        $cluster3 = new ClusterVO(['lang_es' => 'true', 'status' => 'inactive']);
+        $this->assertFalse($ast->evaluate($cluster3));
+    }
+
+    public function test_parse_complex_with_exists(): void
+    {
+        $ast = $this->parser->parse('(*lang_fr | #lang_en) & age>=25');
+
+        $this->assertInstanceOf(GroupNode::class, $ast);
+
+        $cluster = new ClusterVO(['lang_fr' => 'true', 'age' => '30']);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['age' => '30']);
+        $this->assertTrue($ast->evaluate($cluster2));
+
+        $cluster3 = new ClusterVO(['lang_en' => 'true', 'age' => '20']);
+        $this->assertFalse($ast->evaluate($cluster3));
+    }
+
+    public function test_parse_exists_with_not_operator(): void
+    {
+        $ast = $this->parser->parse('*name & !lang_fr');
+
+        $this->assertInstanceOf(GroupNode::class, $ast);
+
+        $cluster = new ClusterVO(['name' => 'John', 'lang_fr' => 'false']);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['name' => 'John', 'lang_fr' => 'true']);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
 }

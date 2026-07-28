@@ -727,4 +727,68 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->assertCount(17, $result);
         $this->assertLessThan(0.1, $end - $start);
     }
+
+    // ==================== EXISTS / NOT_EXISTS FILTER TESTS ====================
+
+    public function test_filter_with_exists_operator(): void
+    {
+        // *lang_fr vérifie l'existence de la clé lang_fr
+        $result = $this->clusterQuery->filter(
+            $this->collection,
+            '*lang_fr'
+        );
+
+        // Tous les clusters ont lang_fr → 5 clusters
+        $this->assertCount(5, $result);
+    }
+
+    public function test_filter_with_not_exists_operator(): void
+    {
+        // #lang_es vérifie l'absence de la clé lang_es
+        $result = $this->clusterQuery->filter(
+            $this->collection,
+            '#lang_es'
+        );
+
+        // Aucun cluster n'a lang_es → 5 clusters
+        $this->assertCount(5, $result);
+    }
+
+    public function test_filter_with_exists_and_condition(): void
+    {
+        $result = $this->clusterQuery->filter(
+            $this->collection,
+            '*verified & status=active'
+        );
+
+        // clusters avec verified ET status=active : ID 1, 3, 5 → 3 clusters
+        $this->assertCount(3, $result);
+    }
+
+    public function test_filter_with_not_exists_or_condition(): void
+    {
+        $result = $this->clusterQuery->filter(
+            $this->collection,
+            '#lang_es | status=active'
+        );
+
+        // clusters sans lang_es OU status=active : tous → 5 clusters
+        $this->assertCount(5, $result);
+    }
+
+    public function test_filter_with_exists_complex(): void
+    {
+        $result = $this->clusterQuery->filter(
+            $this->collection,
+            '(*lang_fr | #lang_en) & age>=25'
+        );
+
+        // (lang_fr existe OU lang_en n'existe pas) ET age>=25
+        // ID 1 (lang_fr existe, age=25) ✅
+        // ID 2 (lang_fr existe, age=30) ✅  ← AJOUTÉ
+        // ID 3 (lang_fr existe, age=35) ✅
+        // ID 5 (lang_fr existe, age=40) ✅
+        // ID 4 (lang_en existe, age=18) ❌
+        $this->assertCount(4, $result);
+    }
 }

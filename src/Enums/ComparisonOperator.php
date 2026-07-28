@@ -16,6 +16,8 @@ enum ComparisonOperator: string
     case GREATER_THAN = '>';
     case GREATER_THAN_OR_EQUAL = '>=';
     case SPACESHIP = '<=>';
+    case EXISTS = '*';
+    case NOT_EXISTS = '#';
 
     public static function values(): array
     {
@@ -35,6 +37,8 @@ enum ComparisonOperator: string
             '>' => self::GREATER_THAN,
             '>=' => self::GREATER_THAN_OR_EQUAL,
             '<=>' => self::SPACESHIP,
+            '*' => self::EXISTS,
+            '#' => self::NOT_EXISTS,
             default => null,
         };
     }
@@ -74,6 +78,11 @@ enum ComparisonOperator: string
         ], true);
     }
 
+    public function isExistence(): bool
+    {
+        return $this === self::EXISTS || $this === self::NOT_EXISTS;
+    }
+
     public function evaluate(mixed $actual, ?string $value): bool|int
     {
         return match ($this) {
@@ -87,6 +96,8 @@ enum ComparisonOperator: string
             self::GREATER_THAN => $this->compareGreater($actual, $value),
             self::GREATER_THAN_OR_EQUAL => $this->compareGreaterOrEqual($actual, $value),
             self::SPACESHIP => $this->compareSpaceship($actual, $value),
+            self::EXISTS => $actual !== null,
+            self::NOT_EXISTS => $actual === null,
         };
     }
 
@@ -145,6 +156,8 @@ enum ComparisonOperator: string
             self::GREATER_THAN => '>',
             self::GREATER_THAN_OR_EQUAL => '>=',
             self::SPACESHIP => '<=>',
+            self::EXISTS => 'IS NOT NULL',
+            self::NOT_EXISTS => 'IS NULL',
         };
     }
 }

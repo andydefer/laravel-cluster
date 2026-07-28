@@ -483,4 +483,106 @@ final class ClusterServiceTest extends IntegrationTestCase
 
         $this->assertNotSame($ast1, $ast2);
     }
+
+    // ==================== EXISTS / NOT_EXISTS FILTER TESTS ====================
+
+    public function test_filter_with_exists_operator(): void
+    {
+        $result = $this->service->filter(
+            $this->collection,
+            '*lang_fr'
+        );
+
+        $this->assertCount(5, $result);
+    }
+
+    public function test_filter_with_not_exists_operator(): void
+    {
+        $result = $this->service->filter(
+            $this->collection,
+            '#lang_es'
+        );
+
+        $this->assertCount(5, $result);
+    }
+
+    public function test_filter_with_exists_and_condition(): void
+    {
+        $result = $this->service->filter(
+            $this->collection,
+            '*verified & status=active'
+        );
+
+        $this->assertCount(3, $result);
+    }
+
+    public function test_filter_with_not_exists_or_condition(): void
+    {
+        $result = $this->service->filter(
+            $this->collection,
+            '#lang_es | status=active'
+        );
+
+        $this->assertCount(5, $result);
+    }
+
+    public function test_apply_to_eloquent_with_exists(): void
+    {
+        $query = TestCluster::query();
+
+        $this->service->applyToEloquent(
+            $query,
+            'clusters',
+            '*lang_fr',
+            DatabaseDriver::MYSQL
+        );
+
+        $results = $query->get();
+        $this->assertCount(5, $results);
+    }
+
+    public function test_apply_to_eloquent_with_not_exists(): void
+    {
+        $query = TestCluster::query();
+
+        $this->service->applyToEloquent(
+            $query,
+            'clusters',
+            '#lang_es',
+            DatabaseDriver::MYSQL
+        );
+
+        $results = $query->get();
+        $this->assertCount(5, $results);
+    }
+
+    public function test_apply_to_eloquent_with_exists_and_condition(): void
+    {
+        $query = TestCluster::query();
+
+        $this->service->applyToEloquent(
+            $query,
+            'clusters',
+            '*verified & status=active',
+            DatabaseDriver::MYSQL
+        );
+
+        $results = $query->get();
+        $this->assertCount(3, $results);
+    }
+
+    public function test_apply_to_eloquent_with_not_exists_or_condition(): void
+    {
+        $query = TestCluster::query();
+
+        $this->service->applyToEloquent(
+            $query,
+            'clusters',
+            '#lang_es | status=active',
+            DatabaseDriver::MYSQL
+        );
+
+        $results = $query->get();
+        $this->assertCount(5, $results);
+    }
 }

@@ -439,4 +439,92 @@ final class LexerTest extends TestCase
         $this->assertEquals('AND', $tokens->toArray()[2]->value);
         $this->assertEquals('NOT', $tokens->toArray()[3]->value);
     }
+
+    // ==================== EXISTS / NOT_EXISTS OPERATORS TESTS ====================
+
+    public function test_tokenize_exists_operator(): void
+    {
+        $tokens = $this->lexer->tokenize('*name');
+
+        $this->assertCount(3, $tokens);
+
+        $this->assertEquals(TokenType::OPERATOR, $tokens->toArray()[0]->type);
+        $this->assertEquals('*', $tokens->toArray()[0]->value);
+
+        $this->assertEquals(TokenType::IDENTIFIER, $tokens->toArray()[1]->type);
+        $this->assertEquals('name', $tokens->toArray()[1]->value);
+    }
+
+    public function test_tokenize_not_exists_operator(): void
+    {
+        $tokens = $this->lexer->tokenize('#profile');
+
+        $this->assertCount(3, $tokens);
+
+        $this->assertEquals(TokenType::OPERATOR, $tokens->toArray()[0]->type);
+        $this->assertEquals('#', $tokens->toArray()[0]->value);
+
+        $this->assertEquals(TokenType::IDENTIFIER, $tokens->toArray()[1]->type);
+        $this->assertEquals('profile', $tokens->toArray()[1]->value);
+    }
+
+    public function test_tokenize_exists_with_and_condition(): void
+    {
+        $tokens = $this->lexer->tokenize('*verified & status=active');
+
+        $this->assertCount(7, $tokens);
+
+        $foundExists = false;
+        $foundAnd = false;
+        foreach ($tokens->toArray() as $token) {
+            if ($token->type === TokenType::OPERATOR && $token->value === '*') {
+                $foundExists = true;
+            }
+            if ($token->type === TokenType::OPERATOR && $token->value === 'AND') {
+                $foundAnd = true;
+            }
+        }
+        $this->assertTrue($foundExists);
+        $this->assertTrue($foundAnd);
+    }
+
+    public function test_tokenize_not_exists_with_or_condition(): void
+    {
+        $tokens = $this->lexer->tokenize('#lang_es | status=active');
+
+        $this->assertCount(7, $tokens);
+
+        $foundNotExists = false;
+        $foundOr = false;
+        foreach ($tokens->toArray() as $token) {
+            if ($token->type === TokenType::OPERATOR && $token->value === '#') {
+                $foundNotExists = true;
+            }
+            if ($token->type === TokenType::OPERATOR && $token->value === 'OR') {
+                $foundOr = true;
+            }
+        }
+        $this->assertTrue($foundNotExists);
+        $this->assertTrue($foundOr);
+    }
+
+    public function test_tokenize_complex_with_exists(): void
+    {
+        $tokens = $this->lexer->tokenize('(*lang_fr | #lang_en) & age>=25');
+
+        $this->assertCount(12, $tokens);
+
+        $foundExists = false;
+        $foundNotExists = false;
+        foreach ($tokens->toArray() as $token) {
+            if ($token->type === TokenType::OPERATOR && $token->value === '*') {
+                $foundExists = true;
+            }
+            if ($token->type === TokenType::OPERATOR && $token->value === '#') {
+                $foundNotExists = true;
+            }
+        }
+        $this->assertTrue($foundExists);
+        $this->assertTrue($foundNotExists);
+    }
 }

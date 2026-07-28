@@ -496,4 +496,176 @@ final class ConditionNodeTest extends IntegrationTestCase
         $result = $method->invoke($node);
         $this->assertEquals('$."test.key"', $result);
     }
+
+    // ==================== EXISTS / NOT_EXISTS EVALUATE TESTS ====================
+
+    public function test_evaluate_exists_true(): void
+    {
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
+        $cluster = new ClusterVO(['lang_fr' => 'true']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_exists_false(): void
+    {
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
+        $cluster = new ClusterVO(['status' => 'active']);
+
+        $this->assertFalse($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_not_exists_true(): void
+    {
+        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
+        $cluster = new ClusterVO(['lang_fr' => 'true']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_not_exists_false(): void
+    {
+        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
+        $cluster = new ClusterVO(['lang_es' => 'true']);
+
+        $this->assertFalse($node->evaluate($cluster));
+    }
+
+    // ==================== TO SQL TESTS FOR EXISTS ====================
+
+    public function test_to_sql_mysql_exists(): void
+    {
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
+
+        $expected = "JSON_EXTRACT(clusters, '$.\"lang_fr\"') IS NOT NULL";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_mysql_not_exists(): void
+    {
+        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
+
+        $expected = "JSON_EXTRACT(clusters, '$.\"lang_es\"') IS NULL";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_postgres_exists(): void
+    {
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
+        $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
+
+        $expected = "clusters->'lang_fr' IS NOT NULL";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_postgres_not_exists(): void
+    {
+        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
+        $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
+
+        $expected = "clusters->'lang_es' IS NULL";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_sqlite_exists(): void
+    {
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
+        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+
+        $expected = "json_extract(clusters, '$.lang_fr') IS NOT NULL";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_sqlite_not_exists(): void
+    {
+        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
+        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+
+        $expected = "json_extract(clusters, '$.lang_es') IS NULL";
+        $this->assertEquals($expected, $sql);
+    }
+
+    // ==================== TO ELOQUENT TESTS FOR EXISTS ====================
+
+    public function test_to_eloquent_mysql_exists(): void
+    {
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
+        $query = TestCluster::query();
+
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $sql = $query->toSql();
+        $this->assertStringContainsString('IS NOT NULL', $sql);
+        $this->assertStringContainsString('lang_fr', $sql);
+
+        $results = $query->get();
+        // Tous les clusters ont lang_fr → 5
+        $this->assertCount(5, $results);
+    }
+
+    public function test_to_eloquent_mysql_not_exists(): void
+    {
+        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
+        $query = TestCluster::query();
+
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $sql = $query->toSql();
+        $this->assertStringContainsString('IS NULL', $sql);
+        $this->assertStringContainsString('lang_es', $sql);
+
+        $results = $query->get();
+        // Aucun cluster n'a lang_es → 5
+        $this->assertCount(5, $results);
+    }
+
+    public function test_to_eloquent_mysql_exists_with_condition(): void
+    {
+        $node = new ConditionNode('verified', ComparisonOperator::EXISTS);
+        $query = TestCluster::query();
+
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $results = $query->get();
+        // Tous les clusters ont verified → 5
+        $this->assertCount(5, $results);
+    }
+
+    public function test_to_eloquent_mysql_not_exists_with_condition(): void
+    {
+        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
+        $query = TestCluster::query();
+
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $results = $query->get();
+        // Aucun cluster n'a lang_es → 5
+        $this->assertCount(5, $results);
+    }
+
+    public function test_to_eloquent_postgres_exists(): void
+    {
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
+        $query = TestCluster::query();
+
+        $node->toEloquent($query, 'clusters', DatabaseDriver::PGSQL);
+
+        $sql = $query->toSql();
+        $this->assertStringContainsString("->'lang_fr'", $sql);
+        $this->assertStringContainsString('IS NOT NULL', $sql);
+    }
+
+    public function test_to_eloquent_sqlite_exists(): void
+    {
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
+        $query = TestCluster::query();
+
+        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+
+        $sql = $query->toSql();
+        $this->assertStringContainsString("json_extract(clusters, '$.lang_fr')", $sql);
+        $this->assertStringContainsString('IS NOT NULL', $sql);
+    }
 }

@@ -79,7 +79,7 @@ final class Parser implements ParserInterface
             throw new \RuntimeException('Unexpected end of expression');
         }
 
-        // NOT suivi d'un identifiant: "!lang_fr" → convert to "lang_fr=false"
+        // NOT suivi d'un identifiant: "!lang_fr" → "lang_fr=false"
         if ($token->type === TokenType::OPERATOR && $token->value === 'NOT') {
             $nextToken = $this->getToken($this->position + 1);
 
@@ -90,6 +90,32 @@ final class Parser implements ParserInterface
             }
 
             throw new \RuntimeException('Expected identifier after NOT');
+        }
+
+        // EXISTS suivi d'un identifiant: "*name" → vérifier l'existence
+        if ($token->type === TokenType::OPERATOR && $token->value === '*') {
+            $nextToken = $this->getToken($this->position + 1);
+
+            if ($nextToken && $nextToken->type === TokenType::IDENTIFIER) {
+                $this->position += 2;
+
+                return new ConditionNode($nextToken->value, ComparisonOperator::EXISTS);
+            }
+
+            throw new \RuntimeException('Expected identifier after *');
+        }
+
+        // NOT_EXISTS suivi d'un identifiant: "#name" → vérifier l'absence
+        if ($token->type === TokenType::OPERATOR && $token->value === '#') {
+            $nextToken = $this->getToken($this->position + 1);
+
+            if ($nextToken && $nextToken->type === TokenType::IDENTIFIER) {
+                $this->position += 2;
+
+                return new ConditionNode($nextToken->value, ComparisonOperator::NOT_EXISTS);
+            }
+
+            throw new \RuntimeException('Expected identifier after #');
         }
 
         if ($token->type === TokenType::PAREN && $token->value === '(') {
@@ -143,6 +169,20 @@ final class Parser implements ParserInterface
             $this->position += 2;
 
             return new ConditionNode($valueToken->value, ComparisonOperator::EQUAL, 'false');
+        }
+
+        // Opérateur EXISTS: "*name" → vérifier l'existence de la clé
+        if ($operator === '*') {
+            $this->position++;
+
+            return new ConditionNode($key, ComparisonOperator::EXISTS);
+        }
+
+        // Opérateur NOT_EXISTS: "#profile" → vérifier l'absence de la clé
+        if ($operator === '#') {
+            $this->position++;
+
+            return new ConditionNode($key, ComparisonOperator::NOT_EXISTS);
         }
 
         // Opérateur de comparaison
