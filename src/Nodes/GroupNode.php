@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelCluster\Nodes;
 
-use AndyDefer\DomainStructures\Utils\StrictAssociative;
 use AndyDefer\LaravelCluster\Contracts\NodeInterface;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 use AndyDefer\LaravelCluster\Enums\LogicalOperator;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Builder;
 
 final class GroupNode extends Node
@@ -24,7 +24,7 @@ final class GroupNode extends Node
         $this->children = $children;
     }
 
-    public function evaluate(StrictAssociative $data): bool
+    public function evaluate(ClusterVO $data): bool
     {
         if (empty($this->children)) {
             return true;
@@ -53,11 +53,27 @@ final class GroupNode extends Node
 
     public function toEloquent(Builder $query, string $column, DatabaseDriver $driver): void
     {
+        if (empty($this->children)) {
+            return;
+        }
+
         $method = $this->operator->getEloquentMethod();
 
-        $query->$method(function (Builder $subQuery) use ($column, $driver): void {
+        $query->$method(function (Builder $subQuery) use ($column, $driver) {
+            $first = true;
             foreach ($this->children as $child) {
-                $child->toEloquent($subQuery, $column, $driver);
+                if ($first) {
+                    $child->toEloquent($subQuery, $column, $driver);
+                    $first = false;
+                } else {
+                    if ($this->operator === LogicalOperator::OR) {
+                        $subQuery->orWhere(function (Builder $orSub) use ($child, $column, $driver) {
+                            $child->toEloquent($orSub, $column, $driver);
+                        });
+                    } else {
+                        $child->toEloquent($subQuery, $column, $driver);
+                    }
+                }
             }
         });
     }

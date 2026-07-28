@@ -28,6 +28,16 @@ final class ClusterVO extends AbstractValueObject
             }
         }
 
+        // Empêcher les valeurs imbriquées (nested)
+        foreach ($value as $val) {
+            if (is_array($val)) {
+                throw new InvalidArgumentException('Cluster values cannot be nested arrays. Only scalar values are allowed.');
+            }
+            if (is_object($val) && ! is_scalar($val)) {
+                throw new InvalidArgumentException('Cluster values cannot be objects. Only scalar values are allowed.');
+            }
+        }
+
         $this->value = new StrictAssociative($value);
     }
 

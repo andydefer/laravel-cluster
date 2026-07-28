@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelCluster\Nodes;
 
-use AndyDefer\DomainStructures\Utils\StrictAssociative;
-use AndyDefer\LaravelCluster\Contracts\NodeInterface;
 use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Builder;
 
-final class ConditionNode extends Node implements NodeInterface
+final class ConditionNode extends Node
 {
     public function __construct(
         private readonly string $key,
@@ -18,17 +17,19 @@ final class ConditionNode extends Node implements NodeInterface
         private readonly ?string $value = null
     ) {}
 
-    public function evaluate(StrictAssociative $data): bool
+    public function evaluate(ClusterVO $data): bool
     {
         $dataArray = $data->toArray();
 
         if (! array_key_exists($this->key, $dataArray)) {
+            if ($this->operator === ComparisonOperator::ABSENCE) {
+                return true;
+            }
+
             return false;
         }
 
-        $result = $this->operator->evaluate($dataArray[$this->key], $this->value);
-
-        return is_bool($result) ? $result : false;
+        return (bool) $this->operator->evaluate($dataArray[$this->key], $this->value);
     }
 
     public function toSql(string $column, DatabaseDriver $driver = DatabaseDriver::MYSQL): string
@@ -77,13 +78,34 @@ final class ConditionNode extends Node implements NodeInterface
 
     private function getSqliteColumn(string $column): string
     {
+        // Pour les comparaisons numériques, on CAST en INTEGER
+        if ($this->operator->isNumeric()) {
+            return "CAST(json_extract({$column}, '$.{$this->key}') AS INTEGER)";
+        }
+
         return "json_extract({$column}, '$.{$this->key}')";
+    }
+
+    private function getComparisonSql(string $sqlColumn): string
+    {
+        return match ($this->operator) {
+            ComparisonOperator::EQUAL,
+            ComparisonOperator::EQUAL_LOOSE,
+            ComparisonOperator::EQUAL_STRICT => sprintf("%s = '%s'", $sqlColumn, $this->value),
+            ComparisonOperator::NOT_EQUAL,
+            ComparisonOperator::NOT_EQUAL_STRICT => sprintf("%s != '%s'", $sqlColumn, $this->value),
+            ComparisonOperator::LESS_THAN => sprintf('%s < %s', $sqlColumn, $this->value),
+            ComparisonOperator::LESS_THAN_OR_EQUAL => sprintf('%s <= %s', $sqlColumn, $this->value),
+            ComparisonOperator::GREATER_THAN => sprintf('%s > %s', $sqlColumn, $this->value),
+            ComparisonOperator::GREATER_THAN_OR_EQUAL => sprintf('%s >= %s', $sqlColumn, $this->value),
+            ComparisonOperator::SPACESHIP => sprintf('%s <=> %s', $sqlColumn, $this->value),
+            default => '1=1',
+        };
     }
 
     private function toMySql(string $column): string
     {
         $path = $this->getJsonPath();
-        $sqlColumn = $this->getMySqlColumn($column);
 
         if ($this->operator->isPresence()) {
             return $this->operator === ComparisonOperator::PRESENCE
@@ -91,69 +113,35 @@ final class ConditionNode extends Node implements NodeInterface
                 : sprintf("JSON_EXTRACT({$column}, '{$path}') IS NULL");
         }
 
-        return match ($this->operator) {
-            ComparisonOperator::EQUAL,
-            ComparisonOperator::EQUAL_LOOSE,
-            ComparisonOperator::EQUAL_STRICT => sprintf("%s = '%s'", $sqlColumn, $this->value),
-            ComparisonOperator::NOT_EQUAL,
-            ComparisonOperator::NOT_EQUAL_STRICT => sprintf("%s != '%s'", $sqlColumn, $this->value),
-            ComparisonOperator::LESS_THAN => sprintf('%s < %s', $sqlColumn, $this->value),
-            ComparisonOperator::LESS_THAN_OR_EQUAL => sprintf('%s <= %s', $sqlColumn, $this->value),
-            ComparisonOperator::GREATER_THAN => sprintf('%s > %s', $sqlColumn, $this->value),
-            ComparisonOperator::GREATER_THAN_OR_EQUAL => sprintf('%s >= %s', $sqlColumn, $this->value),
-            ComparisonOperator::SPACESHIP => sprintf('%s <=> %s', $sqlColumn, $this->value),
-            default => '1=1',
-        };
+        $sqlColumn = $this->getMySqlColumn($column);
+
+        return $this->getComparisonSql($sqlColumn);
     }
 
     private function toPostgreSql(string $column): string
     {
-        $sqlColumn = $this->getPostgreSqlColumn($column);
-
         if ($this->operator->isPresence()) {
             return $this->operator === ComparisonOperator::PRESENCE
                 ? sprintf("{$column}->'%s' IS NOT NULL", $this->key)
                 : sprintf("{$column}->'%s' IS NULL", $this->key);
         }
 
-        return match ($this->operator) {
-            ComparisonOperator::EQUAL,
-            ComparisonOperator::EQUAL_LOOSE,
-            ComparisonOperator::EQUAL_STRICT => sprintf("%s = '%s'", $sqlColumn, $this->value),
-            ComparisonOperator::NOT_EQUAL,
-            ComparisonOperator::NOT_EQUAL_STRICT => sprintf("%s != '%s'", $sqlColumn, $this->value),
-            ComparisonOperator::LESS_THAN => sprintf('%s < %s', $sqlColumn, $this->value),
-            ComparisonOperator::LESS_THAN_OR_EQUAL => sprintf('%s <= %s', $sqlColumn, $this->value),
-            ComparisonOperator::GREATER_THAN => sprintf('%s > %s', $sqlColumn, $this->value),
-            ComparisonOperator::GREATER_THAN_OR_EQUAL => sprintf('%s >= %s', $sqlColumn, $this->value),
-            ComparisonOperator::SPACESHIP => sprintf('%s <=> %s', $sqlColumn, $this->value),
-            default => '1=1',
-        };
+        $sqlColumn = $this->getPostgreSqlColumn($column);
+
+        return $this->getComparisonSql($sqlColumn);
     }
 
     private function toSqlite(string $column): string
     {
-        $sqlColumn = $this->getSqliteColumn($column);
-
         if ($this->operator->isPresence()) {
             return $this->operator === ComparisonOperator::PRESENCE
                 ? sprintf("json_extract({$column}, '$.%s') IS NOT NULL", $this->key)
                 : sprintf("json_extract({$column}, '$.%s') IS NULL", $this->key);
         }
 
-        return match ($this->operator) {
-            ComparisonOperator::EQUAL,
-            ComparisonOperator::EQUAL_LOOSE,
-            ComparisonOperator::EQUAL_STRICT => sprintf("%s = '%s'", $sqlColumn, $this->value),
-            ComparisonOperator::NOT_EQUAL,
-            ComparisonOperator::NOT_EQUAL_STRICT => sprintf("%s != '%s'", $sqlColumn, $this->value),
-            ComparisonOperator::LESS_THAN => sprintf('%s < %s', $sqlColumn, $this->value),
-            ComparisonOperator::LESS_THAN_OR_EQUAL => sprintf('%s <= %s', $sqlColumn, $this->value),
-            ComparisonOperator::GREATER_THAN => sprintf('%s > %s', $sqlColumn, $this->value),
-            ComparisonOperator::GREATER_THAN_OR_EQUAL => sprintf('%s >= %s', $sqlColumn, $this->value),
-            ComparisonOperator::SPACESHIP => sprintf('%s <=> %s', $sqlColumn, $this->value),
-            default => '1=1',
-        };
+        $sqlColumn = $this->getSqliteColumn($column);
+
+        return $this->getComparisonSql($sqlColumn);
     }
 
     private function applyMySqlEloquent(Builder $query, string $column): void
@@ -171,20 +159,7 @@ final class ConditionNode extends Node implements NodeInterface
         }
 
         $sqlColumn = $this->getMySqlColumn($column);
-
-        match ($this->operator) {
-            ComparisonOperator::EQUAL,
-            ComparisonOperator::EQUAL_LOOSE,
-            ComparisonOperator::EQUAL_STRICT => $query->whereRaw("{$sqlColumn} = ?", [$this->value]),
-            ComparisonOperator::NOT_EQUAL,
-            ComparisonOperator::NOT_EQUAL_STRICT => $query->whereRaw("{$sqlColumn} != ?", [$this->value]),
-            ComparisonOperator::LESS_THAN => $query->whereRaw("{$sqlColumn} < ?", [$this->value]),
-            ComparisonOperator::LESS_THAN_OR_EQUAL => $query->whereRaw("{$sqlColumn} <= ?", [$this->value]),
-            ComparisonOperator::GREATER_THAN => $query->whereRaw("{$sqlColumn} > ?", [$this->value]),
-            ComparisonOperator::GREATER_THAN_OR_EQUAL => $query->whereRaw("{$sqlColumn} >= ?", [$this->value]),
-            ComparisonOperator::SPACESHIP => $query->whereRaw("{$sqlColumn} <=> ?", [$this->value]),
-            default => null,
-        };
+        $this->applyComparisonEloquent($query, $sqlColumn);
     }
 
     private function applyPostgreSqlEloquent(Builder $query, string $column): void
@@ -200,20 +175,7 @@ final class ConditionNode extends Node implements NodeInterface
         }
 
         $sqlColumn = $this->getPostgreSqlColumn($column);
-
-        match ($this->operator) {
-            ComparisonOperator::EQUAL,
-            ComparisonOperator::EQUAL_LOOSE,
-            ComparisonOperator::EQUAL_STRICT => $query->whereRaw("{$sqlColumn} = ?", [$this->value]),
-            ComparisonOperator::NOT_EQUAL,
-            ComparisonOperator::NOT_EQUAL_STRICT => $query->whereRaw("{$sqlColumn} != ?", [$this->value]),
-            ComparisonOperator::LESS_THAN => $query->whereRaw("{$sqlColumn} < ?", [$this->value]),
-            ComparisonOperator::LESS_THAN_OR_EQUAL => $query->whereRaw("{$sqlColumn} <= ?", [$this->value]),
-            ComparisonOperator::GREATER_THAN => $query->whereRaw("{$sqlColumn} > ?", [$this->value]),
-            ComparisonOperator::GREATER_THAN_OR_EQUAL => $query->whereRaw("{$sqlColumn} >= ?", [$this->value]),
-            ComparisonOperator::SPACESHIP => $query->whereRaw("{$sqlColumn} <=> ?", [$this->value]),
-            default => null,
-        };
+        $this->applyComparisonEloquent($query, $sqlColumn);
     }
 
     private function applySqliteEloquent(Builder $query, string $column): void
@@ -229,7 +191,11 @@ final class ConditionNode extends Node implements NodeInterface
         }
 
         $sqlColumn = $this->getSqliteColumn($column);
+        $this->applyComparisonEloquent($query, $sqlColumn);
+    }
 
+    private function applyComparisonEloquent(Builder $query, string $sqlColumn): void
+    {
         match ($this->operator) {
             ComparisonOperator::EQUAL,
             ComparisonOperator::EQUAL_LOOSE,

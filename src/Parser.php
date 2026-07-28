@@ -122,6 +122,13 @@ final class Parser implements ParserInterface
 
         $operator = $next->value;
 
+        // Vérifier si c'est un opérateur logique (AND, OR)
+        // Si c'est le cas, ce n'est pas une condition, on retourne PRESENCE
+        // et on laisse parseExpression() gérer l'opérateur
+        if (in_array($operator, ['AND', 'OR'], true)) {
+            return new ConditionNode($key, ComparisonOperator::PRESENCE);
+        }
+
         // NOT suivi d'un identifiant: "!lang_fr" → ABSENCE
         if ($operator === 'NOT') {
             $valueToken = $this->getToken($this->position + 1);

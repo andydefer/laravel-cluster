@@ -7,6 +7,7 @@ namespace AndyDefer\LaravelCluster\Collections;
 use AndyDefer\DomainStructures\Abstracts\AbstractTypedCollection;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
+use AndyDefer\LaravelCluster\Enums\LogicalOperator;
 use AndyDefer\LaravelCluster\Enums\TokenType;
 use AndyDefer\LaravelCluster\Records\TokenRecord;
 
@@ -20,21 +21,21 @@ final class TokenRecordCollection extends AbstractTypedCollection
     public function operators(): self
     {
         return $this->filter(
-            fn (TokenRecord $token) => $token->type === TokenType::OPERATOR
+            fn (TokenRecord $token) => $token->type->isOperator()
         );
     }
 
     public function identifiers(): self
     {
         return $this->filter(
-            fn (TokenRecord $token) => $token->type === TokenType::IDENTIFIER
+            fn (TokenRecord $token) => $token->type->isIdentifier()
         );
     }
 
     public function parens(): self
     {
         return $this->filter(
-            fn (TokenRecord $token) => $token->type === TokenType::PAREN
+            fn (TokenRecord $token) => $token->type->isParen()
         );
     }
 
@@ -62,25 +63,27 @@ final class TokenRecordCollection extends AbstractTypedCollection
     public function withoutEnd(): self
     {
         return $this->filter(
-            fn (TokenRecord $token) => $token->type !== TokenType::END
+            fn (TokenRecord $token) => ! $token->type->isEnd()
         );
     }
 
     public function comparisonOperators(): self
     {
+        $comparisonValues = ComparisonOperator::values();
+
         return $this->filter(
-            fn (TokenRecord $token) => $token->type === TokenType::OPERATOR &&
-                in_array($token->value, ComparisonOperator::values(), true)
+            fn (TokenRecord $token) => $token->type->isOperator() &&
+                in_array($token->value, $comparisonValues, true)
         );
     }
 
     public function logicalOperators(): self
     {
-        $operators = ['AND', 'OR', 'NOT'];
+        $logicalValues = LogicalOperator::values();
 
         return $this->filter(
-            fn (TokenRecord $token) => $token->type === TokenType::OPERATOR &&
-                in_array($token->value, $operators, true)
+            fn (TokenRecord $token) => $token->type->isOperator() &&
+                in_array($token->value, $logicalValues, true)
         );
     }
 
@@ -117,5 +120,35 @@ final class TokenRecordCollection extends AbstractTypedCollection
         }
 
         return $values;
+    }
+
+    /**
+     * Retourne les tokens qui sont des opérateurs de comparaison
+     * mais pas les opérateurs logiques (AND, OR, NOT)
+     */
+    public function pureComparisonOperators(): self
+    {
+        $comparisonValues = ComparisonOperator::values();
+        $logicalValues = LogicalOperator::values();
+
+        return $this->filter(
+            fn (TokenRecord $token) => $token->type->isOperator() &&
+                in_array($token->value, $comparisonValues, true) &&
+                ! in_array($token->value, $logicalValues, true)
+        );
+    }
+
+    /**
+     * Retourne les tokens qui sont des opérateurs logiques
+     * (AND, OR, NOT)
+     */
+    public function pureLogicalOperators(): self
+    {
+        $logicalValues = LogicalOperator::values();
+
+        return $this->filter(
+            fn (TokenRecord $token) => $token->type->isOperator() &&
+                in_array($token->value, $logicalValues, true)
+        );
     }
 }

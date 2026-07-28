@@ -88,16 +88,16 @@ enum ComparisonOperator: string
         return match ($this) {
             self::EQUAL => (string) $actual === (string) $value,
             self::EQUAL_LOOSE => (string) $actual == (string) $value,
-            self::EQUAL_STRICT => $actual === $value || (string) $actual === (string) $value,
+            self::EQUAL_STRICT => $actual === $value,
             self::NOT_EQUAL => (string) $actual !== (string) $value,
-            self::NOT_EQUAL_STRICT => $actual !== $value || (string) $actual !== (string) $value,
+            self::NOT_EQUAL_STRICT => $actual !== $value,
             self::LESS_THAN => $this->compareLess($actual, $value),
             self::LESS_THAN_OR_EQUAL => $this->compareLessOrEqual($actual, $value),
             self::GREATER_THAN => $this->compareGreater($actual, $value),
             self::GREATER_THAN_OR_EQUAL => $this->compareGreaterOrEqual($actual, $value),
             self::SPACESHIP => $this->compareSpaceship($actual, $value),
-            self::PRESENCE => ! empty($actual) && $actual !== 'false' && $actual !== '0',
-            self::ABSENCE => empty($actual) || $actual === 'false' || $actual === '0',
+            self::PRESENCE => $actual !== null && $actual !== false && $actual !== 'false' && $actual !== '0',
+            self::ABSENCE => $actual === null || $actual === false || $actual === 'false' || $actual === '0' || $actual === '',
         };
     }
 
