@@ -488,13 +488,13 @@ final class ConditionNodeTest extends IntegrationTestCase
 
     public function test_get_json_path(): void
     {
-        $node = new ConditionNode('test.key', ComparisonOperator::EQUAL, 'value');
+        $node = new ConditionNode('test_key', ComparisonOperator::EQUAL, 'value');
         $reflection = new \ReflectionClass($node);
         $method = $reflection->getMethod('getJsonPath');
         $method->setAccessible(true);
 
         $result = $method->invoke($node);
-        $this->assertEquals('$."test.key"', $result);
+        $this->assertEquals('$."test_key"', $result);
     }
 
     // ==================== EXISTS / NOT_EXISTS EVALUATE TESTS ====================

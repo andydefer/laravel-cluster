@@ -116,16 +116,20 @@ final class GroupNode extends Node
             return;
         }
 
+        // ✅ Toujours utiliser where pour le groupe principal
         $query->where(function (Builder $subQuery) use ($column, $driver) {
             foreach ($this->children as $index => $child) {
                 if ($index === 0) {
+                    // Premier enfant : where simple
                     $child->toEloquent($subQuery, $column, $driver);
                 } else {
                     if ($this->operator === LogicalOperator::OR) {
+                        // OR : orWhere avec sous-requête
                         $subQuery->orWhere(function (Builder $orSub) use ($child, $column, $driver) {
                             $child->toEloquent($orSub, $column, $driver);
                         });
                     } else {
+                        // AND : where simple
                         $child->toEloquent($subQuery, $column, $driver);
                     }
                 }

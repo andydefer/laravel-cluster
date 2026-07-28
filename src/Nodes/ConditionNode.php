@@ -64,6 +64,11 @@ final class ConditionNode extends Node
 
     private function getJsonPath(): string
     {
+        // ✅ Valider la clé pour éviter l'injection
+        if (! preg_match('/^[a-zA-Z0-9_\-]+$/', $this->key)) {
+            throw new InvalidArgumentException("Invalid JSON key: {$this->key}");
+        }
+
         return '$."'.$this->key.'"';
     }
 
@@ -99,19 +104,37 @@ final class ConditionNode extends Node
 
     private function getComparisonSql(string $sqlColumn): string
     {
+        // ✅ Échapper la valeur pour éviter l'injection SQL
+        $escapedValue = $this->escapeString($this->value ?? '');
+
         return match ($this->operator) {
             ComparisonOperator::EQUAL,
             ComparisonOperator::EQUAL_LOOSE,
-            ComparisonOperator::EQUAL_STRICT => sprintf("%s = '%s'", $sqlColumn, $this->value),
+            ComparisonOperator::EQUAL_STRICT => sprintf("%s = '%s'", $sqlColumn, $escapedValue),
             ComparisonOperator::NOT_EQUAL,
-            ComparisonOperator::NOT_EQUAL_STRICT => sprintf("%s != '%s'", $sqlColumn, $this->value),
-            ComparisonOperator::LESS_THAN => sprintf('%s < %s', $sqlColumn, $this->value),
-            ComparisonOperator::LESS_THAN_OR_EQUAL => sprintf('%s <= %s', $sqlColumn, $this->value),
-            ComparisonOperator::GREATER_THAN => sprintf('%s > %s', $sqlColumn, $this->value),
-            ComparisonOperator::GREATER_THAN_OR_EQUAL => sprintf('%s >= %s', $sqlColumn, $this->value),
-            ComparisonOperator::SPACESHIP => sprintf('%s <=> %s', $sqlColumn, $this->value),
+            ComparisonOperator::NOT_EQUAL_STRICT => sprintf("%s != '%s'", $sqlColumn, $escapedValue),
+            ComparisonOperator::LESS_THAN => sprintf('%s < %s', $sqlColumn, $escapedValue),
+            ComparisonOperator::LESS_THAN_OR_EQUAL => sprintf('%s <= %s', $sqlColumn, $escapedValue),
+            ComparisonOperator::GREATER_THAN => sprintf('%s > %s', $sqlColumn, $escapedValue),
+            ComparisonOperator::GREATER_THAN_OR_EQUAL => sprintf('%s >= %s', $sqlColumn, $escapedValue),
+            ComparisonOperator::SPACESHIP => sprintf('%s <=> %s', $sqlColumn, $escapedValue),
             default => throw new InvalidArgumentException("Unsupported operator: {$this->operator->name}"),
         };
+    }
+
+    private function escapeString(string $value): string
+    {
+        // Échapper les caractères dangereux pour SQL
+        return addslashes($value);
+    }
+
+    private function escapeLikePattern(string $pattern): string
+    {
+        // Échapper les caractères spéciaux LIKE
+        $search = ['%', '_', '\\'];
+        $replace = ['\\%', '\\_', '\\\\'];
+
+        return str_replace($search, $replace, $pattern);
     }
 
     private function convertToLikePattern(?string $value): string
@@ -120,11 +143,14 @@ final class ConditionNode extends Node
             return '%';
         }
 
+        // ✅ Échapper les caractères spéciaux LIKE
+        $escaped = $this->escapeLikePattern($value);
+
         if (str_contains($value, '%')) {
-            return $value;
+            return $escaped;
         }
 
-        return '%'.$value.'%';
+        return '%'.$escaped.'%';
     }
 
     private function toMySql(string $column): string
@@ -136,8 +162,8 @@ final class ConditionNode extends Node
             ComparisonOperator::NOT_EXISTS => sprintf("JSON_EXTRACT({$column}, '{$path}') IS NULL"),
             ComparisonOperator::LIKE => sprintf("JSON_EXTRACT({$column}, '{$path}') LIKE '%s'", $this->convertToLikePattern($this->value)),
             ComparisonOperator::NOT_LIKE => sprintf("JSON_EXTRACT({$column}, '{$path}') NOT LIKE '%s'", $this->convertToLikePattern($this->value)),
-            ComparisonOperator::EQUAL => sprintf("JSON_EXTRACT({$column}, '{$path}') = '%s'", $this->value),
-            ComparisonOperator::NOT_EQUAL => sprintf("JSON_EXTRACT({$column}, '{$path}') != '%s'", $this->value),
+            ComparisonOperator::EQUAL => sprintf("JSON_EXTRACT({$column}, '{$path}') = '%s'", $this->escapeString($this->value ?? '')),
+            ComparisonOperator::NOT_EQUAL => sprintf("JSON_EXTRACT({$column}, '{$path}') != '%s'", $this->escapeString($this->value ?? '')),
             default => $this->getComparisonSql($this->getMySqlColumn($column)),
         };
     }
@@ -149,8 +175,8 @@ final class ConditionNode extends Node
             ComparisonOperator::NOT_EXISTS => sprintf("{$column}->'%s' IS NULL", $this->key),
             ComparisonOperator::LIKE => sprintf("{$column}->>'%s' LIKE '%s'", $this->key, $this->convertToLikePattern($this->value)),
             ComparisonOperator::NOT_LIKE => sprintf("{$column}->>'%s' NOT LIKE '%s'", $this->key, $this->convertToLikePattern($this->value)),
-            ComparisonOperator::EQUAL => sprintf("{$column}->>'%s' = '%s'", $this->key, $this->value),
-            ComparisonOperator::NOT_EQUAL => sprintf("{$column}->>'%s' != '%s'", $this->key, $this->value),
+            ComparisonOperator::EQUAL => sprintf("{$column}->>'%s' = '%s'", $this->key, $this->escapeString($this->value ?? '')),
+            ComparisonOperator::NOT_EQUAL => sprintf("{$column}->>'%s' != '%s'", $this->key, $this->escapeString($this->value ?? '')),
             default => $this->getComparisonSql($this->getPostgreSqlColumn($column)),
         };
     }
@@ -162,8 +188,8 @@ final class ConditionNode extends Node
             ComparisonOperator::NOT_EXISTS => sprintf("json_extract({$column}, '$.%s') IS NULL", $this->key),
             ComparisonOperator::LIKE => sprintf("json_extract({$column}, '$.%s') LIKE '%s'", $this->key, $this->convertToLikePattern($this->value)),
             ComparisonOperator::NOT_LIKE => sprintf("json_extract({$column}, '$.%s') NOT LIKE '%s'", $this->key, $this->convertToLikePattern($this->value)),
-            ComparisonOperator::EQUAL => sprintf("json_extract({$column}, '$.%s') = '%s'", $this->key, $this->value),
-            ComparisonOperator::NOT_EQUAL => sprintf("json_extract({$column}, '$.%s') != '%s'", $this->key, $this->value),
+            ComparisonOperator::EQUAL => sprintf("json_extract({$column}, '$.%s') = '%s'", $this->key, $this->escapeString($this->value ?? '')),
+            ComparisonOperator::NOT_EQUAL => sprintf("json_extract({$column}, '$.%s') != '%s'", $this->key, $this->escapeString($this->value ?? '')),
             default => $this->getComparisonSql($this->getSqliteColumn($column)),
         };
     }
@@ -175,6 +201,7 @@ final class ConditionNode extends Node
         match ($this->operator) {
             ComparisonOperator::EXISTS => $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') IS NOT NULL"),
             ComparisonOperator::NOT_EXISTS => $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') IS NULL"),
+            // ✅ Sécurisé avec des paramètres liés
             ComparisonOperator::LIKE => $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') LIKE ?", [$this->convertToLikePattern($this->value)]),
             ComparisonOperator::NOT_LIKE => $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') NOT LIKE ?", [$this->convertToLikePattern($this->value)]),
             ComparisonOperator::EQUAL => $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') = ?", [$this->value]),
@@ -188,6 +215,7 @@ final class ConditionNode extends Node
         match ($this->operator) {
             ComparisonOperator::EXISTS => $query->whereRaw("{$column}->'{$this->key}' IS NOT NULL"),
             ComparisonOperator::NOT_EXISTS => $query->whereRaw("{$column}->'{$this->key}' IS NULL"),
+            // ✅ Sécurisé avec des paramètres liés
             ComparisonOperator::LIKE => $query->whereRaw("{$column}->>'{$this->key}' LIKE ?", [$this->convertToLikePattern($this->value)]),
             ComparisonOperator::NOT_LIKE => $query->whereRaw("{$column}->>'{$this->key}' NOT LIKE ?", [$this->convertToLikePattern($this->value)]),
             ComparisonOperator::EQUAL => $query->whereRaw("{$column}->>'{$this->key}' = ?", [$this->value]),
@@ -201,6 +229,7 @@ final class ConditionNode extends Node
         match ($this->operator) {
             ComparisonOperator::EXISTS => $query->whereRaw("json_extract({$column}, '$.{$this->key}') IS NOT NULL"),
             ComparisonOperator::NOT_EXISTS => $query->whereRaw("json_extract({$column}, '$.{$this->key}') IS NULL"),
+            // ✅ Sécurisé avec des paramètres liés
             ComparisonOperator::LIKE => $query->whereRaw("json_extract({$column}, '$.{$this->key}') LIKE ?", [$this->convertToLikePattern($this->value)]),
             ComparisonOperator::NOT_LIKE => $query->whereRaw("json_extract({$column}, '$.{$this->key}') NOT LIKE ?", [$this->convertToLikePattern($this->value)]),
             ComparisonOperator::EQUAL => $query->whereRaw("json_extract({$column}, '$.{$this->key}') = ?", [$this->value]),
@@ -211,6 +240,7 @@ final class ConditionNode extends Node
 
     private function applyComparisonEloquent(Builder $query, string $sqlColumn): void
     {
+        // ✅ Sécurisé avec des paramètres liés
         match ($this->operator) {
             ComparisonOperator::EQUAL,
             ComparisonOperator::EQUAL_LOOSE,
