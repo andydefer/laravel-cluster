@@ -18,11 +18,14 @@ final class Lexer implements LexerInterface
 
     private int $length = 0;
 
+    private bool $isLikeValue = false;
+
     public function tokenize(string $input): TokenRecordCollection
     {
         $this->input = $input;
         $this->position = 0;
         $this->length = strlen($input);
+        $this->isLikeValue = false;
 
         $tokens = new TokenRecordCollection;
 
@@ -31,6 +34,7 @@ final class Lexer implements LexerInterface
 
             if ($this->isWhitespace($char)) {
                 $this->position++;
+                $this->isLikeValue = false;
 
                 continue;
             }
@@ -38,6 +42,7 @@ final class Lexer implements LexerInterface
             if ($this->isParen($char)) {
                 $tokens->add(new TokenRecord(TokenType::PAREN, $char, $this->position));
                 $this->position++;
+                $this->isLikeValue = false;
 
                 continue;
             }
@@ -50,16 +55,19 @@ final class Lexer implements LexerInterface
                     $this->position
                 ));
                 $this->position += strlen($operatorToken->value);
+                // Si c'est un opérateur LIKE ou NOT_LIKE, activer le mode valeur LIKE
+                $this->isLikeValue = $operatorToken->isLike();
 
                 continue;
             }
 
-            if ($this->isIdentifierStart($char)) {
+            if ($this->isIdentifierStart($char) || ($this->isLikeValue && $char === '%')) {
                 $tokens->add(new TokenRecord(
                     TokenType::IDENTIFIER,
-                    $this->readIdentifier(),
+                    $this->readIdentifierOrLikeValue(),
                     $this->position
                 ));
+                $this->isLikeValue = false;
 
                 continue;
             }
@@ -101,6 +109,26 @@ final class Lexer implements LexerInterface
         }
 
         return null;
+    }
+
+    private function readIdentifierOrLikeValue(): string
+    {
+        $value = '';
+
+        while (
+            $this->position < $this->length &&
+            (
+                ctype_alnum($this->input[$this->position]) ||
+                $this->input[$this->position] === '_' ||
+                $this->input[$this->position] === '-' ||
+                ($this->isLikeValue && $this->input[$this->position] === '%')
+            )
+        ) {
+            $value .= $this->input[$this->position];
+            $this->position++;
+        }
+
+        return $value;
     }
 
     private function readIdentifier(): string

@@ -21,29 +21,22 @@ final class ConditionNode extends Node
     public function evaluate(ClusterVO $data): bool
     {
         $dataArray = $data->toArray();
+        $keyExists = array_key_exists($this->key, $dataArray);
 
-        if (! array_key_exists($this->key, $dataArray)) {
-            if ($this->operator === ComparisonOperator::EXISTS) {
-                return false;
-            }
-            if ($this->operator === ComparisonOperator::NOT_EXISTS) {
-                return true;
-            }
-            if ($this->operator === ComparisonOperator::EQUAL && ($this->value === 'false' || $this->value === 'null')) {
-                return true;
-            }
+        return match (true) {
+            // Cas où la clé n'existe pas
+            ! $keyExists && $this->operator === ComparisonOperator::EXISTS => false,
+            ! $keyExists && $this->operator === ComparisonOperator::NOT_EXISTS => true,
+            ! $keyExists && $this->operator === ComparisonOperator::EQUAL && ($this->value === 'false' || $this->value === 'null') => true,
+            ! $keyExists => false,
 
-            return false;
-        }
+            // Cas où la clé existe
+            $keyExists && $this->operator === ComparisonOperator::EXISTS => true,
+            $keyExists && $this->operator === ComparisonOperator::NOT_EXISTS => false,
 
-        if ($this->operator === ComparisonOperator::EXISTS) {
-            return true;
-        }
-        if ($this->operator === ComparisonOperator::NOT_EXISTS) {
-            return false;
-        }
-
-        return (bool) $this->operator->evaluate($dataArray[$this->key], $this->value);
+            // Cas général
+            default => (bool) $this->operator->evaluate($dataArray[$this->key], $this->value)
+        };
     }
 
     public function toSql(string $column, DatabaseDriver $driver = DatabaseDriver::MYSQL): string
@@ -121,167 +114,99 @@ final class ConditionNode extends Node
         };
     }
 
+    private function convertToLikePattern(?string $value): string
+    {
+        if ($value === null) {
+            return '%';
+        }
+
+        if (str_contains($value, '%')) {
+            return $value;
+        }
+
+        return '%'.$value.'%';
+    }
+
     private function toMySql(string $column): string
     {
         $path = $this->getJsonPath();
 
-        if ($this->operator === ComparisonOperator::EXISTS) {
-            return sprintf("JSON_EXTRACT({$column}, '{$path}') IS NOT NULL");
-        }
-
-        if ($this->operator === ComparisonOperator::NOT_EXISTS) {
-            return sprintf("JSON_EXTRACT({$column}, '{$path}') IS NULL");
-        }
-
-        if ($this->operator === ComparisonOperator::EQUAL) {
-            return sprintf("JSON_EXTRACT({$column}, '{$path}') = '%s'", $this->value);
-        }
-
-        if ($this->operator === ComparisonOperator::NOT_EQUAL) {
-            return sprintf("JSON_EXTRACT({$column}, '{$path}') != '%s'", $this->value);
-        }
-
-        $sqlColumn = $this->getMySqlColumn($column);
-
-        return $this->getComparisonSql($sqlColumn);
+        return match ($this->operator) {
+            ComparisonOperator::EXISTS => sprintf("JSON_EXTRACT({$column}, '{$path}') IS NOT NULL"),
+            ComparisonOperator::NOT_EXISTS => sprintf("JSON_EXTRACT({$column}, '{$path}') IS NULL"),
+            ComparisonOperator::LIKE => sprintf("JSON_EXTRACT({$column}, '{$path}') LIKE '%s'", $this->convertToLikePattern($this->value)),
+            ComparisonOperator::NOT_LIKE => sprintf("JSON_EXTRACT({$column}, '{$path}') NOT LIKE '%s'", $this->convertToLikePattern($this->value)),
+            ComparisonOperator::EQUAL => sprintf("JSON_EXTRACT({$column}, '{$path}') = '%s'", $this->value),
+            ComparisonOperator::NOT_EQUAL => sprintf("JSON_EXTRACT({$column}, '{$path}') != '%s'", $this->value),
+            default => $this->getComparisonSql($this->getMySqlColumn($column)),
+        };
     }
 
     private function toPostgreSql(string $column): string
     {
-        if ($this->operator === ComparisonOperator::EXISTS) {
-            return sprintf("{$column}->'%s' IS NOT NULL", $this->key);
-        }
-
-        if ($this->operator === ComparisonOperator::NOT_EXISTS) {
-            return sprintf("{$column}->'%s' IS NULL", $this->key);
-        }
-
-        if ($this->operator === ComparisonOperator::EQUAL) {
-            return sprintf("{$column}->>'%s' = '%s'", $this->key, $this->value);
-        }
-
-        if ($this->operator === ComparisonOperator::NOT_EQUAL) {
-            return sprintf("{$column}->>'%s' != '%s'", $this->key, $this->value);
-        }
-
-        $sqlColumn = $this->getPostgreSqlColumn($column);
-
-        return $this->getComparisonSql($sqlColumn);
+        return match ($this->operator) {
+            ComparisonOperator::EXISTS => sprintf("{$column}->'%s' IS NOT NULL", $this->key),
+            ComparisonOperator::NOT_EXISTS => sprintf("{$column}->'%s' IS NULL", $this->key),
+            ComparisonOperator::LIKE => sprintf("{$column}->>'%s' LIKE '%s'", $this->key, $this->convertToLikePattern($this->value)),
+            ComparisonOperator::NOT_LIKE => sprintf("{$column}->>'%s' NOT LIKE '%s'", $this->key, $this->convertToLikePattern($this->value)),
+            ComparisonOperator::EQUAL => sprintf("{$column}->>'%s' = '%s'", $this->key, $this->value),
+            ComparisonOperator::NOT_EQUAL => sprintf("{$column}->>'%s' != '%s'", $this->key, $this->value),
+            default => $this->getComparisonSql($this->getPostgreSqlColumn($column)),
+        };
     }
 
     private function toSqlite(string $column): string
     {
-        if ($this->operator === ComparisonOperator::EXISTS) {
-            return sprintf("json_extract({$column}, '$.%s') IS NOT NULL", $this->key);
-        }
-
-        if ($this->operator === ComparisonOperator::NOT_EXISTS) {
-            return sprintf("json_extract({$column}, '$.%s') IS NULL", $this->key);
-        }
-
-        if ($this->operator === ComparisonOperator::EQUAL) {
-            return sprintf("json_extract({$column}, '$.%s') = '%s'", $this->key, $this->value);
-        }
-
-        if ($this->operator === ComparisonOperator::NOT_EQUAL) {
-            return sprintf("json_extract({$column}, '$.%s') != '%s'", $this->key, $this->value);
-        }
-
-        $sqlColumn = $this->getSqliteColumn($column);
-
-        return $this->getComparisonSql($sqlColumn);
+        return match ($this->operator) {
+            ComparisonOperator::EXISTS => sprintf("json_extract({$column}, '$.%s') IS NOT NULL", $this->key),
+            ComparisonOperator::NOT_EXISTS => sprintf("json_extract({$column}, '$.%s') IS NULL", $this->key),
+            ComparisonOperator::LIKE => sprintf("json_extract({$column}, '$.%s') LIKE '%s'", $this->key, $this->convertToLikePattern($this->value)),
+            ComparisonOperator::NOT_LIKE => sprintf("json_extract({$column}, '$.%s') NOT LIKE '%s'", $this->key, $this->convertToLikePattern($this->value)),
+            ComparisonOperator::EQUAL => sprintf("json_extract({$column}, '$.%s') = '%s'", $this->key, $this->value),
+            ComparisonOperator::NOT_EQUAL => sprintf("json_extract({$column}, '$.%s') != '%s'", $this->key, $this->value),
+            default => $this->getComparisonSql($this->getSqliteColumn($column)),
+        };
     }
 
     private function applyMySqlEloquent(Builder $query, string $column): void
     {
         $path = $this->getJsonPath();
 
-        if ($this->operator === ComparisonOperator::EXISTS) {
-            $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') IS NOT NULL");
-
-            return;
-        }
-
-        if ($this->operator === ComparisonOperator::NOT_EXISTS) {
-            $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') IS NULL");
-
-            return;
-        }
-
-        if ($this->operator === ComparisonOperator::EQUAL) {
-            $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') = ?", [$this->value]);
-
-            return;
-        }
-
-        if ($this->operator === ComparisonOperator::NOT_EQUAL) {
-            $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') != ?", [$this->value]);
-
-            return;
-        }
-
-        $sqlColumn = $this->getMySqlColumn($column);
-        $this->applyComparisonEloquent($query, $sqlColumn);
+        match ($this->operator) {
+            ComparisonOperator::EXISTS => $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') IS NOT NULL"),
+            ComparisonOperator::NOT_EXISTS => $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') IS NULL"),
+            ComparisonOperator::LIKE => $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') LIKE ?", [$this->convertToLikePattern($this->value)]),
+            ComparisonOperator::NOT_LIKE => $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') NOT LIKE ?", [$this->convertToLikePattern($this->value)]),
+            ComparisonOperator::EQUAL => $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') = ?", [$this->value]),
+            ComparisonOperator::NOT_EQUAL => $query->whereRaw("JSON_EXTRACT({$column}, '{$path}') != ?", [$this->value]),
+            default => $this->applyComparisonEloquent($query, $this->getMySqlColumn($column)),
+        };
     }
 
     private function applyPostgreSqlEloquent(Builder $query, string $column): void
     {
-        if ($this->operator === ComparisonOperator::EXISTS) {
-            $query->whereRaw("{$column}->'{$this->key}' IS NOT NULL");
-
-            return;
-        }
-
-        if ($this->operator === ComparisonOperator::NOT_EXISTS) {
-            $query->whereRaw("{$column}->'{$this->key}' IS NULL");
-
-            return;
-        }
-
-        if ($this->operator === ComparisonOperator::EQUAL) {
-            $query->whereRaw("{$column}->>'{$this->key}' = ?", [$this->value]);
-
-            return;
-        }
-
-        if ($this->operator === ComparisonOperator::NOT_EQUAL) {
-            $query->whereRaw("{$column}->>'{$this->key}' != ?", [$this->value]);
-
-            return;
-        }
-
-        $sqlColumn = $this->getPostgreSqlColumn($column);
-        $this->applyComparisonEloquent($query, $sqlColumn);
+        match ($this->operator) {
+            ComparisonOperator::EXISTS => $query->whereRaw("{$column}->'{$this->key}' IS NOT NULL"),
+            ComparisonOperator::NOT_EXISTS => $query->whereRaw("{$column}->'{$this->key}' IS NULL"),
+            ComparisonOperator::LIKE => $query->whereRaw("{$column}->>'{$this->key}' LIKE ?", [$this->convertToLikePattern($this->value)]),
+            ComparisonOperator::NOT_LIKE => $query->whereRaw("{$column}->>'{$this->key}' NOT LIKE ?", [$this->convertToLikePattern($this->value)]),
+            ComparisonOperator::EQUAL => $query->whereRaw("{$column}->>'{$this->key}' = ?", [$this->value]),
+            ComparisonOperator::NOT_EQUAL => $query->whereRaw("{$column}->>'{$this->key}' != ?", [$this->value]),
+            default => $this->applyComparisonEloquent($query, $this->getPostgreSqlColumn($column)),
+        };
     }
 
     private function applySqliteEloquent(Builder $query, string $column): void
     {
-        if ($this->operator === ComparisonOperator::EXISTS) {
-            $query->whereRaw("json_extract({$column}, '$.{$this->key}') IS NOT NULL");
-
-            return;
-        }
-
-        if ($this->operator === ComparisonOperator::NOT_EXISTS) {
-            $query->whereRaw("json_extract({$column}, '$.{$this->key}') IS NULL");
-
-            return;
-        }
-
-        if ($this->operator === ComparisonOperator::EQUAL) {
-            $query->whereRaw("json_extract({$column}, '$.{$this->key}') = ?", [$this->value]);
-
-            return;
-        }
-
-        if ($this->operator === ComparisonOperator::NOT_EQUAL) {
-            $query->whereRaw("json_extract({$column}, '$.{$this->key}') != ?", [$this->value]);
-
-            return;
-        }
-
-        $sqlColumn = $this->getSqliteColumn($column);
-        $this->applyComparisonEloquent($query, $sqlColumn);
+        match ($this->operator) {
+            ComparisonOperator::EXISTS => $query->whereRaw("json_extract({$column}, '$.{$this->key}') IS NOT NULL"),
+            ComparisonOperator::NOT_EXISTS => $query->whereRaw("json_extract({$column}, '$.{$this->key}') IS NULL"),
+            ComparisonOperator::LIKE => $query->whereRaw("json_extract({$column}, '$.{$this->key}') LIKE ?", [$this->convertToLikePattern($this->value)]),
+            ComparisonOperator::NOT_LIKE => $query->whereRaw("json_extract({$column}, '$.{$this->key}') NOT LIKE ?", [$this->convertToLikePattern($this->value)]),
+            ComparisonOperator::EQUAL => $query->whereRaw("json_extract({$column}, '$.{$this->key}') = ?", [$this->value]),
+            ComparisonOperator::NOT_EQUAL => $query->whereRaw("json_extract({$column}, '$.{$this->key}') != ?", [$this->value]),
+            default => $this->applyComparisonEloquent($query, $this->getSqliteColumn($column)),
+        };
     }
 
     private function applyComparisonEloquent(Builder $query, string $sqlColumn): void

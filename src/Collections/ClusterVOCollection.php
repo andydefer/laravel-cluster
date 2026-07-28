@@ -528,7 +528,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
     }
 
     /**
-     * Filters clusters where the string value starts with the given prefix.
+     * Filters clusters where the string value starts with the given prefix (case-insensitive).
      *
      * @param  string  $key  The attribute key to check
      * @param  string  $prefix  The prefix to look for
@@ -540,7 +540,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
 
         foreach ($this->items as $cluster) {
             $value = $cluster->get($key);
-            if (is_string($value) && str_starts_with($value, $prefix)) {
+            if (is_string($value) && stripos($value, $prefix) === 0) {
                 $filtered[] = $cluster;
             }
         }
@@ -549,7 +549,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
     }
 
     /**
-     * Filters clusters where the string value ends with the given suffix.
+     * Filters clusters where the string value ends with the given suffix (case-insensitive).
      *
      * @param  string  $key  The attribute key to check
      * @param  string  $suffix  The suffix to look for
@@ -561,7 +561,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
 
         foreach ($this->items as $cluster) {
             $value = $cluster->get($key);
-            if (is_string($value) && str_ends_with($value, $suffix)) {
+            if (is_string($value) && str_ends_with(strtolower($value), strtolower($suffix))) {
                 $filtered[] = $cluster;
             }
         }
@@ -652,6 +652,105 @@ final class ClusterVOCollection extends AbstractTypedCollection
     public function get(): array
     {
         return $this->items;
+    }
+
+    /**
+     * Filters clusters where the string value contains the search term (case-insensitive).
+     *
+     * @param  string  $key  The attribute key to check
+     * @param  string  $search  The search term to look for
+     * @return self A new collection with clusters where value contains the search term
+     */
+    public function whereLike(string $key, string $search): self
+    {
+        return $this->whereContains($key, $search);
+    }
+
+    /**
+     * Filters clusters where the string value starts with the prefix (case-insensitive).
+     *
+     * @param  string  $key  The attribute key to check
+     * @param  string  $prefix  The prefix to look for
+     * @return self A new collection with clusters where value starts with the prefix
+     */
+    public function whereStarts(string $key, string $prefix): self
+    {
+        return $this->whereStartsWith($key, $prefix);
+    }
+
+    /**
+     * Filters clusters where the string value ends with the suffix (case-insensitive).
+     *
+     * @param  string  $key  The attribute key to check
+     * @param  string  $suffix  The suffix to look for
+     * @return self A new collection with clusters where value ends with the suffix
+     */
+    public function whereEnds(string $key, string $suffix): self
+    {
+        return $this->whereEndsWith($key, $suffix);
+    }
+
+    /**
+     * Filters clusters where the string value does NOT contain the search term (case-insensitive).
+     *
+     * @param  string  $key  The attribute key to check
+     * @param  string  $search  The search term to exclude
+     * @return self A new collection with clusters where value does not contain the search term
+     */
+    public function whereNotLike(string $key, string $search): self
+    {
+        $filtered = [];
+
+        foreach ($this->items as $cluster) {
+            $value = $cluster->get($key);
+            if (! is_string($value) || stripos($value, $search) === false) {
+                $filtered[] = $cluster;
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    /**
+     * Filters clusters where the string value does NOT start with the prefix (case-insensitive).
+     *
+     * @param  string  $key  The attribute key to check
+     * @param  string  $prefix  The prefix to exclude
+     * @return self A new collection with clusters where value does not start with the prefix
+     */
+    public function whereNotStarts(string $key, string $prefix): self
+    {
+        $filtered = [];
+
+        foreach ($this->items as $cluster) {
+            $value = $cluster->get($key);
+            if (! is_string($value) || stripos($value, $prefix) !== 0) {
+                $filtered[] = $cluster;
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    /**
+     * Filters clusters where the string value does NOT end with the suffix (case-insensitive).
+     *
+     * @param  string  $key  The attribute key to check
+     * @param  string  $suffix  The suffix to exclude
+     * @return self A new collection with clusters where value does not end with the suffix
+     */
+    public function whereNotEnds(string $key, string $suffix): self
+    {
+        $filtered = [];
+
+        foreach ($this->items as $cluster) {
+            $value = $cluster->get($key);
+            if (! is_string($value) || ! str_ends_with(strtolower($value), strtolower($suffix))) {
+                $filtered[] = $cluster;
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
     }
 
     /**

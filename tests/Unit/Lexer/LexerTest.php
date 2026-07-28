@@ -527,4 +527,65 @@ final class LexerTest extends TestCase
         $this->assertTrue($foundExists);
         $this->assertTrue($foundNotExists);
     }
+
+    // ==================== LIKE / NOT_LIKE OPERATORS TESTS ====================
+
+    public function test_tokenize_like_operator(): void
+    {
+        $tokens = $this->lexer->tokenize('name=~john');
+
+        $this->assertCount(4, $tokens);
+
+        $this->assertEquals(TokenType::IDENTIFIER, $tokens->toArray()[0]->type);
+        $this->assertEquals('name', $tokens->toArray()[0]->value);
+
+        $this->assertEquals(TokenType::OPERATOR, $tokens->toArray()[1]->type);
+        $this->assertEquals('=~', $tokens->toArray()[1]->value);
+
+        $this->assertEquals(TokenType::IDENTIFIER, $tokens->toArray()[2]->type);
+        $this->assertEquals('john', $tokens->toArray()[2]->value);
+    }
+
+    public function test_tokenize_not_like_operator(): void
+    {
+        $tokens = $this->lexer->tokenize('name!~john');
+
+        $this->assertCount(4, $tokens);
+
+        $this->assertEquals(TokenType::IDENTIFIER, $tokens->toArray()[0]->type);
+        $this->assertEquals('name', $tokens->toArray()[0]->value);
+
+        $this->assertEquals(TokenType::OPERATOR, $tokens->toArray()[1]->type);
+        $this->assertEquals('!~', $tokens->toArray()[1]->value);
+    }
+
+    public function test_tokenize_like_with_pattern(): void
+    {
+        $tokens = $this->lexer->tokenize('name=~%john%');
+
+        $this->assertCount(4, $tokens);
+
+        $this->assertEquals(TokenType::IDENTIFIER, $tokens->toArray()[2]->type);
+        $this->assertEquals('%john%', $tokens->toArray()[2]->value);
+    }
+
+    public function test_tokenize_like_complex(): void
+    {
+        $tokens = $this->lexer->tokenize('name=~john & status=active');
+
+        $this->assertCount(8, $tokens);
+
+        $foundLike = false;
+        $foundAnd = false;
+        foreach ($tokens->toArray() as $token) {
+            if ($token->type === TokenType::OPERATOR && $token->value === '=~') {
+                $foundLike = true;
+            }
+            if ($token->type === TokenType::OPERATOR && $token->value === 'AND') {
+                $foundAnd = true;
+            }
+        }
+        $this->assertTrue($foundLike);
+        $this->assertTrue($foundAnd);
+    }
 }

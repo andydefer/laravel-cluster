@@ -552,4 +552,136 @@ final class ClusterVOCollectionTest extends TestCase
 
         $this->assertCount(3, $result);
     }
+
+    public function test_where_like_with_non_string_value(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['age' => 25]));
+
+        $result = $collection->whereLike('age', '25');
+
+        $this->assertCount(0, $result);
+    }
+
+    public function test_where_like_with_empty_search(): void
+    {
+        $result = $this->collection->whereLike('name', '');
+
+        $this->assertCount(5, $result);
+    }
+
+    public function test_where_like_with_special_characters(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'John_Doe']));
+        $collection->add(new ClusterVO(['name' => 'Jane_Doe']));
+
+        $result = $collection->whereLike('name', 'John_');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John_Doe', $result->first()?->get('name'));
+    }
+
+    // ==================== LIKE / NOT LIKE TESTS ====================
+
+    public function test_where_like(): void
+    {
+        // 'John' est dans 'John Doe' et 'Bob Johnson' (Johnson contient John)
+        // Donc 2 résultats sont attendus
+        $result = $this->collection->whereLike('name', 'John');
+
+        $this->assertCount(2, $result);
+        $this->assertStringContainsString('John', (string) $result->first()?->get('name'));
+    }
+
+    public function test_where_like_multiple_matches(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'Johnny Cash']));
+        $collection->add(new ClusterVO(['name' => 'John Lennon']));
+        $collection->add(new ClusterVO(['name' => 'Jane Doe']));
+
+        $result = $collection->whereLike('name', 'John');
+
+        $this->assertCount(2, $result);
+    }
+
+    public function test_where_like_case_insensitive(): void
+    {
+        // 'john' est dans 'John Doe' et 'Bob Johnson' (Johnson contient John)
+        $result = $this->collection->whereLike('name', 'john');
+
+        $this->assertCount(2, $result);
+        $this->assertStringContainsString('John', (string) $result->first()?->get('name'));
+    }
+
+    public function test_where_starts(): void
+    {
+        $result = $this->collection->whereStarts('name', 'J');
+
+        $this->assertCount(2, $result);
+        $this->assertStringStartsWith('J', (string) $result->first()?->get('name'));
+    }
+
+    public function test_where_starts_case_insensitive(): void
+    {
+        $result = $this->collection->whereStarts('name', 'j');
+
+        $this->assertCount(2, $result);
+        $this->assertStringStartsWith('J', (string) $result->first()?->get('name'));
+    }
+
+    public function test_where_ends(): void
+    {
+        // 'e' à la fin : John Do**e**, Bob Johnso**n** (non), Alice Bro**wn** (non)
+        // Jane Smith (non), Charlie Wilson (non)
+        // Donc 1 résultat : John Doe
+        $result = $this->collection->whereEnds('name', 'e');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John Doe', $result->first()?->get('name'));
+    }
+
+    public function test_where_ends_case_insensitive(): void
+    {
+        // 'E' à la fin : John Do**e** → 1
+        $result = $this->collection->whereEnds('name', 'E');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John Doe', $result->first()?->get('name'));
+    }
+
+    public function test_where_not_like(): void
+    {
+        $result = $this->collection->whereNotLike('name', 'John');
+
+        // Exclut John Doe et Bob Johnson (qui contient 'John' dans Johnson)
+        // Reste : Jane Smith, Alice Brown, Charlie Wilson → 3
+        $this->assertCount(3, $result);
+        $this->assertStringNotContainsString('John', (string) $result->first()?->get('name'));
+    }
+
+    public function test_where_not_starts(): void
+    {
+        $result = $this->collection->whereNotStarts('name', 'J');
+
+        // Exclut John Doe et Jane Smith
+        // Reste : Bob Johnson, Alice Brown, Charlie Wilson → 3
+        $this->assertCount(3, $result);
+        $name = $result->first()?->get('name');
+        $this->assertIsString($name);
+        $this->assertStringStartsWith('B', (string) $name);
+    }
+
+    public function test_where_not_ends(): void
+    {
+        $result = $this->collection->whereNotEnds('name', 'e');
+
+        // Exclut John Doe (fin par 'e')
+        // Reste : Jane Smith, Bob Johnson, Alice Brown, Charlie Wilson → 4
+        $this->assertCount(4, $result);
+        $name = $result->first()?->get('name');
+        $this->assertIsString($name);
+        $this->assertFalse(str_ends_with(strtolower((string) $name), 'e'));
+    }
 }

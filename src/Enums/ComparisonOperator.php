@@ -18,6 +18,8 @@ enum ComparisonOperator: string
     case SPACESHIP = '<=>';
     case EXISTS = '*';
     case NOT_EXISTS = '#';
+    case LIKE = '=~';
+    case NOT_LIKE = '!~';
 
     public static function values(): array
     {
@@ -39,6 +41,8 @@ enum ComparisonOperator: string
             '<=>' => self::SPACESHIP,
             '*' => self::EXISTS,
             '#' => self::NOT_EXISTS,
+            '=~' => self::LIKE,
+            '!~' => self::NOT_LIKE,
             default => null,
         };
     }
@@ -83,6 +87,11 @@ enum ComparisonOperator: string
         return $this === self::EXISTS || $this === self::NOT_EXISTS;
     }
 
+    public function isLike(): bool
+    {
+        return $this === self::LIKE || $this === self::NOT_LIKE;
+    }
+
     public function evaluate(mixed $actual, ?string $value): bool|int
     {
         return match ($this) {
@@ -98,6 +107,8 @@ enum ComparisonOperator: string
             self::SPACESHIP => $this->compareSpaceship($actual, $value),
             self::EXISTS => $actual !== null,
             self::NOT_EXISTS => $actual === null,
+            self::LIKE => $this->evaluateLike($actual, $value),
+            self::NOT_LIKE => ! $this->evaluateLike($actual, $value),
         };
     }
 
@@ -146,6 +157,50 @@ enum ComparisonOperator: string
         return (string) $actual <=> (string) $value;
     }
 
+    // src/Enums/ComparisonOperator.php
+
+    private function evaluateLike(mixed $actual, ?string $value): bool
+    {
+        if (! is_string($actual) || ! is_string($value)) {
+            return false;
+        }
+
+        $actualLower = strtolower($actual);
+        $valueLower = strtolower($value);
+
+        // Si le pattern contient des %, on les utilise
+        if (str_contains($value, '%')) {
+            // %keyword% → contient
+            if (str_starts_with($value, '%') && str_ends_with($value, '%')) {
+                $search = substr($value, 1, -1);
+
+                return str_contains($actualLower, strtolower($search));
+            }
+
+            // keyword% → commence par
+            if (str_ends_with($value, '%') && ! str_starts_with($value, '%')) {
+                $search = substr($value, 0, -1);
+
+                return str_starts_with($actualLower, strtolower($search));
+            }
+
+            // %keyword → termine par
+            if (str_starts_with($value, '%') && ! str_ends_with($value, '%')) {
+                $search = substr($value, 1);
+
+                return str_ends_with($actualLower, strtolower($search));
+            }
+
+            // %keyword% (cas générique)
+            $search = str_replace('%', '', $value);
+
+            return str_contains($actualLower, strtolower($search));
+        }
+
+        // Sans %, recherche "contient" par défaut
+        return str_contains($actualLower, $valueLower);
+    }
+
     public function toSql(): string
     {
         return match ($this) {
@@ -158,6 +213,8 @@ enum ComparisonOperator: string
             self::SPACESHIP => '<=>',
             self::EXISTS => 'IS NOT NULL',
             self::NOT_EXISTS => 'IS NULL',
+            self::LIKE => 'LIKE',
+            self::NOT_LIKE => 'NOT LIKE',
         };
     }
 }

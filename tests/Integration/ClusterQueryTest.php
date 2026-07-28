@@ -791,4 +791,43 @@ final class ClusterQueryTest extends IntegrationTestCase
         // ID 4 (lang_en existe, age=18) ❌
         $this->assertCount(4, $result);
     }
+
+    // ==================== LIKE / NOT_LIKE FILTER TESTS ====================
+
+    public function test_filter_with_like_operator(): void
+    {
+        // Ajouter un cluster avec un nom
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+        $collection->add(new ClusterVO(['name' => 'jane_doe']));
+        $collection->add(new ClusterVO(['name' => 'bob']));
+
+        $result = $this->clusterQuery->filter($collection, 'name=~john');
+
+        $this->assertCount(1, $result);
+    }
+
+    public function test_filter_with_not_like_operator(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+        $collection->add(new ClusterVO(['name' => 'jane_doe']));
+        $collection->add(new ClusterVO(['name' => 'bob']));
+
+        $result = $this->clusterQuery->filter($collection, 'name!~john');
+
+        $this->assertCount(2, $result);
+    }
+
+    public function test_filter_with_like_and_condition(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe', 'status' => 'active']));
+        $collection->add(new ClusterVO(['name' => 'john_doe', 'status' => 'inactive']));
+        $collection->add(new ClusterVO(['name' => 'jane_doe', 'status' => 'active']));
+
+        $result = $this->clusterQuery->filter($collection, 'name=~john & status=active');
+
+        $this->assertCount(1, $result);
+    }
 }

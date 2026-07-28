@@ -585,4 +585,57 @@ final class ClusterServiceTest extends IntegrationTestCase
         $results = $query->get();
         $this->assertCount(5, $results);
     }
+
+    // ==================== LIKE / NOT_LIKE FILTER TESTS ====================
+
+    public function test_filter_with_like_operator(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+        $collection->add(new ClusterVO(['name' => 'jane_doe']));
+        $collection->add(new ClusterVO(['name' => 'bob']));
+
+        $result = $this->service->filter($collection, 'name=~john');
+
+        $this->assertCount(1, $result);
+    }
+
+    public function test_apply_to_eloquent_with_like(): void
+    {
+        // Créer des données en base
+        TestCluster::create(['clusters' => ['name' => 'john_doe']]);
+        TestCluster::create(['clusters' => ['name' => 'jane_doe']]);
+        TestCluster::create(['clusters' => ['name' => 'bob']]);
+
+        $query = TestCluster::query();
+
+        $this->service->applyToEloquent(
+            $query,
+            'clusters',
+            'name=~john',
+            DatabaseDriver::MYSQL
+        );
+
+        $results = $query->get();
+        $this->assertCount(1, $results);
+    }
+
+    public function test_apply_to_eloquent_with_not_like(): void
+    {
+        TestCluster::create(['clusters' => ['name' => 'john_doe']]);
+        TestCluster::create(['clusters' => ['name' => 'jane_doe']]);
+        TestCluster::create(['clusters' => ['name' => 'bob']]);
+
+        $query = TestCluster::query();
+
+        $this->service->applyToEloquent(
+            $query,
+            'clusters',
+            'name!~john',
+            DatabaseDriver::MYSQL
+        );
+
+        $results = $query->get();
+        $this->assertCount(2, $results);
+    }
 }

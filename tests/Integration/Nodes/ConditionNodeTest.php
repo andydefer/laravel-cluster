@@ -668,4 +668,62 @@ final class ConditionNodeTest extends IntegrationTestCase
         $this->assertStringContainsString("json_extract(clusters, '$.lang_fr')", $sql);
         $this->assertStringContainsString('IS NOT NULL', $sql);
     }
+
+    // ==================== LIKE / NOT_LIKE EVALUATE TESTS ====================
+
+    public function test_evaluate_like_true(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john');
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_false(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john');
+        $cluster = new ClusterVO(['name' => 'jane_doe']);
+
+        $this->assertFalse($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_not_like_true(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::NOT_LIKE, 'john');
+        $cluster = new ClusterVO(['name' => 'jane_doe']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_not_like_false(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::NOT_LIKE, 'john');
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+
+        $this->assertFalse($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_with_pattern_starts(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john%');
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_with_pattern_ends(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%doe');
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_with_pattern_contains(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%hn%');
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
 }

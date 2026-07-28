@@ -506,4 +506,71 @@ final class ParserTest extends TestCase
         $cluster2 = new ClusterVO(['name' => 'John', 'lang_fr' => 'true']);
         $this->assertFalse($ast->evaluate($cluster2));
     }
+
+    // ==================== LIKE / NOT_LIKE TESTS ====================
+
+    public function test_parse_like_operator(): void
+    {
+        $ast = $this->parser->parse('name=~john');
+
+        $this->assertInstanceOf(ConditionNode::class, $ast);
+
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['name' => 'jane']);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_not_like_operator(): void
+    {
+        $ast = $this->parser->parse('name!~john');
+
+        $this->assertInstanceOf(ConditionNode::class, $ast);
+
+        $cluster = new ClusterVO(['name' => 'jane']);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['name' => 'john_doe']);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_like_with_starts_pattern(): void
+    {
+        $ast = $this->parser->parse('name=~john%');
+
+        $this->assertInstanceOf(ConditionNode::class, $ast);
+
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['name' => 'doe_john']);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_like_with_ends_pattern(): void
+    {
+        $ast = $this->parser->parse('name=~%doe');
+
+        $this->assertInstanceOf(ConditionNode::class, $ast);
+
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['name' => 'doe_john']);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_like_with_contains_pattern(): void
+    {
+        $ast = $this->parser->parse('name=~%john%');
+
+        $this->assertInstanceOf(ConditionNode::class, $ast);
+
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['name' => 'jane_doe']);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
 }

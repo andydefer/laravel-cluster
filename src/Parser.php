@@ -171,20 +171,6 @@ final class Parser implements ParserInterface
             return new ConditionNode($valueToken->value, ComparisonOperator::EQUAL, 'false');
         }
 
-        // Opérateur EXISTS: "*name" → vérifier l'existence de la clé
-        if ($operator === '*') {
-            $this->position++;
-
-            return new ConditionNode($key, ComparisonOperator::EXISTS);
-        }
-
-        // Opérateur NOT_EXISTS: "#profile" → vérifier l'absence de la clé
-        if ($operator === '#') {
-            $this->position++;
-
-            return new ConditionNode($key, ComparisonOperator::NOT_EXISTS);
-        }
-
         // Opérateur de comparaison
         $comparisonOperator = ComparisonOperator::fromValue($operator);
 

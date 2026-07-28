@@ -6,7 +6,6 @@ namespace AndyDefer\LaravelCluster\Enums;
 
 enum OperatorToken: string
 {
-    // Comparison operators
     case EQUAL_STRICT = '===';
     case NOT_EQUAL_STRICT = '!==';
     case NOT_EQUAL = '!=';
@@ -18,14 +17,15 @@ enum OperatorToken: string
     case LESS_THAN = '<';
     case GREATER_THAN = '>';
 
-    // Logical operators
     case AND = '&';
     case OR = '|';
     case NOT = '!';
 
-    // Existence operators
     case EXISTS = '*';
     case NOT_EXISTS = '#';
+
+    case LIKE = '=~';
+    case NOT_LIKE = '!~';
 
     public function getValue(): string
     {
@@ -45,6 +45,8 @@ enum OperatorToken: string
             self::NOT => 'NOT',
             self::EXISTS => ComparisonOperator::EXISTS->value,
             self::NOT_EXISTS => ComparisonOperator::NOT_EXISTS->value,
+            self::LIKE => ComparisonOperator::LIKE->value,
+            self::NOT_LIKE => ComparisonOperator::NOT_LIKE->value,
         };
     }
 
@@ -63,6 +65,8 @@ enum OperatorToken: string
             self::GREATER_THAN => ComparisonOperator::GREATER_THAN,
             self::EXISTS => ComparisonOperator::EXISTS,
             self::NOT_EXISTS => ComparisonOperator::NOT_EXISTS,
+            self::LIKE => ComparisonOperator::LIKE,
+            self::NOT_LIKE => ComparisonOperator::NOT_LIKE,
             default => null,
         };
     }
@@ -97,6 +101,11 @@ enum OperatorToken: string
         return $this === self::EXISTS || $this === self::NOT_EXISTS;
     }
 
+    public function isLike(): bool
+    {
+        return $this === self::LIKE || $this === self::NOT_LIKE;
+    }
+
     public function isLogical(): bool
     {
         return $this->getLogicalOperator() !== null;
@@ -125,13 +134,12 @@ enum OperatorToken: string
             '!' => self::NOT,
             '*' => self::EXISTS,
             '#' => self::NOT_EXISTS,
+            '=~' => self::LIKE,
+            '!~' => self::NOT_LIKE,
             default => null,
         };
     }
 
-    /**
-     * @return array<string, string>
-     */
     public static function mapping(): array
     {
         $map = [];
@@ -142,9 +150,6 @@ enum OperatorToken: string
         return $map;
     }
 
-    /**
-     * @return array<string>
-     */
     public static function symbols(): array
     {
         return array_keys(self::mapping());
