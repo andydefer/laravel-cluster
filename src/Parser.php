@@ -110,7 +110,6 @@ final class Parser implements ParserInterface
 
     private function parseSubConditionAlone(): Node
     {
-        // Consommer tout jusqu'à la fin
         while ($this->position < $this->tokens->count() - 1) {
             $this->advancePosition();
         }
@@ -125,50 +124,176 @@ final class Parser implements ParserInterface
         $nextToken = $this->getToken($this->position);
 
         if ($nextToken && $nextToken->type === TokenType::SUB_OPEN) {
-            return $this->parseSubCondition();
+            // Vérifier si c'est un chemin avec indices (ex: tags[0][0])
+            if ($this->isIndexPath()) {
+                $fullPath = $this->consumeIndexBrackets($key);
+
+                return $this->parseCondition($fullPath);
+            }
+
+            // Vérifier si c'est une sous-condition vide (ex: addresses[])
+            // ou un wildcard EXISTS (ex: addresses[])
+            $tempPos = $this->position + 1;
+            $tokens = $this->tokens->toArray();
+
+            if ($tempPos < count($tokens) - 1) {
+                $contentToken = $tokens[$tempPos] ?? null;
+                $closeToken = $tokens[$tempPos + 1] ?? null;
+
+                if ($contentToken && $contentToken->type === TokenType::IDENTIFIER &&
+                    $contentToken->value === '*' &&
+                    $closeToken && $closeToken->type === TokenType::SUB_CLOSE) {
+                    // C'est un wildcard EXISTS ! (ex: addresses[])
+                    $this->advancePosition(); // consomme [
+                    $this->advancePosition(); // consomme *
+                    $this->advancePosition(); // consomme ]
+
+                    return new SubConditionNode($key, new ConditionNode('*', ComparisonOperator::EXISTS));
+                }
+
+                if ($closeToken && $closeToken->type === TokenType::SUB_CLOSE) {
+                    // C'est une sous-condition vide ! (ex: addresses[])
+                    $this->advancePosition(); // consomme [
+                    $this->advancePosition(); // consomme ]
+
+                    return new SubConditionNode($key, new ConditionNode('__empty__', ComparisonOperator::EQUAL, 'true'));
+                }
+            }
+
+            // C'est une sous-condition normale (ex: addresses[city=kinshasa])
+            return $this->parseSubCondition($key);
         }
 
         return $this->parseCondition($key);
     }
 
-    private function parseSubCondition(): Node
+    private function isIndexPath(): bool
     {
-        $parentKey = '';
-        $bracketCount = 0;
+        $tempPos = $this->position;
+        $tokens = $this->tokens->toArray();
+        $tokensCount = count($tokens);
+
+        if ($tempPos >= $tokensCount - 1) {
+            return false;
+        }
+
+        $nextToken = $tokens[$tempPos + 1] ?? null;
+
+        if (! $nextToken || $nextToken->type !== TokenType::IDENTIFIER) {
+            return false;
+        }
+
+        $value = $nextToken->value;
+
+        if (! is_numeric($value) && $value !== '*') {
+            return false;
+        }
+
+        $closePos = $tempPos + 2;
+        if ($closePos >= $tokensCount) {
+            return false;
+        }
+
+        $closeToken = $tokens[$closePos] ?? null;
+
+        if (! $closeToken || $closeToken->type !== TokenType::SUB_CLOSE) {
+            return false;
+        }
+
+        $afterClose = $tokens[$closePos + 1] ?? null;
+
+        if ($afterClose && $afterClose->type === TokenType::SUB_OPEN) {
+            return true;
+        }
+
+        if ($afterClose && $afterClose->type === TokenType::OPERATOR) {
+            return true;
+        }
+
+        if ($afterClose && $afterClose->type === TokenType::END) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function consumeIndexBrackets(string $baseKey): string
+    {
+        $path = $baseKey;
 
         while ($this->position < $this->tokens->count() - 1) {
             $token = $this->getToken($this->position);
 
             if ($token && $token->type === TokenType::SUB_OPEN) {
-                $bracketCount++;
+                $path .= '[';
                 $this->advancePosition();
 
-                continue;
-            }
-
-            if ($token && $token->type === TokenType::SUB_CLOSE) {
-                $bracketCount--;
-                $this->advancePosition();
-                if ($bracketCount === 0) {
-                    break;
+                $contentToken = $this->getToken($this->position);
+                if ($contentToken && $contentToken->type === TokenType::IDENTIFIER) {
+                    $path .= $contentToken->value;
+                    $this->advancePosition();
                 }
 
-                continue;
-            }
+                $closeToken = $this->getToken($this->position);
+                if ($closeToken && $closeToken->type === TokenType::SUB_CLOSE) {
+                    $path .= ']';
+                    $this->advancePosition();
+                }
 
-            $this->advancePosition();
-        }
-
-        // Consommer tout ce qui reste (opérateur et valeur)
-        while ($this->position < $this->tokens->count() - 1) {
-            $token = $this->getToken($this->position);
-            if ($token && $this->isLogicalOperator($token)) {
+                $nextToken = $this->getToken($this->position);
+                if ($nextToken && $nextToken->type !== TokenType::SUB_OPEN) {
+                    break;
+                }
+            } else {
                 break;
             }
-            $this->advancePosition();
         }
 
-        return new SubConditionNode($parentKey, new ConditionNode('__empty__', ComparisonOperator::EQUAL, 'true'));
+        return $path;
+    }
+
+    private function parseSubCondition(string $parentKey): Node
+    {
+        // Consommer le SUB_OPEN
+        $this->advancePosition();
+
+        $nextToken = $this->getToken($this->position);
+
+        // Vérifier si c'est une sous-condition vide (ex: addresses[])
+        if ($nextToken && $nextToken->type === TokenType::SUB_CLOSE) {
+            $this->advancePosition();
+
+            return new SubConditionNode($parentKey, new ConditionNode('__empty__', ComparisonOperator::EQUAL, 'true'));
+        }
+
+        // Vérifier si c'est un wildcard EXISTS (ex: addresses[])
+        if ($nextToken && $nextToken->type === TokenType::IDENTIFIER && $nextToken->value === '*') {
+            $this->advancePosition(); // consomme *
+            $closeToken = $this->getToken($this->position);
+            if ($closeToken && $closeToken->type === TokenType::SUB_CLOSE) {
+                $this->advancePosition(); // consomme ]
+
+                return new SubConditionNode($parentKey, new ConditionNode('*', ComparisonOperator::EXISTS));
+            }
+        }
+
+        // Parser la condition à l'intérieur des crochets (ex: city=kinshasa)
+        $condition = $this->parseExpression();
+
+        // Vérifier qu'on a un SUB_CLOSE
+        $closeToken = $this->getToken($this->position);
+        if (! $closeToken || $closeToken->type !== TokenType::SUB_CLOSE) {
+            throw new RuntimeException(sprintf(
+                'Expected closing bracket ] at position %d, got: %s',
+                $this->position,
+                $closeToken ? $closeToken->value : 'EOF'
+            ));
+        }
+
+        // Consommer le SUB_CLOSE
+        $this->advancePosition();
+
+        return new SubConditionNode($parentKey, $condition);
     }
 
     private function parseCondition(string $key): Node

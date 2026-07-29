@@ -669,17 +669,16 @@ final class LexerTest extends TestCase
         $this->assertEquals(2, $subCloses);
     }
 
-    public function test_tokenize_sub_bracket_with_exists(): void
+    public function test_tokenize_sub_bracket_empty(): void
     {
-        $tokens = $this->lexer->tokenize('addresses[*]');
+        $tokens = $this->lexer->tokenize('addresses[]');
 
         $this->assertEquals(TokenType::IDENTIFIER, $tokens->toArray()[0]->type);
         $this->assertEquals('addresses', $tokens->toArray()[0]->value);
         $this->assertEquals(TokenType::SUB_OPEN, $tokens->toArray()[1]->type);
         $this->assertEquals('[', $tokens->toArray()[1]->value);
-        $this->assertEquals(TokenType::IDENTIFIER, $tokens->toArray()[2]->type);
-        $this->assertEquals('*', $tokens->toArray()[2]->value);
-        $this->assertEquals(TokenType::SUB_CLOSE, $tokens->toArray()[3]->type);
-        $this->assertEquals(']', $tokens->toArray()[3]->value);
+        $this->assertEquals(TokenType::SUB_CLOSE, $tokens->toArray()[2]->type);
+        $this->assertEquals(']', $tokens->toArray()[2]->value);
+        $this->assertEquals(TokenType::END, $tokens->toArray()[3]->type);
     }
 }

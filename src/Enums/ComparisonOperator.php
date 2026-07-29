@@ -94,11 +94,15 @@ enum ComparisonOperator: string
 
     public function evaluate(mixed $actual, ?string $value): bool|int
     {
+        // Normaliser les chaînes pour une comparaison insensible à la casse
+        $actualNormalized = $this->normalizeValue($actual);
+        $valueNormalized = $this->normalizeValue($value);
+
         return match ($this) {
-            self::EQUAL => (string) $actual === (string) $value,
-            self::EQUAL_LOOSE => (string) $actual == (string) $value,
+            self::EQUAL => $actualNormalized === $valueNormalized,
+            self::EQUAL_LOOSE => $actualNormalized == $valueNormalized,
             self::EQUAL_STRICT => $actual === $value,
-            self::NOT_EQUAL => (string) $actual !== (string) $value,
+            self::NOT_EQUAL => $actualNormalized !== $valueNormalized,
             self::NOT_EQUAL_STRICT => $actual !== $value,
             self::LESS_THAN => $this->compareLess($actual, $value),
             self::LESS_THAN_OR_EQUAL => $this->compareLessOrEqual($actual, $value),
@@ -112,13 +116,30 @@ enum ComparisonOperator: string
         };
     }
 
+    /**
+     * Normalise une valeur pour une comparaison insensible à la casse.
+     * Si la valeur est une chaîne, la convertit en minuscules.
+     */
+    private function normalizeValue(mixed $value): mixed
+    {
+        if (is_string($value)) {
+            return strtolower($value);
+        }
+
+        if (is_array($value)) {
+            return json_encode($value);
+        }
+
+        return $value;
+    }
+
     private function compareLess(mixed $actual, ?string $value): bool
     {
         if (is_numeric($actual) && is_numeric($value)) {
             return (float) $actual < (float) $value;
         }
 
-        return (string) $actual < (string) $value;
+        return strtolower((string) $actual) < strtolower((string) $value);
     }
 
     private function compareLessOrEqual(mixed $actual, ?string $value): bool
@@ -127,7 +148,7 @@ enum ComparisonOperator: string
             return (float) $actual <= (float) $value;
         }
 
-        return (string) $actual <= (string) $value;
+        return strtolower((string) $actual) <= strtolower((string) $value);
     }
 
     private function compareGreater(mixed $actual, ?string $value): bool
@@ -136,7 +157,7 @@ enum ComparisonOperator: string
             return (float) $actual > (float) $value;
         }
 
-        return (string) $actual > (string) $value;
+        return strtolower((string) $actual) > strtolower((string) $value);
     }
 
     private function compareGreaterOrEqual(mixed $actual, ?string $value): bool
@@ -145,7 +166,7 @@ enum ComparisonOperator: string
             return (float) $actual >= (float) $value;
         }
 
-        return (string) $actual >= (string) $value;
+        return strtolower((string) $actual) >= strtolower((string) $value);
     }
 
     private function compareSpaceship(mixed $actual, ?string $value): int
@@ -154,24 +175,9 @@ enum ComparisonOperator: string
             return (float) $actual <=> (float) $value;
         }
 
-        return (string) $actual <=> (string) $value;
+        return strtolower((string) $actual) <=> strtolower((string) $value);
     }
 
-    /**
-     * Evaluates a LIKE pattern against an actual string value.
-     *
-     * Supports standard SQL LIKE patterns with '%' wildcards:
-     * - 'keyword' → contains (case-insensitive)
-     * - 'keyword%' → starts with
-     * - '%keyword' → ends with
-     * - '%keyword%' → contains
-     * - '%j%h%n' → contains j, then h, then n in order
-     * - 'j%o%' → starts with j, then contains o
-     *
-     * @param  mixed  $actual  The actual value to test
-     * @param  string|null  $value  The LIKE pattern
-     * @return bool True if the pattern matches
-     */
     private function evaluateLike(mixed $actual, ?string $value): bool
     {
         if (! is_string($actual) || ! is_string($value)) {
@@ -181,19 +187,16 @@ enum ComparisonOperator: string
         $actualLower = strtolower($actual);
         $valueLower = strtolower($value);
 
-        // If pattern doesn't contain %, simple contains check
         if (! str_contains($value, '%')) {
             return str_contains($actualLower, $valueLower);
         }
 
-        // Case: %keyword% → contains (only if it's the only % at start and end)
         if (str_starts_with($value, '%') && str_ends_with($value, '%') && substr_count($value, '%') === 2) {
             $search = substr($value, 1, -1);
 
             return str_contains($actualLower, strtolower($search));
         }
 
-        // Case: multiple % patterns (e.g., %j%h%n, j%o%, %a%o%, %j%h%n%)
         $parts = explode('%', $value);
         $parts = array_filter($parts, fn ($p) => $p !== '');
 
@@ -211,21 +214,18 @@ enum ComparisonOperator: string
             return true;
         }
 
-        // Case: keyword% → starts with
         if (str_ends_with($value, '%') && ! str_starts_with($value, '%')) {
             $search = substr($value, 0, -1);
 
             return str_starts_with($actualLower, strtolower($search));
         }
 
-        // Case: %keyword → ends with
         if (str_starts_with($value, '%') && ! str_ends_with($value, '%')) {
             $search = substr($value, 1);
 
             return str_ends_with($actualLower, strtolower($search));
         }
 
-        // Fallback: generic contains
         $search = str_replace('%', '', $value);
 
         return str_contains($actualLower, strtolower($search));

@@ -156,6 +156,7 @@ final class Lexer implements LexerInterface
 
     private function isIdentifierStart(string $char): bool
     {
+        // Dans un sous-crochet, * est autorisé comme identifiant (wildcard)
         if ($this->inSubBracket && $char === '*') {
             return true;
         }
@@ -169,6 +170,8 @@ final class Lexer implements LexerInterface
         usort($symbols, fn ($a, $b) => strlen($b) - strlen($a));
 
         foreach ($symbols as $symbol) {
+            // Si on est dans un sous-crochet et que le symbole est '*', on le saute
+            // car '*' à l'intérieur des crochets doit être un IDENTIFIER
             if ($this->inSubBracket && $symbol === '*') {
                 continue;
             }

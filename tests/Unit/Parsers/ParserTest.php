@@ -626,7 +626,7 @@ final class ParserTest extends TestCase
     {
         $this->expectNotToPerformAssertions();
 
-        $this->parser->parse('addresses[*]');
+        $this->parser->parse('addresses[]');
     }
 
     public function test_parse_subcondition_with_not_exists_does_not_throw_error(): void

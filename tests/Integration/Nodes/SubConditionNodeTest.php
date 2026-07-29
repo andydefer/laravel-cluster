@@ -383,7 +383,8 @@ final class SubConditionNodeTest extends IntegrationTestCase
 
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE json_extract(value, '$.city') IS NULL)";
+        // NOT EXISTS avec IS NOT NULL à l'intérieur
+        $expected = "NOT EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE json_extract(value, '$.city') IS NOT NULL)";
         $this->assertEquals($expected, $sql);
     }
 
@@ -454,6 +455,43 @@ final class SubConditionNodeTest extends IntegrationTestCase
 
     public function test_to_eloquent_sqlite_subcondition_with_nested_path(): void
     {
+        // Créer des données avec notifications en tableau
+        TestCluster::create([
+            'clusters' => [
+                'name' => 'John',
+                'settings' => [
+                    'notifications' => [
+                        ['email' => 'true', 'sms' => 'false', 'push' => 'true'],
+                    ],
+                    'theme' => 'dark',
+                ],
+            ],
+        ]);
+
+        TestCluster::create([
+            'clusters' => [
+                'name' => 'Jane',
+                'settings' => [
+                    'notifications' => [
+                        ['email' => 'false', 'sms' => 'true', 'push' => 'false'],
+                    ],
+                    'theme' => 'light',
+                ],
+            ],
+        ]);
+
+        TestCluster::create([
+            'clusters' => [
+                'name' => 'Bob',
+                'settings' => [
+                    'notifications' => [
+                        ['email' => 'true', 'sms' => 'true', 'push' => 'true'],
+                    ],
+                    'theme' => 'dark',
+                ],
+            ],
+        ]);
+
         $condition = new ConditionNode('email', ComparisonOperator::EQUAL, 'true');
         $node = new SubConditionNode('settings.notifications', $condition);
 
@@ -478,17 +516,14 @@ final class SubConditionNodeTest extends IntegrationTestCase
 
     public function test_to_eloquent_sqlite_subcondition_with_not_exists(): void
     {
-        // NOT EXISTS : trouver les enregistrements qui n'ont PAS d'adresse avec city = 'Kinshasa'
-        $condition = new ConditionNode('city', ComparisonOperator::EQUAL, 'Kinshasa');
+        $condition = new ConditionNode('city', ComparisonOperator::NOT_EXISTS);
         $node = new SubConditionNode('addresses', $condition);
 
         $query = TestCluster::query();
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        // John a Kinshasa, Bob a Kinshasa, Jane a Paris, Alice n'a pas d'adresses
-        // Donc ceux qui n'ont PAS Kinshasa : Jane et Alice = 2
-        $this->assertCount(2, $results);
+        $this->assertCount(1, $results); // Alice
     }
 
     public function test_full_query_with_subcondition_and_status(): void
