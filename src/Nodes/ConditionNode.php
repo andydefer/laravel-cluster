@@ -154,13 +154,12 @@ final class ConditionNode extends Node
     private function buildMySqlJsonExpression(string $column): string
     {
         $path = $this->getJsonPath();
-        $expression = "JSON_EXTRACT({$column}, '{$path}')";
 
         if ($this->operator->isNumeric()) {
             return "CAST(JSON_EXTRACT({$column}, '{$path}') AS DECIMAL(10,2))";
         }
 
-        return $expression;
+        return "JSON_EXTRACT({$column}, '{$path}')";
     }
 
     /**
@@ -248,7 +247,7 @@ final class ConditionNode extends Node
     /**
      * Converts a value to a LIKE pattern.
      *
-     * If the value already contains '%', returns it as-is (escaped).
+     * If the value already contains '%', returns it as-is.
      * Otherwise, wraps it with '%' for partial matching.
      *
      * @param  string|null  $value  The value to convert
@@ -260,13 +259,12 @@ final class ConditionNode extends Node
             return '%';
         }
 
-        $escaped = $this->escapeLikePattern($value);
-
+        // Si la valeur contient déjà des %, on la retourne telle quelle
         if (str_contains($value, '%')) {
-            return $escaped;
+            return $value;
         }
 
-        return '%'.$escaped.'%';
+        return '%'.$this->escapeLikePattern($value).'%';
     }
 
     /**
@@ -301,8 +299,8 @@ final class ConditionNode extends Node
         return match ($this->operator) {
             ComparisonOperator::EXISTS => sprintf("{$column}->'%s' IS NOT NULL", $this->key),
             ComparisonOperator::NOT_EXISTS => sprintf("{$column}->'%s' IS NULL", $this->key),
-            ComparisonOperator::LIKE => sprintf("{$column}->>'%s' LIKE '%s'", $this->key, $this->convertToLikePattern($this->value)),
-            ComparisonOperator::NOT_LIKE => sprintf("{$column}->>'%s' NOT LIKE '%s'", $this->key, $this->convertToLikePattern($this->value)),
+            ComparisonOperator::LIKE => sprintf("{$column}->>'%s' ILIKE '%s'", $this->key, $this->convertToLikePattern($this->value)),
+            ComparisonOperator::NOT_LIKE => sprintf("{$column}->>'%s' NOT ILIKE '%s'", $this->key, $this->convertToLikePattern($this->value)),
             ComparisonOperator::EQUAL => sprintf("{$column}->>'%s' = '%s'", $this->key, $this->escapeSqlString($this->value ?? '')),
             ComparisonOperator::NOT_EQUAL => sprintf("{$column}->>'%s' != '%s'", $this->key, $this->escapeSqlString($this->value ?? '')),
             default => $this->buildComparisonSql($this->buildPostgreSqlJsonExpression($column)),
@@ -360,8 +358,8 @@ final class ConditionNode extends Node
         match ($this->operator) {
             ComparisonOperator::EXISTS => $query->whereRaw("{$column}->'{$this->key}' IS NOT NULL"),
             ComparisonOperator::NOT_EXISTS => $query->whereRaw("{$column}->'{$this->key}' IS NULL"),
-            ComparisonOperator::LIKE => $query->whereRaw("{$column}->>'{$this->key}' LIKE ?", [$this->convertToLikePattern($this->value)]),
-            ComparisonOperator::NOT_LIKE => $query->whereRaw("{$column}->>'{$this->key}' NOT LIKE ?", [$this->convertToLikePattern($this->value)]),
+            ComparisonOperator::LIKE => $query->whereRaw("{$column}->>'{$this->key}' ILIKE ?", [$this->convertToLikePattern($this->value)]),
+            ComparisonOperator::NOT_LIKE => $query->whereRaw("{$column}->>'{$this->key}' NOT ILIKE ?", [$this->convertToLikePattern($this->value)]),
             ComparisonOperator::EQUAL => $query->whereRaw("{$column}->>'{$this->key}' = ?", [$this->value]),
             ComparisonOperator::NOT_EQUAL => $query->whereRaw("{$column}->>'{$this->key}' != ?", [$this->value]),
             default => $this->applyComparisonEloquent($query, $this->buildPostgreSqlJsonExpression($column)),

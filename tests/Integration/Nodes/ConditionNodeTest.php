@@ -27,6 +27,7 @@ final class ConditionNodeTest extends IntegrationTestCase
                 'lang_en' => 'false',
                 'verified' => 'true',
                 'score' => 85.5,
+                'name' => 'john_doe',
             ],
         ]);
 
@@ -39,6 +40,7 @@ final class ConditionNodeTest extends IntegrationTestCase
                 'lang_en' => 'true',
                 'verified' => 'false',
                 'score' => 92.0,
+                'name' => 'jane_smith',
             ],
         ]);
 
@@ -51,6 +53,7 @@ final class ConditionNodeTest extends IntegrationTestCase
                 'lang_en' => 'false',
                 'verified' => 'true',
                 'score' => 78.0,
+                'name' => 'bob_johnson',
             ],
         ]);
 
@@ -63,6 +66,7 @@ final class ConditionNodeTest extends IntegrationTestCase
                 'lang_en' => 'true',
                 'verified' => 'false',
                 'score' => 30.5,
+                'name' => 'alice_johanson',
             ],
         ]);
 
@@ -75,6 +79,7 @@ final class ConditionNodeTest extends IntegrationTestCase
                 'lang_en' => 'false',
                 'verified' => 'true',
                 'score' => 95.0,
+                'name' => 'charlie_doe',
             ],
         ]);
     }
@@ -188,7 +193,6 @@ final class ConditionNodeTest extends IntegrationTestCase
 
     public function test_evaluate_presence_true(): void
     {
-        // Presence avec valeur string 'true'
         $node = new ConditionNode('lang_fr', ComparisonOperator::EQUAL, 'true');
         $cluster = new ClusterVO(['lang_fr' => 'true']);
 
@@ -205,7 +209,6 @@ final class ConditionNodeTest extends IntegrationTestCase
 
     public function test_evaluate_absence(): void
     {
-        // Absence avec valeur string 'false'
         $node = new ConditionNode('lang_en', ComparisonOperator::EQUAL, 'false');
 
         $cluster1 = new ClusterVO(['lang_fr' => 'true']);
@@ -224,6 +227,292 @@ final class ConditionNodeTest extends IntegrationTestCase
         $cluster = new ClusterVO(['status' => 'active']);
 
         $this->assertFalse($node->evaluate($cluster));
+    }
+
+    // ==================== EXISTS / NOT_EXISTS EVALUATE TESTS ====================
+
+    public function test_evaluate_exists_true(): void
+    {
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
+        $cluster = new ClusterVO(['lang_fr' => 'true']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_exists_false(): void
+    {
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
+        $cluster = new ClusterVO(['status' => 'active']);
+
+        $this->assertFalse($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_not_exists_true(): void
+    {
+        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
+        $cluster = new ClusterVO(['lang_fr' => 'true']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_not_exists_false(): void
+    {
+        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
+        $cluster = new ClusterVO(['lang_es' => 'true']);
+
+        $this->assertFalse($node->evaluate($cluster));
+    }
+
+    // ==================== LIKE EVALUATE TESTS ====================
+
+    public function test_evaluate_like_simple_contains(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john');
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_simple_contains_case_insensitive(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'JOHN');
+        $cluster = new ClusterVO(['name' => 'John_Doe']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_pattern_starts_with(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john%');
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_pattern_starts_with_false(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john%');
+        $cluster = new ClusterVO(['name' => 'jane_doe']);
+
+        $this->assertFalse($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_pattern_ends_with(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%doe');
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_pattern_ends_with_false(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%doe');
+        $cluster = new ClusterVO(['name' => 'john_doe_smith']);
+
+        $this->assertFalse($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_pattern_contains(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%hn%');
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_pattern_contains_false(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%xyz%');
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+
+        $this->assertFalse($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_multiple_patterns_in_order(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%j%h%n');
+        $cluster = new ClusterVO(['name' => 'johanson']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_multiple_patterns_in_order_false(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%j%n%h');
+        $cluster = new ClusterVO(['name' => 'johanson']);
+
+        $this->assertFalse($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_multiple_patterns_with_wildcards(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%j%a%n%');
+        $cluster = new ClusterVO(['name' => 'johanson']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_multiple_patterns_case_insensitive(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%J%H%N');
+        $cluster = new ClusterVO(['name' => 'Johanson']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_multiple_patterns_contains_all_in_order(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%a%o%');
+        $cluster = new ClusterVO(['name' => 'johanson']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_multiple_patterns_all_ends(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%a%n');
+        $cluster = new ClusterVO(['name' => 'johanson']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_multiple_patterns_all_starts(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'j%o%');
+        $cluster = new ClusterVO(['name' => 'johanson']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_with_actual_not_string(): void
+    {
+        $node = new ConditionNode('age', ComparisonOperator::LIKE, '25%');
+        $cluster = new ClusterVO(['age' => 25]);
+
+        $this->assertFalse($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_with_value_not_string(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, null);
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+
+        $this->assertFalse($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_with_empty_string(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '');
+        $cluster = new ClusterVO(['name' => '']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_with_empty_string_and_pattern(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%');
+        $cluster = new ClusterVO(['name' => '']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_with_key_not_exists(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john');
+        $cluster = new ClusterVO(['status' => 'active']);
+
+        $this->assertFalse($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_with_special_characters(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%john_doe%');
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_with_underscore_pattern(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john_doe');
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_multiple_patterns_with_empty(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%j%%h%%n%');
+        $cluster = new ClusterVO(['name' => 'johanson']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_like_multiple_patterns_consecutive(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%j%h%n%');
+        $cluster = new ClusterVO(['name' => 'johanson']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    // ==================== NOT_LIKE EVALUATE TESTS ====================
+
+    public function test_evaluate_not_like_simple_contains(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::NOT_LIKE, 'john');
+        $cluster = new ClusterVO(['name' => 'jane_doe']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_not_like_simple_contains_false(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::NOT_LIKE, 'john');
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+
+        $this->assertFalse($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_not_like_pattern_starts_with(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::NOT_LIKE, 'john%');
+        $cluster = new ClusterVO(['name' => 'jane_doe']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_not_like_pattern_ends_with(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::NOT_LIKE, '%doe');
+        $cluster = new ClusterVO(['name' => 'john_doe_smith']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_not_like_multiple_patterns(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::NOT_LIKE, '%j%h%n');
+        $cluster = new ClusterVO(['name' => 'johnson']);
+
+        $this->assertFalse($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_not_like_multiple_patterns_true(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::NOT_LIKE, '%j%n%h');
+        $cluster = new ClusterVO(['name' => 'johnson']);
+
+        $this->assertTrue($node->evaluate($cluster));
+    }
+
+    public function test_evaluate_not_like_with_actual_not_string(): void
+    {
+        $node = new ConditionNode('age', ComparisonOperator::NOT_LIKE, '25%');
+        $cluster = new ClusterVO(['age' => 25]);
+
+        $this->assertTrue($node->evaluate($cluster));
     }
 
     // ==================== TO SQL TESTS ====================
@@ -273,6 +562,60 @@ final class ConditionNodeTest extends IntegrationTestCase
         $this->assertEquals($expected, $sql);
     }
 
+    public function test_to_sql_mysql_exists(): void
+    {
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
+
+        $expected = "JSON_EXTRACT(clusters, '$.\"lang_fr\"') IS NOT NULL";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_mysql_not_exists(): void
+    {
+        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
+
+        $expected = "JSON_EXTRACT(clusters, '$.\"lang_es\"') IS NULL";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_mysql_like_contains(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john');
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
+
+        $expected = "JSON_EXTRACT(clusters, '$.\"name\"') LIKE '%john%'";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_mysql_like_pattern_starts(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john%');
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
+
+        $expected = "JSON_EXTRACT(clusters, '$.\"name\"') LIKE 'john%'";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_mysql_like_pattern_ends(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%doe');
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
+
+        $expected = "JSON_EXTRACT(clusters, '$.\"name\"') LIKE '%doe'";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_mysql_not_like(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::NOT_LIKE, 'john');
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
+
+        $expected = "JSON_EXTRACT(clusters, '$.\"name\"') NOT LIKE '%john%'";
+        $this->assertEquals($expected, $sql);
+    }
+
     public function test_to_sql_postgres_equals(): void
     {
         $node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
@@ -291,6 +634,51 @@ final class ConditionNodeTest extends IntegrationTestCase
         $this->assertStringContainsString('> 25', $sql);
     }
 
+    public function test_to_sql_postgres_exists(): void
+    {
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
+        $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
+
+        $expected = "clusters->'lang_fr' IS NOT NULL";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_postgres_not_exists(): void
+    {
+        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
+        $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
+
+        $expected = "clusters->'lang_es' IS NULL";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_postgres_like(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john');
+        $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
+
+        $expected = "clusters->>'name' ILIKE '%john%'";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_postgres_like_pattern(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john%');
+        $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
+
+        $expected = "clusters->>'name' ILIKE 'john%'";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_postgres_not_like(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::NOT_LIKE, 'john');
+        $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
+
+        $expected = "clusters->>'name' NOT ILIKE '%john%'";
+        $this->assertEquals($expected, $sql);
+    }
+
     public function test_to_sql_sqlite_equals(): void
     {
         $node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
@@ -306,6 +694,42 @@ final class ConditionNodeTest extends IntegrationTestCase
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
         $expected = "CAST(json_extract(clusters, '$.age') AS INTEGER) > 25";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_sqlite_exists(): void
+    {
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
+        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+
+        $expected = "json_extract(clusters, '$.lang_fr') IS NOT NULL";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_sqlite_not_exists(): void
+    {
+        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
+        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+
+        $expected = "json_extract(clusters, '$.lang_es') IS NULL";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_sqlite_like(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john');
+        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+
+        $expected = "json_extract(clusters, '$.name') LIKE '%john%'";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_to_sql_sqlite_not_like(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::NOT_LIKE, 'john');
+        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+
+        $expected = "json_extract(clusters, '$.name') NOT LIKE '%john%'";
         $this->assertEquals($expected, $sql);
     }
 
@@ -356,7 +780,6 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $results = $query->get();
-        // lang_fr = 'true' : ID 1, 3, 5
         $this->assertCount(3, $results);
     }
 
@@ -368,7 +791,6 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $results = $query->get();
-        // lang_en = 'false' : ID 1, 3, 5
         $this->assertCount(3, $results);
     }
 
@@ -417,6 +839,153 @@ final class ConditionNodeTest extends IntegrationTestCase
         $this->assertCount(3, $results);
     }
 
+    public function test_to_eloquent_mysql_exists(): void
+    {
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
+        $query = TestCluster::query();
+
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $sql = $query->toSql();
+        $this->assertStringContainsString('IS NOT NULL', $sql);
+        $this->assertStringContainsString('lang_fr', $sql);
+
+        $results = $query->get();
+        $this->assertCount(5, $results);
+    }
+
+    public function test_to_eloquent_mysql_not_exists(): void
+    {
+        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
+        $query = TestCluster::query();
+
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $sql = $query->toSql();
+        $this->assertStringContainsString('IS NULL', $sql);
+        $this->assertStringContainsString('lang_es', $sql);
+
+        $results = $query->get();
+        $this->assertCount(5, $results);
+    }
+
+    public function test_to_eloquent_mysql_exists_with_condition(): void
+    {
+        $node = new ConditionNode('verified', ComparisonOperator::EXISTS);
+        $query = TestCluster::query();
+
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $results = $query->get();
+        $this->assertCount(5, $results);
+    }
+
+    public function test_to_eloquent_mysql_not_exists_with_condition(): void
+    {
+        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
+        $query = TestCluster::query();
+
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $results = $query->get();
+        $this->assertCount(5, $results);
+    }
+
+    public function test_to_eloquent_postgres_exists(): void
+    {
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
+        $query = TestCluster::query();
+
+        $node->toEloquent($query, 'clusters', DatabaseDriver::PGSQL);
+
+        $sql = $query->toSql();
+        $this->assertStringContainsString("->'lang_fr'", $sql);
+        $this->assertStringContainsString('IS NOT NULL', $sql);
+    }
+
+    public function test_to_eloquent_sqlite_exists(): void
+    {
+        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
+        $query = TestCluster::query();
+
+        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+
+        $sql = $query->toSql();
+        $this->assertStringContainsString("json_extract(clusters, '$.lang_fr')", $sql);
+        $this->assertStringContainsString('IS NOT NULL', $sql);
+    }
+
+    public function test_to_eloquent_mysql_like(): void
+    {
+        // Utiliser les données déjà présentes dans la base
+        // Les données contiennent déjà 'john_doe' dans le premier enregistrement
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john%');
+        $query = TestCluster::query();
+
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $results = $query->get();
+        // 'john_doe' est présent dans la base
+        $this->assertCount(1, $results);
+    }
+
+    public function test_to_eloquent_mysql_like_contains_multiple_patterns(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%j%h%n');
+        $query = TestCluster::query();
+
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $results = $query->get();
+        $this->assertCount(2, $results);
+    }
+
+    public function test_to_eloquent_mysql_like_multiple_patterns_strict(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%j%n%h');
+        $query = TestCluster::query();
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+        $results = $query->get();
+
+        // jane_smith contient j, n, h dans l'ordre → 1 résultat
+        $this->assertCount(1, $results);
+        $this->assertEquals('jane_smith', $results->first()->clusters['name']);
+    }
+
+    public function test_to_eloquent_mysql_not_like(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::NOT_LIKE, 'john%');
+        $query = TestCluster::query();
+
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $results = $query->get();
+        $this->assertCount(4, $results);
+    }
+
+    public function test_to_eloquent_postgres_like(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john%');
+        $query = TestCluster::query();
+
+        $node->toEloquent($query, 'clusters', DatabaseDriver::PGSQL);
+
+        $sql = $query->toSql();
+        $this->assertStringContainsString('ILIKE', $sql);
+    }
+
+    public function test_to_eloquent_sqlite_like(): void
+    {
+        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john%');
+        $query = TestCluster::query();
+
+        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+
+        $sql = $query->toSql();
+        $this->assertStringContainsString('LIKE', $sql);
+        $this->assertStringContainsString("json_extract(clusters, '$.name')", $sql);
+    }
+
     // ==================== COMPLEX CONDITIONS TESTS ====================
 
     public function test_to_eloquent_multiple_conditions(): void
@@ -458,7 +1027,6 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $results = $query->get();
-        // score > 80 : id 1 (85.5), id 2 (92.0), id 5 (95.0)
         $this->assertCount(3, $results);
     }
 
@@ -495,235 +1063,5 @@ final class ConditionNodeTest extends IntegrationTestCase
 
         $result = $method->invoke($node);
         $this->assertEquals('$."test_key"', $result);
-    }
-
-    // ==================== EXISTS / NOT_EXISTS EVALUATE TESTS ====================
-
-    public function test_evaluate_exists_true(): void
-    {
-        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
-        $cluster = new ClusterVO(['lang_fr' => 'true']);
-
-        $this->assertTrue($node->evaluate($cluster));
-    }
-
-    public function test_evaluate_exists_false(): void
-    {
-        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
-        $cluster = new ClusterVO(['status' => 'active']);
-
-        $this->assertFalse($node->evaluate($cluster));
-    }
-
-    public function test_evaluate_not_exists_true(): void
-    {
-        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
-        $cluster = new ClusterVO(['lang_fr' => 'true']);
-
-        $this->assertTrue($node->evaluate($cluster));
-    }
-
-    public function test_evaluate_not_exists_false(): void
-    {
-        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
-        $cluster = new ClusterVO(['lang_es' => 'true']);
-
-        $this->assertFalse($node->evaluate($cluster));
-    }
-
-    // ==================== TO SQL TESTS FOR EXISTS ====================
-
-    public function test_to_sql_mysql_exists(): void
-    {
-        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
-        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
-
-        $expected = "JSON_EXTRACT(clusters, '$.\"lang_fr\"') IS NOT NULL";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_mysql_not_exists(): void
-    {
-        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
-        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
-
-        $expected = "JSON_EXTRACT(clusters, '$.\"lang_es\"') IS NULL";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_postgres_exists(): void
-    {
-        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
-        $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
-
-        $expected = "clusters->'lang_fr' IS NOT NULL";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_postgres_not_exists(): void
-    {
-        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
-        $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
-
-        $expected = "clusters->'lang_es' IS NULL";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_sqlite_exists(): void
-    {
-        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-
-        $expected = "json_extract(clusters, '$.lang_fr') IS NOT NULL";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_sqlite_not_exists(): void
-    {
-        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-
-        $expected = "json_extract(clusters, '$.lang_es') IS NULL";
-        $this->assertEquals($expected, $sql);
-    }
-
-    // ==================== TO ELOQUENT TESTS FOR EXISTS ====================
-
-    public function test_to_eloquent_mysql_exists(): void
-    {
-        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
-        $query = TestCluster::query();
-
-        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
-
-        $sql = $query->toSql();
-        $this->assertStringContainsString('IS NOT NULL', $sql);
-        $this->assertStringContainsString('lang_fr', $sql);
-
-        $results = $query->get();
-        // Tous les clusters ont lang_fr → 5
-        $this->assertCount(5, $results);
-    }
-
-    public function test_to_eloquent_mysql_not_exists(): void
-    {
-        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
-        $query = TestCluster::query();
-
-        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
-
-        $sql = $query->toSql();
-        $this->assertStringContainsString('IS NULL', $sql);
-        $this->assertStringContainsString('lang_es', $sql);
-
-        $results = $query->get();
-        // Aucun cluster n'a lang_es → 5
-        $this->assertCount(5, $results);
-    }
-
-    public function test_to_eloquent_mysql_exists_with_condition(): void
-    {
-        $node = new ConditionNode('verified', ComparisonOperator::EXISTS);
-        $query = TestCluster::query();
-
-        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
-
-        $results = $query->get();
-        // Tous les clusters ont verified → 5
-        $this->assertCount(5, $results);
-    }
-
-    public function test_to_eloquent_mysql_not_exists_with_condition(): void
-    {
-        $node = new ConditionNode('lang_es', ComparisonOperator::NOT_EXISTS);
-        $query = TestCluster::query();
-
-        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
-
-        $results = $query->get();
-        // Aucun cluster n'a lang_es → 5
-        $this->assertCount(5, $results);
-    }
-
-    public function test_to_eloquent_postgres_exists(): void
-    {
-        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
-        $query = TestCluster::query();
-
-        $node->toEloquent($query, 'clusters', DatabaseDriver::PGSQL);
-
-        $sql = $query->toSql();
-        $this->assertStringContainsString("->'lang_fr'", $sql);
-        $this->assertStringContainsString('IS NOT NULL', $sql);
-    }
-
-    public function test_to_eloquent_sqlite_exists(): void
-    {
-        $node = new ConditionNode('lang_fr', ComparisonOperator::EXISTS);
-        $query = TestCluster::query();
-
-        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-
-        $sql = $query->toSql();
-        $this->assertStringContainsString("json_extract(clusters, '$.lang_fr')", $sql);
-        $this->assertStringContainsString('IS NOT NULL', $sql);
-    }
-
-    // ==================== LIKE / NOT_LIKE EVALUATE TESTS ====================
-
-    public function test_evaluate_like_true(): void
-    {
-        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john');
-        $cluster = new ClusterVO(['name' => 'john_doe']);
-
-        $this->assertTrue($node->evaluate($cluster));
-    }
-
-    public function test_evaluate_like_false(): void
-    {
-        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john');
-        $cluster = new ClusterVO(['name' => 'jane_doe']);
-
-        $this->assertFalse($node->evaluate($cluster));
-    }
-
-    public function test_evaluate_not_like_true(): void
-    {
-        $node = new ConditionNode('name', ComparisonOperator::NOT_LIKE, 'john');
-        $cluster = new ClusterVO(['name' => 'jane_doe']);
-
-        $this->assertTrue($node->evaluate($cluster));
-    }
-
-    public function test_evaluate_not_like_false(): void
-    {
-        $node = new ConditionNode('name', ComparisonOperator::NOT_LIKE, 'john');
-        $cluster = new ClusterVO(['name' => 'john_doe']);
-
-        $this->assertFalse($node->evaluate($cluster));
-    }
-
-    public function test_evaluate_like_with_pattern_starts(): void
-    {
-        $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john%');
-        $cluster = new ClusterVO(['name' => 'john_doe']);
-
-        $this->assertTrue($node->evaluate($cluster));
-    }
-
-    public function test_evaluate_like_with_pattern_ends(): void
-    {
-        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%doe');
-        $cluster = new ClusterVO(['name' => 'john_doe']);
-
-        $this->assertTrue($node->evaluate($cluster));
-    }
-
-    public function test_evaluate_like_with_pattern_contains(): void
-    {
-        $node = new ConditionNode('name', ComparisonOperator::LIKE, '%hn%');
-        $cluster = new ClusterVO(['name' => 'john_doe']);
-
-        $this->assertTrue($node->evaluate($cluster));
     }
 }

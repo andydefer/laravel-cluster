@@ -36,6 +36,7 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'lang_en' => 'false',
                 'verified' => 'true',
                 'score' => '85.5',
+                'name' => 'john_doe',
             ],
         ]);
 
@@ -48,6 +49,7 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'lang_en' => 'true',
                 'verified' => 'false',
                 'score' => '92.0',
+                'name' => 'jane_smith',
             ],
         ]);
 
@@ -60,6 +62,7 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'lang_en' => 'false',
                 'verified' => 'true',
                 'score' => '78.0',
+                'name' => 'bob_johnson',
             ],
         ]);
 
@@ -72,6 +75,7 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'lang_en' => 'true',
                 'verified' => 'false',
                 'score' => '30.5',
+                'name' => 'alice_johanson',
             ],
         ]);
 
@@ -84,6 +88,7 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'lang_en' => 'false',
                 'verified' => 'true',
                 'score' => '95.0',
+                'name' => 'charlie_doe',
             ],
         ]);
 
@@ -97,6 +102,7 @@ final class ClusterQueryTest extends IntegrationTestCase
             'lang_en' => 'false',
             'verified' => 'true',
             'score' => '85.5',
+            'name' => 'john_doe',
         ]));
         $this->collection->add(new ClusterVO([
             'status' => 'inactive',
@@ -106,6 +112,7 @@ final class ClusterQueryTest extends IntegrationTestCase
             'lang_en' => 'true',
             'verified' => 'false',
             'score' => '92.0',
+            'name' => 'jane_smith',
         ]));
         $this->collection->add(new ClusterVO([
             'status' => 'active',
@@ -115,6 +122,7 @@ final class ClusterQueryTest extends IntegrationTestCase
             'lang_en' => 'false',
             'verified' => 'true',
             'score' => '78.0',
+            'name' => 'bob_johnson',
         ]));
         $this->collection->add(new ClusterVO([
             'status' => 'pending',
@@ -124,6 +132,7 @@ final class ClusterQueryTest extends IntegrationTestCase
             'lang_en' => 'true',
             'verified' => 'false',
             'score' => '30.5',
+            'name' => 'alice_johanson',
         ]));
         $this->collection->add(new ClusterVO([
             'status' => 'active',
@@ -133,6 +142,7 @@ final class ClusterQueryTest extends IntegrationTestCase
             'lang_en' => 'false',
             'verified' => 'true',
             'score' => '95.0',
+            'name' => 'charlie_doe',
         ]));
     }
 
@@ -203,25 +213,21 @@ final class ClusterQueryTest extends IntegrationTestCase
 
     public function test_filter_with_presence(): void
     {
-        // lang_fr est un raccourci pour lang_fr=true
         $result = $this->clusterQuery->filter(
             $this->collection,
             'lang_fr'
         );
 
-        // lang_fr=true : ID 1, 3, 5 → 3 clusters
         $this->assertCount(3, $result);
     }
 
     public function test_filter_with_absence(): void
     {
-        // !lang_fr est un raccourci pour lang_fr=false
         $result = $this->clusterQuery->filter(
             $this->collection,
             '!lang_fr'
         );
 
-        // lang_fr=false : ID 2, 4 → 2 clusters
         $this->assertCount(2, $result);
     }
 
@@ -232,7 +238,6 @@ final class ClusterQueryTest extends IntegrationTestCase
             'lang_fr=true'
         );
 
-        // lang_fr=true : ID 1, 3, 5 → 3 clusters
         $this->assertCount(3, $result);
     }
 
@@ -243,7 +248,6 @@ final class ClusterQueryTest extends IntegrationTestCase
             'lang_fr=false'
         );
 
-        // lang_fr=false : ID 2, 4 → 2 clusters
         $this->assertCount(2, $result);
     }
 
@@ -254,7 +258,6 @@ final class ClusterQueryTest extends IntegrationTestCase
             'age>30'
         );
 
-        // age > 30 : 35, 40 → 2 clusters
         $this->assertCount(2, $result);
     }
 
@@ -265,7 +268,6 @@ final class ClusterQueryTest extends IntegrationTestCase
             'age>=35'
         );
 
-        // age >= 35 : 35, 40 → 2 clusters
         $this->assertCount(2, $result);
     }
 
@@ -276,7 +278,6 @@ final class ClusterQueryTest extends IntegrationTestCase
             'age<30'
         );
 
-        // age < 30 : 25, 18 → 2 clusters
         $this->assertCount(2, $result);
     }
 
@@ -287,7 +288,6 @@ final class ClusterQueryTest extends IntegrationTestCase
             'age<=25'
         );
 
-        // age <= 25 : 25, 18 → 2 clusters
         $this->assertCount(2, $result);
     }
 
@@ -298,7 +298,6 @@ final class ClusterQueryTest extends IntegrationTestCase
             'status!=active'
         );
 
-        // status != active : inactive, pending → 2 clusters
         $this->assertCount(2, $result);
     }
 
@@ -403,7 +402,6 @@ final class ClusterQueryTest extends IntegrationTestCase
     {
         $query = TestCluster::query();
 
-        // lang_fr est un raccourci pour lang_fr=true
         $this->clusterQuery->applyToEloquent(
             $query,
             'clusters',
@@ -412,7 +410,6 @@ final class ClusterQueryTest extends IntegrationTestCase
         );
 
         $results = $query->get();
-        // lang_fr=true : ID 1, 3, 5 → 3 clusters
         $this->assertCount(3, $results);
     }
 
@@ -420,7 +417,6 @@ final class ClusterQueryTest extends IntegrationTestCase
     {
         $query = TestCluster::query();
 
-        // !lang_fr est un raccourci pour lang_fr=false
         $this->clusterQuery->applyToEloquent(
             $query,
             'clusters',
@@ -429,7 +425,6 @@ final class ClusterQueryTest extends IntegrationTestCase
         );
 
         $results = $query->get();
-        // lang_fr=false : ID 2, 4 → 2 clusters
         $this->assertCount(2, $results);
     }
 
@@ -490,11 +485,6 @@ final class ClusterQueryTest extends IntegrationTestCase
         );
 
         $results = $query->get();
-        // (active ou pending) ET lang_fr=true ET age>=25
-        // ID 1 (active, true, 25) ✅
-        // ID 3 (active, true, 35) ✅
-        // ID 5 (active, true, 40) ✅
-        // ID 4 (pending, false, 18) ❌
         $this->assertCount(3, $results);
     }
 
@@ -732,25 +722,21 @@ final class ClusterQueryTest extends IntegrationTestCase
 
     public function test_filter_with_exists_operator(): void
     {
-        // *lang_fr vérifie l'existence de la clé lang_fr
         $result = $this->clusterQuery->filter(
             $this->collection,
             '*lang_fr'
         );
 
-        // Tous les clusters ont lang_fr → 5 clusters
         $this->assertCount(5, $result);
     }
 
     public function test_filter_with_not_exists_operator(): void
     {
-        // #lang_es vérifie l'absence de la clé lang_es
         $result = $this->clusterQuery->filter(
             $this->collection,
             '#lang_es'
         );
 
-        // Aucun cluster n'a lang_es → 5 clusters
         $this->assertCount(5, $result);
     }
 
@@ -761,7 +747,6 @@ final class ClusterQueryTest extends IntegrationTestCase
             '*verified & status=active'
         );
 
-        // clusters avec verified ET status=active : ID 1, 3, 5 → 3 clusters
         $this->assertCount(3, $result);
     }
 
@@ -772,7 +757,6 @@ final class ClusterQueryTest extends IntegrationTestCase
             '#lang_es | status=active'
         );
 
-        // clusters sans lang_es OU status=active : tous → 5 clusters
         $this->assertCount(5, $result);
     }
 
@@ -783,20 +767,13 @@ final class ClusterQueryTest extends IntegrationTestCase
             '(*lang_fr | #lang_en) & age>=25'
         );
 
-        // (lang_fr existe OU lang_en n'existe pas) ET age>=25
-        // ID 1 (lang_fr existe, age=25) ✅
-        // ID 2 (lang_fr existe, age=30) ✅  ← AJOUTÉ
-        // ID 3 (lang_fr existe, age=35) ✅
-        // ID 5 (lang_fr existe, age=40) ✅
-        // ID 4 (lang_en existe, age=18) ❌
         $this->assertCount(4, $result);
     }
 
     // ==================== LIKE / NOT_LIKE FILTER TESTS ====================
 
-    public function test_filter_with_like_operator(): void
+    public function test_filter_with_like_simple_contains(): void
     {
-        // Ajouter un cluster avec un nom
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO(['name' => 'john_doe']));
         $collection->add(new ClusterVO(['name' => 'jane_doe']));
@@ -804,6 +781,90 @@ final class ClusterQueryTest extends IntegrationTestCase
 
         $result = $this->clusterQuery->filter($collection, 'name=~john');
 
+        $this->assertCount(1, $result);
+    }
+
+    public function test_filter_with_like_case_insensitive(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'John_Doe']));
+        $collection->add(new ClusterVO(['name' => 'Jane_doe']));
+
+        $result = $this->clusterQuery->filter($collection, 'name=~JOHN');
+
+        $this->assertCount(1, $result);
+    }
+
+    public function test_filter_with_like_starts_with(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+        $collection->add(new ClusterVO(['name' => 'jane_doe']));
+
+        $result = $this->clusterQuery->filter($collection, 'name=~john%');
+
+        $this->assertCount(1, $result);
+    }
+
+    public function test_filter_with_like_ends_with(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+        $collection->add(new ClusterVO(['name' => 'john_doe_smith']));
+
+        $result = $this->clusterQuery->filter($collection, 'name=~%doe');
+
+        $this->assertCount(1, $result);
+    }
+
+    public function test_filter_with_like_multiple_patterns_contains_in_order(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'johanson']));
+        $collection->add(new ClusterVO(['name' => 'johnson']));
+        $collection->add(new ClusterVO(['name' => 'jones']));
+
+        $result = $this->clusterQuery->filter($collection, 'name=~%j%h%n');
+
+        // johanson et johnson contiennent j, h, n dans l'ordre
+        $this->assertCount(2, $result);
+    }
+
+    public function test_filter_with_like_multiple_patterns_contains_in_order_false(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'johanson']));
+        $collection->add(new ClusterVO(['name' => 'johnson']));
+
+        $result = $this->clusterQuery->filter($collection, 'name=~%j%n%h');
+
+        // aucun ne contient j, n, h dans l'ordre
+        $this->assertCount(0, $result);
+    }
+
+    public function test_filter_with_like_multiple_patterns_starts_with(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'johanson']));
+        $collection->add(new ClusterVO(['name' => 'jones']));
+        $collection->add(new ClusterVO(['name' => 'ornes']));
+
+        $result = $this->clusterQuery->filter($collection, 'name=~j%o%');
+
+        // johanson contient j puis o dans l'ordre → true
+        // jones contient j puis o dans l'ordre → true
+        $this->assertCount(2, $result);
+    }
+
+    public function test_filter_with_like_multiple_patterns_ends_with(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'johanson']));
+        $collection->add(new ClusterVO(['name' => 'johnson']));
+
+        $result = $this->clusterQuery->filter($collection, 'name=~%a%n');
+
+        // johanson contient a puis n dans l'ordre
         $this->assertCount(1, $result);
     }
 
@@ -819,6 +880,19 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->assertCount(2, $result);
     }
 
+    public function test_filter_with_not_like_multiple_patterns(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'johanson']));
+        $collection->add(new ClusterVO(['name' => 'johnson']));
+
+        $result = $this->clusterQuery->filter($collection, 'name!~%j%h%n');
+
+        // johnson contient j, h, n dans l'ordre → exclu
+        // johanson contient j, h, n dans l'ordre → exclu
+        $this->assertCount(0, $result);
+    }
+
     public function test_filter_with_like_and_condition(): void
     {
         $collection = new ClusterVOCollection;
@@ -829,5 +903,145 @@ final class ClusterQueryTest extends IntegrationTestCase
         $result = $this->clusterQuery->filter($collection, 'name=~john & status=active');
 
         $this->assertCount(1, $result);
+    }
+
+    public function test_filter_with_like_or_condition(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+        $collection->add(new ClusterVO(['name' => 'jane_smith']));
+        $collection->add(new ClusterVO(['name' => 'bob_johnson']));
+        $collection->add(new ClusterVO(['name' => 'bob_dylan']));
+
+        $result = $this->clusterQuery->filter($collection, 'name=~john | name=~jane');
+
+        // john_doe → john ✅
+        // jane_smith → jane ✅
+        // bob_johnson → john ✅ (contient john)
+        $this->assertCount(3, $result);
+    }
+
+    public function test_filter_with_like_and_eloquent(): void
+    {
+        $query = TestCluster::query();
+
+        $this->clusterQuery->applyToEloquent(
+            $query,
+            'clusters',
+            'name=~john%',
+            DatabaseDriver::MYSQL
+        );
+
+        $results = $query->get();
+        $this->assertCount(1, $results);
+        $this->assertEquals('john_doe', $results->first()->clusters['name']);
+    }
+
+    public function test_filter_with_like_multiple_patterns_eloquent(): void
+    {
+        $query = TestCluster::query();
+
+        $this->clusterQuery->applyToEloquent(
+            $query,
+            'clusters',
+            'name=~%j%h%n',
+            DatabaseDriver::MYSQL
+        );
+
+        $results = $query->get();
+        // bob_johnson et alice_johanson contiennent j, h, n dans l'ordre
+        $this->assertCount(2, $results);
+    }
+
+    public function test_filter_with_not_like_eloquent(): void
+    {
+        $query = TestCluster::query();
+
+        $this->clusterQuery->applyToEloquent(
+            $query,
+            'clusters',
+            'name!~john%',
+            DatabaseDriver::MYSQL
+        );
+
+        $results = $query->get();
+        // tous sauf john_doe → 4
+        $this->assertCount(4, $results);
+    }
+
+    public function test_filter_with_like_sqlite(): void
+    {
+        $query = TestCluster::query();
+
+        $this->clusterQuery->applyToEloquent(
+            $query,
+            'clusters',
+            'name=~john%',
+            DatabaseDriver::SQLITE
+        );
+
+        $sql = $query->toSql();
+        $this->assertStringContainsString("json_extract(clusters, '$.name')", $sql);
+        $this->assertStringContainsString('LIKE', $sql);
+
+        $results = $query->get();
+        $this->assertCount(1, $results);
+    }
+
+    public function test_matches_with_like(): void
+    {
+        $cluster = new ClusterVO(['name' => 'john_doe']);
+
+        $result = $this->clusterQuery->matches($cluster, 'name=~john');
+
+        $this->assertTrue($result);
+    }
+
+    public function test_matches_with_like_false(): void
+    {
+        $cluster = new ClusterVO(['name' => 'jane_doe']);
+
+        $result = $this->clusterQuery->matches($cluster, 'name=~john');
+
+        $this->assertFalse($result);
+    }
+
+    public function test_matches_with_not_like(): void
+    {
+        $cluster = new ClusterVO(['name' => 'jane_doe']);
+
+        $result = $this->clusterQuery->matches($cluster, 'name!~john');
+
+        $this->assertTrue($result);
+    }
+
+    public function test_matches_with_like_multiple_patterns(): void
+    {
+        $cluster = new ClusterVO(['name' => 'johanson']);
+
+        $result = $this->clusterQuery->matches($cluster, 'name=~%j%h%n');
+
+        $this->assertTrue($result);
+    }
+
+    public function test_to_sql_like_mysql(): void
+    {
+        $sql = $this->clusterQuery->toSql('clusters', 'name=~john', DatabaseDriver::MYSQL);
+
+        $this->assertStringContainsString("JSON_EXTRACT(clusters, '$.\"name\"') LIKE '%john%'", $sql);
+    }
+
+    public function test_to_sql_like_mysql_multiple_patterns(): void
+    {
+        $sql = $this->clusterQuery->toSql('clusters', 'name=~%j%h%n', DatabaseDriver::MYSQL);
+
+        $this->assertStringContainsString("JSON_EXTRACT(clusters, '$.\"name\"') LIKE '%j%h%n'", $sql);
+    }
+
+    public function test_to_sql_not_like_mysql(): void
+    {
+        $sql = $this->clusterQuery->toSql('clusters', 'name!~john', DatabaseDriver::MYSQL);
+
+        $this->assertStringContainsString("JSON_EXTRACT(clusters, '$.\"name\"') NOT LIKE '%john%'", $sql);
     }
 }

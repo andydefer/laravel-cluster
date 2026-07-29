@@ -157,8 +157,21 @@ enum ComparisonOperator: string
         return (string) $actual <=> (string) $value;
     }
 
-    // src/Enums/ComparisonOperator.php
-
+    /**
+     * Evaluates a LIKE pattern against an actual string value.
+     *
+     * Supports standard SQL LIKE patterns with '%' wildcards:
+     * - 'keyword' → contains (case-insensitive)
+     * - 'keyword%' → starts with
+     * - '%keyword' → ends with
+     * - '%keyword%' → contains
+     * - '%j%h%n' → contains j, then h, then n in order
+     * - 'j%o%' → starts with j, then contains o
+     *
+     * @param  mixed  $actual  The actual value to test
+     * @param  string|null  $value  The LIKE pattern
+     * @return bool True if the pattern matches
+     */
     private function evaluateLike(mixed $actual, ?string $value): bool
     {
         if (! is_string($actual) || ! is_string($value)) {
@@ -168,37 +181,54 @@ enum ComparisonOperator: string
         $actualLower = strtolower($actual);
         $valueLower = strtolower($value);
 
-        // Si le pattern contient des %, on les utilise
-        if (str_contains($value, '%')) {
-            // %keyword% → contient
-            if (str_starts_with($value, '%') && str_ends_with($value, '%')) {
-                $search = substr($value, 1, -1);
+        // If pattern doesn't contain %, simple contains check
+        if (! str_contains($value, '%')) {
+            return str_contains($actualLower, $valueLower);
+        }
 
-                return str_contains($actualLower, strtolower($search));
-            }
-
-            // keyword% → commence par
-            if (str_ends_with($value, '%') && ! str_starts_with($value, '%')) {
-                $search = substr($value, 0, -1);
-
-                return str_starts_with($actualLower, strtolower($search));
-            }
-
-            // %keyword → termine par
-            if (str_starts_with($value, '%') && ! str_ends_with($value, '%')) {
-                $search = substr($value, 1);
-
-                return str_ends_with($actualLower, strtolower($search));
-            }
-
-            // %keyword% (cas générique)
-            $search = str_replace('%', '', $value);
+        // Case: %keyword% → contains (only if it's the only % at start and end)
+        if (str_starts_with($value, '%') && str_ends_with($value, '%') && substr_count($value, '%') === 2) {
+            $search = substr($value, 1, -1);
 
             return str_contains($actualLower, strtolower($search));
         }
 
-        // Sans %, recherche "contient" par défaut
-        return str_contains($actualLower, $valueLower);
+        // Case: multiple % patterns (e.g., %j%h%n, j%o%, %a%o%, %j%h%n%)
+        $parts = explode('%', $value);
+        $parts = array_filter($parts, fn ($p) => $p !== '');
+
+        if (count($parts) >= 2) {
+            $position = 0;
+            foreach ($parts as $part) {
+                $partLower = strtolower($part);
+                $pos = strpos($actualLower, $partLower, $position);
+                if ($pos === false) {
+                    return false;
+                }
+                $position = $pos + strlen($partLower);
+            }
+
+            return true;
+        }
+
+        // Case: keyword% → starts with
+        if (str_ends_with($value, '%') && ! str_starts_with($value, '%')) {
+            $search = substr($value, 0, -1);
+
+            return str_starts_with($actualLower, strtolower($search));
+        }
+
+        // Case: %keyword → ends with
+        if (str_starts_with($value, '%') && ! str_ends_with($value, '%')) {
+            $search = substr($value, 1);
+
+            return str_ends_with($actualLower, strtolower($search));
+        }
+
+        // Fallback: generic contains
+        $search = str_replace('%', '', $value);
+
+        return str_contains($actualLower, strtolower($search));
     }
 
     public function toSql(): string
