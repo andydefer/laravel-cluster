@@ -43,6 +43,7 @@ final class FlatArrayService
      *
      * - Associative arrays: keys become dot-notated paths
      * - Indexed arrays: expanded into separate keys with "_value" suffix
+     * - Nested arrays are JSON encoded to preserve structure
      * - Booleans: converted to 'true' or 'false' strings
      * - Scalars: kept as-is
      * - Null: kept as null
@@ -50,8 +51,6 @@ final class FlatArrayService
      * @param  array<string, mixed>  $array  The array to flatten
      * @param  string  $prefix  The key prefix for recursion (internal use)
      * @return array<string, int|float|string|null> The flattened array
-     *
-     * @throws InvalidArgumentException If an unsupported value type is encountered
      */
     public function flatten(array $array, string $prefix = ''): array
     {
@@ -132,15 +131,20 @@ final class FlatArrayService
      * @param  array<mixed>  $value  The array value to flatten
      * @param  string  $newKey  The current key path
      * @return array<string, int|float|string|null> The flattened array
-     *
-     * @throws InvalidArgumentException If the array contains unsupported values
      */
     private function flattenArrayValue(array $value, string $newKey): array
     {
+        // Si c'est un tableau associatif, on le flatten normalement
         if ($this->isAssociativeArray($value)) {
             return $this->flatten($value, $newKey);
         }
 
+        // Si c'est un tableau indexé avec des tableaux imbriqués, on le JSON encode
+        if ($this->hasNestedArrays($value)) {
+            return [$newKey => json_encode($value)];
+        }
+
+        // Sinon, on l'expand normalement
         return $this->expandIndexedArray($value, $newKey);
     }
 
@@ -150,8 +154,6 @@ final class FlatArrayService
      * @param  mixed  $value  The value to normalize
      * @param  string  $key  The key for error messages
      * @return int|float|string|null The normalized value
-     *
-     * @throws InvalidArgumentException If the value type is unsupported
      */
     private function normalizeScalarValue(mixed $value, string $key): int|float|string|null
     {
@@ -159,17 +161,16 @@ final class FlatArrayService
             return $value ? 'true' : 'false';
         }
 
+        if (is_array($value)) {
+            return json_encode($value);
+        }
+
         if (is_scalar($value) || $value === null) {
             return $value;
         }
 
-        throw new InvalidArgumentException(
-            sprintf(
-                'Unsupported value type "%s" for key "%s". Only scalar, null, or array values are allowed.',
-                gettype($value),
-                $key
-            )
-        );
+        // Fallback: convertir en JSON pour tout autre type
+        return json_encode($value);
     }
 
     /**
@@ -188,6 +189,14 @@ final class FlatArrayService
             $isLastPart = $index === count($parts) - 1;
 
             if ($isLastPart) {
+                // Si la valeur est un JSON string, on la décode
+                if (is_string($value) && $this->isJson($value)) {
+                    $decoded = json_decode($value, true);
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        $current[$part] = $decoded;
+                        break;
+                    }
+                }
                 $current[$part] = $value;
                 break;
             }
@@ -208,8 +217,6 @@ final class FlatArrayService
      * @param  array<int, mixed>  $array  The indexed array
      * @param  string  $baseKey  The base key prefix
      * @return array<string, int|float|string|null> The expanded array
-     *
-     * @throws InvalidArgumentException If a nested array or unsupported value is encountered
      */
     private function expandIndexedArray(array $array, string $baseKey): array
     {
@@ -221,12 +228,12 @@ final class FlatArrayService
 
         foreach ($array as $value) {
             if (is_array($value)) {
-                throw new InvalidArgumentException(
-                    sprintf(
-                        'Nested arrays are not supported for key "%s". Only flat lists are allowed.',
-                        $baseKey
-                    )
-                );
+                // Si un tableau imbriqué est trouvé, on le JSON encode
+                $keySuffix = $this->normalizeValueForKey($value);
+                $newKey = $baseKey.'_'.$keySuffix;
+                $result[$newKey] = json_encode($value);
+
+                continue;
             }
 
             $keySuffix = $this->normalizeValueForKey($value);
@@ -242,8 +249,6 @@ final class FlatArrayService
      *
      * @param  mixed  $value  The value to normalize
      * @return string The normalized key suffix
-     *
-     * @throws InvalidArgumentException If the value cannot be used as a key
      */
     private function normalizeValueForKey(mixed $value): string
     {
@@ -251,10 +256,9 @@ final class FlatArrayService
             is_string($value) => $value,
             is_int($value) || is_float($value) => (string) $value,
             is_bool($value) => $value ? 'true' : 'false',
+            is_array($value) => 'array',
             $value === null => 'null',
-            default => throw new InvalidArgumentException(
-                sprintf('Cannot use value of type "%s" as a key suffix.', gettype($value))
-            ),
+            default => 'value',
         };
     }
 
@@ -277,5 +281,35 @@ final class FlatArrayService
         }
 
         return false;
+    }
+
+    /**
+     * Checks if an array contains nested arrays.
+     *
+     * @param  array<mixed>  $array  The array to check
+     * @return bool True if the array contains nested arrays
+     */
+    private function hasNestedArrays(array $array): bool
+    {
+        foreach ($array as $value) {
+            if (is_array($value)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Checks if a string is a valid JSON.
+     *
+     * @param  string  $string  The string to check
+     * @return bool True if the string is valid JSON
+     */
+    private function isJson(string $string): bool
+    {
+        json_decode($string);
+
+        return json_last_error() === JSON_ERROR_NONE;
     }
 }

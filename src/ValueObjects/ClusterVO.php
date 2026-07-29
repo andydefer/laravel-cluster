@@ -86,6 +86,14 @@ final class ClusterVO extends AbstractValueObject
     }
 
     /**
+     * Returns the nested (unflattened) representation as an array.
+     */
+    public function getNestedData(): array
+    {
+        return $this->nestedData->toArray();
+    }
+
+    /**
      * Checks if a key exists in the flattened data.
      *
      * @param  string  $key  The dot-notated key to check

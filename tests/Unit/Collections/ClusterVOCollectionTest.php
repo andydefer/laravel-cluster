@@ -1270,4 +1270,276 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(2, $result);
         $this->assertContains($result->first()?->get('id'), [2, 3]);
     }
+
+    // ==================== LIKE PATTERN TESTS ====================
+
+    public function test_where_like_pattern_contains(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+        $collection->add(new ClusterVO(['name' => 'jane_smith']));
+        $collection->add(new ClusterVO(['name' => 'bob_johnson']));
+
+        $result = $collection->whereLikePattern('name', '%john%');
+
+        $this->assertCount(2, $result);
+    }
+
+    public function test_where_like_pattern_starts_with(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+        $collection->add(new ClusterVO(['name' => 'jane_smith']));
+        $collection->add(new ClusterVO(['name' => 'johnson']));
+
+        $result = $collection->whereLikePattern('name', 'john%');
+
+        $this->assertCount(2, $result);
+    }
+
+    public function test_where_like_pattern_ends_with(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+        $collection->add(new ClusterVO(['name' => 'jane_doe']));
+        $collection->add(new ClusterVO(['name' => 'bob_smith']));
+
+        $result = $collection->whereLikePattern('name', '%doe');
+
+        $this->assertCount(2, $result);
+    }
+
+    public function test_where_like_pattern_multiple_wildcards(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'johanson']));
+        $collection->add(new ClusterVO(['name' => 'johnson']));
+        $collection->add(new ClusterVO(['name' => 'jones']));
+
+        $result = $collection->whereLikePattern('name', '%j%h%n');
+
+        // johanson et johnson contiennent j, h, n dans l'ordre
+        $this->assertCount(2, $result);
+    }
+
+    public function test_where_like_pattern_starts_and_ends(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'johanson']));
+        $collection->add(new ClusterVO(['name' => 'johnson']));
+
+        $result = $collection->whereLikePattern('name', 'j%n');
+
+        // johanson commence par j et finit par n
+        // johnson commence par j et finit par n
+        $this->assertCount(2, $result);
+    }
+
+    public function test_where_like_pattern_with_underscore(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+        $collection->add(new ClusterVO(['name' => 'jane_doe']));
+
+        $result = $collection->whereLikePattern('name', 'john_doe');
+
+        $this->assertCount(1, $result);
+    }
+
+    public function test_where_like_pattern_multiple_wildcards_with_order(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'johanson']));
+        $collection->add(new ClusterVO(['name' => 'johnson']));
+
+        // johanson: j -> h -> n dans l'ordre ✅
+        // johnson: j -> h -> n dans l'ordre ✅
+        $result = $collection->whereLikePattern('name', '%j%h%n');
+
+        $this->assertCount(2, $result);
+    }
+
+    public function test_where_like_pattern_multiple_wildcards_wrong_order(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'johanson']));
+        $collection->add(new ClusterVO(['name' => 'johnson']));
+
+        // johanson: j -> n -> h dans l'ordre ❌
+        // johnson: j -> n -> h dans l'ordre ❌
+        $result = $collection->whereLikePattern('name', '%j%n%h');
+
+        $this->assertCount(0, $result);
+    }
+
+    public function test_where_like_pattern_case_insensitive(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'JOHANSON']));
+        $collection->add(new ClusterVO(['name' => 'JOHNSON']));
+
+        $result = $collection->whereLikePattern('name', '%j%h%n');
+
+        $this->assertCount(2, $result);
+    }
+
+    public function test_where_not_like_pattern(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+        $collection->add(new ClusterVO(['name' => 'jane_smith']));
+        $collection->add(new ClusterVO(['name' => 'bob_johnson']));
+
+        $result = $collection->whereNotLikePattern('name', '%john%');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('jane_smith', $result->first()?->get('name'));
+    }
+
+    public function test_where_like_pattern_with_empty_string(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => '']));
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+
+        $result = $collection->whereLikePattern('name', '');
+
+        $this->assertCount(2, $result);
+    }
+
+    public function test_where_like_pattern_with_only_wildcard(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+        $collection->add(new ClusterVO(['name' => 'jane_smith']));
+
+        $result = $collection->whereLikePattern('name', '%');
+
+        $this->assertCount(2, $result);
+    }
+
+    public function test_where_like_pattern_with_non_string_value(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['age' => 25]));
+
+        $result = $collection->whereLikePattern('age', '%25%');
+
+        $this->assertCount(0, $result);
+    }
+
+    public function test_where_like_pattern_with_special_characters(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+        $collection->add(new ClusterVO(['name' => 'jane_doe']));
+
+        $result = $collection->whereLikePattern('name', '%_doe');
+
+        // _ correspond à un seul caractère, donc john_doe et jane_doe
+        $this->assertCount(2, $result);
+    }
+
+    public function test_where_like_pattern_chaining_with_other_conditions(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe', 'status' => 'active']));
+        $collection->add(new ClusterVO(['name' => 'john_smith', 'status' => 'active']));
+        $collection->add(new ClusterVO(['name' => 'jane_doe', 'status' => 'inactive']));
+
+        $result = $collection
+            ->whereLikePattern('name', 'john%')
+            ->where('status', 'active');
+
+        $this->assertCount(2, $result);
+    }
+
+    public function test_where_like_pattern_or_condition(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+        $collection->add(new ClusterVO(['name' => 'jane_smith']));
+        $collection->add(new ClusterVO(['name' => 'bob_johnson']));
+
+        $result = $collection
+            ->whereLikePattern('name', '%john%')
+            ->orWhereLikePattern('name', '%jane%');
+
+        $this->assertCount(3, $result);
+    }
+
+    public function test_or_where_like_pattern_without_prior_filter(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+        $collection->add(new ClusterVO(['name' => 'jane_smith']));
+        $collection->add(new ClusterVO(['name' => 'bob_johnson']));
+
+        $result = $collection->orWhereLikePattern('name', '%john%');
+
+        $this->assertCount(2, $result);
+    }
+
+    public function test_or_where_like_pattern_with_prior_filter(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe', 'status' => 'active']));
+        $collection->add(new ClusterVO(['name' => 'jane_smith', 'status' => 'active']));
+        $collection->add(new ClusterVO(['name' => 'bob_johnson', 'status' => 'inactive']));
+
+        $result = $collection
+            ->where('status', 'active')
+            ->orWhereLikePattern('name', '%johnson%');
+
+        // active: john_doe, jane_smith → 2
+        // ou johnson: bob_johnson → 1 (mais pas active)
+        // total: 3
+        $this->assertCount(3, $result);
+    }
+
+    public function test_or_where_not_like_pattern(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+        $collection->add(new ClusterVO(['name' => 'jane_smith']));
+        $collection->add(new ClusterVO(['name' => 'bob_johnson']));
+
+        $result = $collection->orWhereNotLikePattern('name', '%john%');
+
+        // jane_smith ne contient pas john → 1
+        $this->assertCount(1, $result);
+        $this->assertEquals('jane_smith', $result->first()?->get('name'));
+    }
+
+    public function test_or_where_like_pattern_with_multiple_patterns(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe']));
+        $collection->add(new ClusterVO(['name' => 'jane_smith']));
+        $collection->add(new ClusterVO(['name' => 'bob_johnson']));
+
+        $result = $collection
+            ->orWhereLikePattern('name', '%john%')
+            ->orWhereLikePattern('name', '%jane%');
+
+        $this->assertCount(3, $result);
+    }
+
+    public function test_or_where_like_pattern_chain_with_where(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'john_doe', 'status' => 'active']));
+        $collection->add(new ClusterVO(['name' => 'jane_smith', 'status' => 'active']));
+        $collection->add(new ClusterVO(['name' => 'bob_johnson', 'status' => 'inactive']));
+        $collection->add(new ClusterVO(['name' => 'alice_johnson', 'status' => 'active']));
+
+        $result = $collection
+            ->where('status', 'active')
+            ->orWhereLikePattern('name', '%johnson%');
+
+        // active: john_doe, jane_smith, alice_johnson → 3
+        // ou johnson: bob_johnson, alice_johnson → 2 (mais alice déjà dans active)
+        // total: 4
+        $this->assertCount(4, $result);
+    }
 }

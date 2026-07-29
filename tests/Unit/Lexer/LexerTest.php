@@ -588,4 +588,98 @@ final class LexerTest extends TestCase
         $this->assertTrue($foundLike);
         $this->assertTrue($foundAnd);
     }
+
+    // ==================== SUB BRACKET TESTS ====================
+
+    public function test_tokenize_sub_bracket_simple(): void
+    {
+        $tokens = $this->lexer->tokenize('addresses[city=kinshasa]');
+
+        $this->assertCount(7, $tokens);
+        $this->assertEquals(TokenType::IDENTIFIER, $tokens->toArray()[0]->type);
+        $this->assertEquals('addresses', $tokens->toArray()[0]->value);
+        $this->assertEquals(TokenType::SUB_OPEN, $tokens->toArray()[1]->type);
+        $this->assertEquals('[', $tokens->toArray()[1]->value);
+        $this->assertEquals(TokenType::IDENTIFIER, $tokens->toArray()[2]->type);
+        $this->assertEquals('city', $tokens->toArray()[2]->value);
+        $this->assertEquals(TokenType::OPERATOR, $tokens->toArray()[3]->type);
+        $this->assertEquals('=', $tokens->toArray()[3]->value);
+        $this->assertEquals(TokenType::IDENTIFIER, $tokens->toArray()[4]->type);
+        $this->assertEquals('kinshasa', $tokens->toArray()[4]->value);
+        $this->assertEquals(TokenType::SUB_CLOSE, $tokens->toArray()[5]->type);
+        $this->assertEquals(']', $tokens->toArray()[5]->value);
+    }
+
+    public function test_tokenize_sub_bracket_with_and(): void
+    {
+        $tokens = $this->lexer->tokenize('addresses[city=kinshasa & country=RDC]');
+
+        $this->assertCount(11, $tokens);
+
+        $foundAnd = false;
+        foreach ($tokens->toArray() as $token) {
+            if ($token->type === TokenType::OPERATOR && $token->value === 'AND') {
+                $foundAnd = true;
+            }
+        }
+        $this->assertTrue($foundAnd);
+    }
+
+    public function test_tokenize_sub_bracket_with_or(): void
+    {
+        $tokens = $this->lexer->tokenize('addresses[city=kinshasa | city=paris]');
+
+        $foundOr = false;
+        foreach ($tokens->toArray() as $token) {
+            if ($token->type === TokenType::OPERATOR && $token->value === 'OR') {
+                $foundOr = true;
+            }
+        }
+        $this->assertTrue($foundOr);
+    }
+
+    public function test_tokenize_sub_bracket_with_like(): void
+    {
+        $tokens = $this->lexer->tokenize('addresses[city=~kin%]');
+
+        $foundLike = false;
+        foreach ($tokens->toArray() as $token) {
+            if ($token->type === TokenType::OPERATOR && $token->value === '=~') {
+                $foundLike = true;
+            }
+        }
+        $this->assertTrue($foundLike);
+    }
+
+    public function test_tokenize_sub_bracket_with_wildcard_path(): void
+    {
+        $tokens = $this->lexer->tokenize('tags[0][0]=php');
+
+        $subOpens = 0;
+        $subCloses = 0;
+        foreach ($tokens->toArray() as $token) {
+            if ($token->type === TokenType::SUB_OPEN) {
+                $subOpens++;
+            }
+            if ($token->type === TokenType::SUB_CLOSE) {
+                $subCloses++;
+            }
+        }
+        $this->assertEquals(2, $subOpens);
+        $this->assertEquals(2, $subCloses);
+    }
+
+    public function test_tokenize_sub_bracket_with_exists(): void
+    {
+        $tokens = $this->lexer->tokenize('addresses[*]');
+
+        $this->assertEquals(TokenType::IDENTIFIER, $tokens->toArray()[0]->type);
+        $this->assertEquals('addresses', $tokens->toArray()[0]->value);
+        $this->assertEquals(TokenType::SUB_OPEN, $tokens->toArray()[1]->type);
+        $this->assertEquals('[', $tokens->toArray()[1]->value);
+        $this->assertEquals(TokenType::IDENTIFIER, $tokens->toArray()[2]->type);
+        $this->assertEquals('*', $tokens->toArray()[2]->value);
+        $this->assertEquals(TokenType::SUB_CLOSE, $tokens->toArray()[3]->type);
+        $this->assertEquals(']', $tokens->toArray()[3]->value);
+    }
 }

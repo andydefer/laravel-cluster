@@ -278,4 +278,200 @@ final class TokenRecordCollectionTest extends TestCase
 
         $this->assertCount(0, $result);
     }
+
+    // ==================== SUB BRACKET TESTS ====================
+
+    public function test_sub_opens(): void
+    {
+        // Créer une collection avec des tokens de sub_open
+        $collection = new TokenRecordCollection;
+        $collection->add(new TokenRecord(TokenType::SUB_OPEN, '[', 50));
+        $collection->add(new TokenRecord(TokenType::SUB_OPEN, '[', 70));
+
+        $result = $collection->subOpens();
+
+        $this->assertCount(2, $result);
+        foreach ($result as $token) {
+            $this->assertEquals(TokenType::SUB_OPEN, $token->type);
+            $this->assertEquals('[', $token->value);
+        }
+    }
+
+    public function test_sub_closes(): void
+    {
+        $collection = new TokenRecordCollection;
+        $collection->add(new TokenRecord(TokenType::SUB_CLOSE, ']', 68));
+        $collection->add(new TokenRecord(TokenType::SUB_CLOSE, ']', 74));
+
+        $result = $collection->subCloses();
+
+        $this->assertCount(2, $result);
+        foreach ($result as $token) {
+            $this->assertEquals(TokenType::SUB_CLOSE, $token->type);
+            $this->assertEquals(']', $token->value);
+        }
+    }
+
+    public function test_sub_opens_returns_empty_for_no_brackets(): void
+    {
+        $collection = new TokenRecordCollection;
+        $collection->add(new TokenRecord(TokenType::IDENTIFIER, 'status', 0));
+        $collection->add(new TokenRecord(TokenType::OPERATOR, '=', 7));
+
+        $result = $collection->subOpens();
+
+        $this->assertCount(0, $result);
+    }
+
+    public function test_chain_with_sub_opens(): void
+    {
+        $collection = new TokenRecordCollection;
+        $collection->add(new TokenRecord(TokenType::SUB_OPEN, '[', 50));
+        $collection->add(new TokenRecord(TokenType::IDENTIFIER, 'city', 52));
+
+        $result = $collection->subOpens()->withValue('[');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('[', $result->first()?->value);
+    }
+
+    public function test_chain_sub_opens_then_identifiers(): void
+    {
+        $collection = new TokenRecordCollection;
+        $collection->add(new TokenRecord(TokenType::SUB_OPEN, '[', 50));
+        $collection->add(new TokenRecord(TokenType::IDENTIFIER, 'city', 52));
+        $collection->add(new TokenRecord(TokenType::SUB_CLOSE, ']', 54));
+
+        $result = $collection->subOpens();
+
+        $this->assertCount(1, $result);
+        $this->assertEquals(TokenType::SUB_OPEN, $result->first()?->type);
+    }
+
+    // ==================== SUB BRACKET TESTS MANQUANTS ====================
+
+    public function test_sub_closes_returns_empty_for_no_brackets(): void
+    {
+        $collection = new TokenRecordCollection;
+        $collection->add(new TokenRecord(TokenType::IDENTIFIER, 'status', 0));
+        $collection->add(new TokenRecord(TokenType::OPERATOR, '=', 7));
+
+        $result = $collection->subCloses();
+
+        $this->assertCount(0, $result);
+    }
+
+    public function test_chain_with_sub_closes(): void
+    {
+        $collection = new TokenRecordCollection;
+        $collection->add(new TokenRecord(TokenType::SUB_CLOSE, ']', 54));
+
+        $result = $collection->subCloses()->withValue(']');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals(']', $result->first()?->value);
+    }
+
+    public function test_of_type_sub_open(): void
+    {
+        $collection = new TokenRecordCollection;
+        $collection->add(new TokenRecord(TokenType::SUB_OPEN, '[', 50));
+        $collection->add(new TokenRecord(TokenType::IDENTIFIER, 'city', 52));
+
+        $result = $collection->ofType(TokenType::SUB_OPEN);
+
+        $this->assertCount(1, $result);
+        $this->assertEquals(TokenType::SUB_OPEN, $result->first()?->type);
+    }
+
+    public function test_of_type_sub_close(): void
+    {
+        $collection = new TokenRecordCollection;
+        $collection->add(new TokenRecord(TokenType::SUB_CLOSE, ']', 54));
+        $collection->add(new TokenRecord(TokenType::IDENTIFIER, 'city', 52));
+
+        $result = $collection->ofType(TokenType::SUB_CLOSE);
+
+        $this->assertCount(1, $result);
+        $this->assertEquals(TokenType::SUB_CLOSE, $result->first()?->type);
+    }
+
+    public function test_sub_opens_with_multiple_tokens(): void
+    {
+        $collection = new TokenRecordCollection;
+        $collection->add(new TokenRecord(TokenType::SUB_OPEN, '[', 50));
+        $collection->add(new TokenRecord(TokenType::IDENTIFIER, '0', 52));
+        $collection->add(new TokenRecord(TokenType::SUB_OPEN, '[', 55));
+        $collection->add(new TokenRecord(TokenType::IDENTIFIER, '1', 57));
+        $collection->add(new TokenRecord(TokenType::SUB_CLOSE, ']', 60));
+
+        $result = $collection->subOpens();
+
+        $this->assertCount(2, $result);
+        $this->assertEquals('[', $result->first()?->value);
+        $this->assertEquals('[', $result->last()?->value);
+    }
+
+    public function test_sub_closes_with_multiple_tokens(): void
+    {
+        $collection = new TokenRecordCollection;
+        $collection->add(new TokenRecord(TokenType::SUB_OPEN, '[', 50));
+        $collection->add(new TokenRecord(TokenType::IDENTIFIER, '0', 52));
+        $collection->add(new TokenRecord(TokenType::SUB_CLOSE, ']', 54));
+        $collection->add(new TokenRecord(TokenType::SUB_CLOSE, ']', 56));
+
+        $result = $collection->subCloses();
+
+        $this->assertCount(2, $result);
+        $this->assertEquals(']', $result->first()?->value);
+        $this->assertEquals(']', $result->last()?->value);
+    }
+
+    public function test_chain_sub_opens_and_sub_closes(): void
+    {
+        $collection = new TokenRecordCollection;
+        $collection->add(new TokenRecord(TokenType::SUB_OPEN, '[', 50));
+        $collection->add(new TokenRecord(TokenType::IDENTIFIER, '0', 52));
+        $collection->add(new TokenRecord(TokenType::SUB_CLOSE, ']', 54));
+
+        $subOpens = $collection->subOpens();
+        $subCloses = $collection->subCloses();
+
+        $this->assertCount(1, $subOpens);
+        $this->assertCount(1, $subCloses);
+    }
+
+    public function test_values_with_sub_brackets(): void
+    {
+        $collection = new TokenRecordCollection;
+        $collection->add(new TokenRecord(TokenType::SUB_OPEN, '[', 50));
+        $collection->add(new TokenRecord(TokenType::IDENTIFIER, '0', 52));
+        $collection->add(new TokenRecord(TokenType::SUB_CLOSE, ']', 54));
+
+        $values = $collection->values();
+
+        $this->assertCount(3, $values);
+        $this->assertEquals('[', $values->first());
+        $this->assertEquals(']', $values->last());
+    }
+
+    public function test_empty_collection_sub_opens(): void
+    {
+        $emptyCollection = new TokenRecordCollection;
+
+        $result = $emptyCollection->subOpens();
+
+        $this->assertCount(0, $result);
+        $this->assertEmpty($result->toArray());
+    }
+
+    public function test_empty_collection_sub_closes(): void
+    {
+        $emptyCollection = new TokenRecordCollection;
+
+        $result = $emptyCollection->subCloses();
+
+        $this->assertCount(0, $result);
+        $this->assertEmpty($result->toArray());
+    }
 }

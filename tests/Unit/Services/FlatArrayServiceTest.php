@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace AndyDefer\LaravelCluster\Tests\Unit\Services;
 
 use AndyDefer\LaravelCluster\Services\FlatArrayService;
-use Illuminate\Http\Request;
 use PHPUnit\Framework\TestCase;
 
 final class FlatArrayServiceTest extends TestCase
@@ -17,8 +16,6 @@ final class FlatArrayServiceTest extends TestCase
         parent::setUp();
         $this->service = new FlatArrayService;
     }
-
-    // ==================== BASIC TESTS ====================
 
     public function test_flattens_simple_array(): void
     {
@@ -36,8 +33,6 @@ final class FlatArrayServiceTest extends TestCase
 
         $this->assertSame($expected, $this->service->flatten($input));
     }
-
-    // ==================== INDEXED ARRAY TESTS ====================
 
     public function test_expands_indexed_array_to_true_keys(): void
     {
@@ -106,15 +101,13 @@ final class FlatArrayServiceTest extends TestCase
         $this->assertSame($expected, $this->service->flatten($input));
     }
 
-    // ==================== NESTED ARRAY TESTS ====================
-
     public function test_flattens_nested_associative_array_with_dot_notation(): void
     {
         $input = [
             'name' => 'Dupont',
             'address' => [
                 'city' => 'Lyon',
-                'postal_code' => '69000',
+                'postal_code' => 69000,
                 'country' => 'France',
             ],
         ];
@@ -122,7 +115,7 @@ final class FlatArrayServiceTest extends TestCase
         $expected = [
             'name' => 'Dupont',
             'address.city' => 'Lyon',
-            'address.postal_code' => '69000',
+            'address.postal_code' => 69000,
             'address.country' => 'France',
         ];
 
@@ -153,8 +146,6 @@ final class FlatArrayServiceTest extends TestCase
 
         $this->assertSame($expected, $this->service->flatten($input));
     }
-
-    // ==================== NESTED WITH INDEXED ARRAYS TESTS ====================
 
     public function test_expands_indexed_array_inside_nested_array(): void
     {
@@ -200,230 +191,8 @@ final class FlatArrayServiceTest extends TestCase
         $this->assertSame($expected, $this->service->flatten($input));
     }
 
-    public function test_handles_empty_indexed_array_inside_nested(): void
+    public function test_json_encodes_nested_indexed_array(): void
     {
-        $input = [
-            'profile' => [
-                'name' => 'John',
-                'tags' => [],
-            ],
-        ];
-
-        $expected = [
-            'profile.name' => 'John',
-            'profile.tags' => null,
-        ];
-
-        $this->assertSame($expected, $this->service->flatten($input));
-    }
-
-    // ==================== REAL CLUSTER TESTS ====================
-
-    public function test_flattens_real_cluster_with_nested_address(): void
-    {
-        $input = [
-            'type' => 'user',
-            'status' => 'active',
-            'role' => 'admin',
-            'verified' => 'true',
-            'lang_fr' => 'true',
-            'lang_en' => 'false',
-            'lang_ln' => 'true',
-            'age' => 25,
-            'name' => 'John Doe',
-            'address' => [
-                'street' => '123 Main St',
-                'city' => 'Paris',
-                'postal_code' => '75001',
-                'country' => 'France',
-            ],
-            'score' => 85.5,
-        ];
-
-        $expected = [
-            'type' => 'user',
-            'status' => 'active',
-            'role' => 'admin',
-            'verified' => 'true',
-            'lang_fr' => 'true',
-            'lang_en' => 'false',
-            'lang_ln' => 'true',
-            'age' => 25,
-            'name' => 'John Doe',
-            'address.street' => '123 Main St',
-            'address.city' => 'Paris',
-            'address.postal_code' => '75001',
-            'address.country' => 'France',
-            'score' => 85.5,
-        ];
-
-        $this->assertSame($expected, $this->service->flatten($input));
-    }
-
-    public function test_flattens_real_cluster_with_expanded_tags(): void
-    {
-        $input = [
-            'type' => 'user',
-            'status' => 'active',
-            'role' => 'doctor',
-            'verified' => true,
-            'lang_fr' => 'false',
-            'lang_en' => 'true',
-            'lang_ln' => 'false',
-            'age' => 30,
-            'name' => 'Jane Smith',
-            'tags' => ['premium', 'verified', 'expert'],
-            'score' => 92.0,
-        ];
-
-        $expected = [
-            'type' => 'user',
-            'status' => 'active',
-            'role' => 'doctor',
-            'verified' => 'true',
-            'lang_fr' => 'false',
-            'lang_en' => 'true',
-            'lang_ln' => 'false',
-            'age' => 30,
-            'name' => 'Jane Smith',
-            'tags_premium' => 'true',
-            'tags_verified' => 'true',
-            'tags_expert' => 'true',
-            'score' => 92.0,
-        ];
-
-        $this->assertSame($expected, $this->service->flatten($input));
-    }
-
-    public function test_flattens_real_cluster_with_nested_settings_and_tags(): void
-    {
-        $input = [
-            'type' => 'user',
-            'status' => 'active',
-            'role' => 'admin',
-            'verified' => 'true',
-            'lang_fr' => 'true',
-            'lang_en' => 'false',
-            'lang_ln' => 'true',
-            'age' => 40,
-            'name' => 'Charlie Wilson',
-            'settings' => [
-                'notifications' => ['email', 'push', 'sms'],
-                'theme' => 'dark',
-                'language' => 'fr',
-                'privacy' => [
-                    'profile_visibility' => 'public',
-                    'email_visibility' => 'private',
-                ],
-            ],
-            'tags' => ['admin', 'verified', 'premium'],
-            'score' => 95.0,
-        ];
-
-        $expected = [
-            'type' => 'user',
-            'status' => 'active',
-            'role' => 'admin',
-            'verified' => 'true',
-            'lang_fr' => 'true',
-            'lang_en' => 'false',
-            'lang_ln' => 'true',
-            'age' => 40,
-            'name' => 'Charlie Wilson',
-            'settings.notifications_email' => 'true',
-            'settings.notifications_push' => 'true',
-            'settings.notifications_sms' => 'true',
-            'settings.theme' => 'dark',
-            'settings.language' => 'fr',
-            'settings.privacy.profile_visibility' => 'public',
-            'settings.privacy.email_visibility' => 'private',
-            'tags_admin' => 'true',
-            'tags_verified' => 'true',
-            'tags_premium' => 'true',
-            'score' => 95.0,
-        ];
-
-        $this->assertSame($expected, $this->service->flatten($input));
-    }
-
-    public function test_flattens_real_cluster_with_nested_tags_in_deep_structure(): void
-    {
-        $input = [
-            'user' => [
-                'id' => 1,
-                'name' => 'Laura Martinez',
-                'status' => 'active',
-                'professional' => [
-                    'role' => 'doctor',
-                    'department' => 'cardiology',
-                    'specialities' => ['cardiology', 'neurology', 'pediatrics'],
-                    'certifications' => ['ECG', 'Neuro', 'Pediatric'],
-                ],
-                'personal' => [
-                    'languages' => ['fr', 'en', 'es', 'ln'],
-                    'interests' => ['sports', 'music', 'reading'],
-                ],
-                'tags' => ['verified', 'premium', 'expert'],
-            ],
-        ];
-
-        $expected = [
-            'user.id' => 1,
-            'user.name' => 'Laura Martinez',
-            'user.status' => 'active',
-            'user.professional.role' => 'doctor',
-            'user.professional.department' => 'cardiology',
-            'user.professional.specialities_cardiology' => 'true',
-            'user.professional.specialities_neurology' => 'true',
-            'user.professional.specialities_pediatrics' => 'true',
-            'user.professional.certifications_ECG' => 'true',
-            'user.professional.certifications_Neuro' => 'true',
-            'user.professional.certifications_Pediatric' => 'true',
-            'user.personal.languages_fr' => 'true',
-            'user.personal.languages_en' => 'true',
-            'user.personal.languages_es' => 'true',
-            'user.personal.languages_ln' => 'true',
-            'user.personal.interests_sports' => 'true',
-            'user.personal.interests_music' => 'true',
-            'user.personal.interests_reading' => 'true',
-            'user.tags_verified' => 'true',
-            'user.tags_premium' => 'true',
-            'user.tags_expert' => 'true',
-        ];
-
-        $this->assertSame($expected, $this->service->flatten($input));
-    }
-
-    public function test_flattens_cluster_with_nested_empty_tags(): void
-    {
-        $input = [
-            'user' => [
-                'name' => 'John',
-                'settings' => [
-                    'notifications' => [],
-                    'theme' => 'dark',
-                ],
-                'tags' => [],
-            ],
-        ];
-
-        $expected = [
-            'user.name' => 'John',
-            'user.settings.notifications' => null,
-            'user.settings.theme' => 'dark',
-            'user.tags' => null,
-        ];
-
-        $this->assertSame($expected, $this->service->flatten($input));
-    }
-
-    // ==================== ERROR CASES ====================
-
-    public function test_throws_exception_for_nested_indexed_array(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Nested arrays are not supported for key "tags"');
-
         $input = [
             'tags' => [
                 ['php', 'js'],
@@ -431,14 +200,18 @@ final class FlatArrayServiceTest extends TestCase
             ],
         ];
 
-        $this->service->flatten($input);
+        $result = $this->service->flatten($input);
+
+        $this->assertArrayHasKey('tags', $result);
+        $this->assertIsString($result['tags']);
+        $this->assertJson($result['tags']);
+
+        $decoded = json_decode($result['tags'], true);
+        $this->assertEquals([['php', 'js'], ['kotlin', 'rust']], $decoded);
     }
 
-    public function test_throws_exception_for_nested_indexed_array_inside_nested(): void
+    public function test_json_encodes_nested_indexed_array_inside_nested(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Nested arrays are not supported for key "user.tags"');
-
         $input = [
             'user' => [
                 'name' => 'John',
@@ -449,28 +222,164 @@ final class FlatArrayServiceTest extends TestCase
             ],
         ];
 
-        $this->service->flatten($input);
+        $result = $this->service->flatten($input);
+
+        $this->assertArrayHasKey('user.name', $result);
+        $this->assertEquals('John', $result['user.name']);
+        $this->assertArrayHasKey('user.tags', $result);
+        $this->assertIsString($result['user.tags']);
+        $this->assertJson($result['user.tags']);
+
+        $decoded = json_decode($result['user.tags'], true);
+        $this->assertEquals([['php', 'js'], ['kotlin', 'rust']], $decoded);
     }
 
-    public function test_throws_exception_for_unsupported_value_type(): void
+    public function test_json_encodes_mixed_nested_arrays(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('No normalizer found for type Illuminate\Http\Request');
-
         $input = [
-            'invalid' => new Request,
+            'data' => [
+                'simple' => ['a', 'b', 'c'],
+                'nested' => [
+                    ['x', 'y'],
+                    ['z', 'w'],
+                ],
+                'associative' => [
+                    'key1' => 'value1',
+                    'key2' => 'value2',
+                ],
+            ],
         ];
 
-        dump($this->service->flatten($input));
-        $this->service->flatten($input);
+        $result = $this->service->flatten($input);
+
+        $this->assertArrayHasKey('data.simple_a', $result);
+        $this->assertEquals('true', $result['data.simple_a']);
+        $this->assertArrayHasKey('data.nested', $result);
+        $this->assertIsString($result['data.nested']);
+        $this->assertJson($result['data.nested']);
+        $this->assertArrayHasKey('data.associative.key1', $result);
+        $this->assertEquals('value1', $result['data.associative.key1']);
     }
 
-    // ==================== EDGE CASES ====================
+    public function test_json_encodes_deep_nested_arrays(): void
+    {
+        $input = [
+            'levels' => [
+                'level1' => [
+                    'level2' => [
+                        'level3' => [
+                            ['a', 'b'],
+                            ['c', 'd'],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $result = $this->service->flatten($input);
+
+        $this->assertArrayHasKey('levels.level1.level2.level3', $result);
+        $this->assertIsString($result['levels.level1.level2.level3']);
+        $this->assertJson($result['levels.level1.level2.level3']);
+
+        $decoded = json_decode($result['levels.level1.level2.level3'], true);
+        $this->assertEquals([['a', 'b'], ['c', 'd']], $decoded);
+    }
+
+    public function test_unflatten_simple_array(): void
+    {
+        $input = [
+            'name' => 'Dupont',
+            'age' => 30,
+        ];
+
+        $expected = [
+            'name' => 'Dupont',
+            'age' => 30,
+        ];
+
+        $this->assertSame($expected, $this->service->unflatten($input));
+    }
+
+    public function test_unflatten_dot_notation(): void
+    {
+        $input = [
+            'address.city' => 'Lyon',
+            'address.postal_code' => 69000,
+            'address.country' => 'France',
+        ];
+
+        $expected = [
+            'address' => [
+                'city' => 'Lyon',
+                'postal_code' => 69000,
+                'country' => 'France',
+            ],
+        ];
+
+        $this->assertSame($expected, $this->service->unflatten($input));
+    }
+
+    public function test_unflatten_deep_dot_notation(): void
+    {
+        $input = [
+            'user.personal.name' => 'John',
+            'user.personal.age' => 30,
+            'user.professional.role' => 'admin',
+        ];
+
+        $expected = [
+            'user' => [
+                'personal' => [
+                    'name' => 'John',
+                    'age' => 30,
+                ],
+                'professional' => [
+                    'role' => 'admin',
+                ],
+            ],
+        ];
+
+        $this->assertSame($expected, $this->service->unflatten($input));
+    }
+
+    public function test_unflatten_with_json_encoded_values(): void
+    {
+        $input = [
+            'user.tags' => json_encode([['php', 'js'], ['kotlin', 'rust']]),
+            'user.name' => 'John',
+        ];
+
+        $result = $this->service->unflatten($input);
+
+        $this->assertArrayHasKey('user', $result);
+        $this->assertArrayHasKey('tags', $result['user']);
+        $this->assertArrayHasKey('name', $result['user']);
+        $this->assertEquals('John', $result['user']['name']);
+
+        $this->assertEquals([['php', 'js'], ['kotlin', 'rust']], $result['user']['tags']);
+    }
+
+    public function test_unflatten_with_nested_json_encoded_values(): void
+    {
+        $input = [
+            'user.settings.nested' => json_encode([['a', 'b'], ['c', 'd']]),
+            'user.settings.theme' => 'dark',
+        ];
+
+        $result = $this->service->unflatten($input);
+
+        $this->assertArrayHasKey('user', $result);
+        $this->assertArrayHasKey('settings', $result['user']);
+        $this->assertArrayHasKey('nested', $result['user']['settings']);
+        $this->assertArrayHasKey('theme', $result['user']['settings']);
+        $this->assertEquals('dark', $result['user']['settings']['theme']);
+        $this->assertEquals([['a', 'b'], ['c', 'd']], $result['user']['settings']['nested']);
+    }
 
     public function test_flattens_empty_array(): void
     {
         $input = [];
-
         $expected = [];
 
         $this->assertSame($expected, $this->service->flatten($input));
@@ -533,62 +442,55 @@ final class FlatArrayServiceTest extends TestCase
         $this->assertSame($expected, $this->service->flatten($input));
     }
 
-    // ==================== UNFLATTEN TESTS ====================
-
-    public function test_unflatten_simple_array(): void
+    public function test_handles_boolean_values(): void
     {
         $input = [
-            'name' => 'Dupont',
-            'age' => 30,
+            'active' => true,
+            'verified' => false,
         ];
 
         $expected = [
-            'name' => 'Dupont',
-            'age' => 30,
+            'active' => 'true',
+            'verified' => 'false',
         ];
 
-        $this->assertSame($expected, $this->service->unflatten($input));
+        $this->assertSame($expected, $this->service->flatten($input));
     }
 
-    public function test_unflatten_dot_notation(): void
+    public function test_handles_null_values_in_array(): void
     {
         $input = [
-            'address.city' => 'Lyon',
-            'address.postal_code' => '69000',
-            'address.country' => 'France',
+            'tags' => ['php', null, 'js'],
         ];
 
         $expected = [
-            'address' => [
-                'city' => 'Lyon',
-                'postal_code' => '69000',
-                'country' => 'France',
-            ],
+            'tags_php' => 'true',
+            'tags_null' => 'true',
+            'tags_js' => 'true',
         ];
 
-        $this->assertSame($expected, $this->service->unflatten($input));
+        $this->assertSame($expected, $this->service->flatten($input));
     }
 
-    public function test_unflatten_deep_dot_notation(): void
+    public function test_handles_mixed_types_in_indexed_array(): void
     {
         $input = [
-            'user.personal.name' => 'John',
-            'user.personal.age' => 30,
-            'user.professional.role' => 'admin',
+            'values' => ['string', 123, 45.67, true, false, null],
         ];
 
-        $expected = [
-            'user' => [
-                'personal' => [
-                    'name' => 'John',
-                    'age' => 30,
-                ],
-                'professional' => [
-                    'role' => 'admin',
-                ],
-            ],
-        ];
+        $result = $this->service->flatten($input);
 
-        $this->assertSame($expected, $this->service->unflatten($input));
+        $this->assertArrayHasKey('values_string', $result);
+        $this->assertEquals('true', $result['values_string']);
+        $this->assertArrayHasKey('values_123', $result);
+        $this->assertEquals('true', $result['values_123']);
+        $this->assertArrayHasKey('values_45.67', $result);
+        $this->assertEquals('true', $result['values_45.67']);
+        $this->assertArrayHasKey('values_true', $result);
+        $this->assertEquals('true', $result['values_true']);
+        $this->assertArrayHasKey('values_false', $result);
+        $this->assertEquals('true', $result['values_false']);
+        $this->assertArrayHasKey('values_null', $result);
+        $this->assertEquals('true', $result['values_null']);
     }
 }

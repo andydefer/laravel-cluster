@@ -698,6 +698,195 @@ final class ClusterVOCollection extends AbstractTypedCollection
     }
 
     /**
+     * Filters clusters where the string value matches a SQL LIKE pattern.
+     *
+     * Supports:
+     * - '%' → n'importe quelle séquence de caractères
+     * - '_' → un seul caractère
+     *
+     * @param  string  $key  The attribute key to check
+     * @param  string  $pattern  The LIKE pattern (e.g., '%john%', 'j%o%')
+     * @return self A new collection with clusters matching the pattern
+     */
+    public function whereLikePattern(string $key, string $pattern): self
+    {
+        $generator = $this->filterWithYield(
+            function (ClusterVO $cluster) use ($key, $pattern) {
+                $value = $cluster->get($key);
+                if (! is_string($value)) {
+                    return false;
+                }
+
+                return $this->matchLikePattern($value, $pattern);
+            }
+        );
+
+        return $this->createFromGenerator($generator);
+    }
+
+    /**
+     * Filters clusters where the string value does NOT match a SQL LIKE pattern.
+     *
+     * @param  string  $key  The attribute key to check
+     * @param  string  $pattern  The LIKE pattern to exclude
+     * @return self A new collection with clusters not matching the pattern
+     */
+    public function whereNotLikePattern(string $key, string $pattern): self
+    {
+        $generator = $this->filterWithYield(
+            function (ClusterVO $cluster) use ($key, $pattern) {
+                $value = $cluster->get($key);
+                if (! is_string($value)) {
+                    return true;
+                }
+
+                return ! $this->matchLikePattern($value, $pattern);
+            }
+        );
+
+        return $this->createFromGenerator($generator);
+    }
+
+    /**
+     * Matches a string against a SQL LIKE pattern.
+     *
+     * @param  string  $value  The value to test
+     * @param  string  $pattern  The LIKE pattern
+     * @return bool True if the value matches the pattern
+     */
+    private function matchLikePattern(string $value, string $pattern): bool
+    {
+        $valueLower = strtolower($value);
+        $patternLower = strtolower($pattern);
+
+        // Si le pattern contient des %, on les utilise
+        if (str_contains($pattern, '%')) {
+            // %keyword% → contient (uniquement si c'est le seul % au début et à la fin)
+            if (str_starts_with($pattern, '%') && str_ends_with($pattern, '%') && substr_count($pattern, '%') === 2) {
+                $search = substr($pattern, 1, -1);
+
+                return str_contains($valueLower, strtolower($search));
+            }
+
+            // keyword% → commence par
+            if (str_ends_with($pattern, '%') && ! str_starts_with($pattern, '%')) {
+                $search = substr($pattern, 0, -1);
+
+                return str_starts_with($valueLower, strtolower($search));
+            }
+
+            // %keyword → termine par
+            if (str_starts_with($pattern, '%') && ! str_ends_with($pattern, '%') && substr_count($pattern, '%') === 1) {
+                $search = substr($pattern, 1);
+
+                return str_ends_with($valueLower, strtolower($search));
+            }
+
+            // ✅ Pattern avec plusieurs % (ex: %j%h%n, j%o%, %a%o%, %j%h%n%)
+            $parts = explode('%', $pattern);
+            $parts = array_filter($parts, fn ($p) => $p !== '');
+
+            if (count($parts) >= 2) {
+                $position = 0;
+                foreach ($parts as $part) {
+                    $partLower = strtolower($part);
+                    $pos = strpos($valueLower, $partLower, $position);
+                    if ($pos === false) {
+                        return false;
+                    }
+                    $position = $pos + strlen($partLower);
+                }
+
+                return true;
+            }
+
+            // Cas générique (fallback)
+            $search = str_replace('%', '', $pattern);
+
+            return str_contains($valueLower, strtolower($search));
+        }
+
+        // Sans %, recherche "contient" par défaut
+        return str_contains($valueLower, $patternLower);
+    }
+
+    /**
+     * Adds an OR condition with a LIKE pattern.
+     *
+     * @param  string  $key  The attribute key to check
+     * @param  string  $pattern  The LIKE pattern (e.g., '%john%', 'j%o%')
+     * @return self A new collection with clusters matching the pattern
+     */
+    public function orWhereLikePattern(string $key, string $pattern): self
+    {
+        $filtered = [];
+        $addedIdentifiers = [];
+        $originalItems = $this->getOriginalItems();
+
+        // Ajouter les items déjà filtrés
+        if ($this->hasPriorFilter()) {
+            foreach ($this->items as $cluster) {
+                $identifier = $this->getClusterIdentifier($cluster);
+                if (! in_array($identifier, $addedIdentifiers, true)) {
+                    $filtered[] = $cluster;
+                    $addedIdentifiers[] = $identifier;
+                }
+            }
+        }
+
+        // Ajouter les items qui correspondent au pattern
+        foreach ($originalItems as $cluster) {
+            $identifier = $this->getClusterIdentifier($cluster);
+            if (! in_array($identifier, $addedIdentifiers, true)) {
+                $value = $cluster->get($key);
+                if (is_string($value) && $this->matchLikePattern($value, $pattern)) {
+                    $filtered[] = $cluster;
+                    $addedIdentifiers[] = $identifier;
+                }
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    /**
+     * Adds an OR condition with a NOT LIKE pattern.
+     *
+     * @param  string  $key  The attribute key to check
+     * @param  string  $pattern  The LIKE pattern to exclude
+     * @return self A new collection with clusters not matching the pattern
+     */
+    public function orWhereNotLikePattern(string $key, string $pattern): self
+    {
+        $filtered = [];
+        $addedIdentifiers = [];
+        $originalItems = $this->getOriginalItems();
+
+        if ($this->hasPriorFilter()) {
+            foreach ($this->items as $cluster) {
+                $identifier = $this->getClusterIdentifier($cluster);
+                if (! in_array($identifier, $addedIdentifiers, true)) {
+                    $filtered[] = $cluster;
+                    $addedIdentifiers[] = $identifier;
+                }
+            }
+        }
+
+        foreach ($originalItems as $cluster) {
+            $identifier = $this->getClusterIdentifier($cluster);
+            if (! in_array($identifier, $addedIdentifiers, true)) {
+                $value = $cluster->get($key);
+                if (! is_string($value) || ! $this->matchLikePattern($value, $pattern)) {
+                    $filtered[] = $cluster;
+                    $addedIdentifiers[] = $identifier;
+                }
+            }
+        }
+
+        return $this->createFilteredResult($filtered);
+    }
+
+    /**
      * Alias for whereStartsWith().
      *
      * @param  string  $key  The attribute key to check

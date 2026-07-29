@@ -27,6 +27,9 @@ enum OperatorToken: string
     case LIKE = '=~';
     case NOT_LIKE = '!~';
 
+    case SUB_OPEN = '[';
+    case SUB_CLOSE = ']';
+
     public function getValue(): string
     {
         return match ($this) {
@@ -47,6 +50,8 @@ enum OperatorToken: string
             self::NOT_EXISTS => ComparisonOperator::NOT_EXISTS->value,
             self::LIKE => ComparisonOperator::LIKE->value,
             self::NOT_LIKE => ComparisonOperator::NOT_LIKE->value,
+            self::SUB_OPEN => '[',
+            self::SUB_CLOSE => ']',
         };
     }
 
@@ -116,6 +121,11 @@ enum OperatorToken: string
         return $this === self::NOT;
     }
 
+    public function isBracket(): bool
+    {
+        return $this === self::SUB_OPEN || $this === self::SUB_CLOSE;
+    }
+
     public static function fromSymbol(string $symbol): ?self
     {
         return match ($symbol) {
@@ -136,6 +146,8 @@ enum OperatorToken: string
             '#' => self::NOT_EXISTS,
             '=~' => self::LIKE,
             '!~' => self::NOT_LIKE,
+            '[' => self::SUB_OPEN,
+            ']' => self::SUB_CLOSE,
             default => null,
         };
     }

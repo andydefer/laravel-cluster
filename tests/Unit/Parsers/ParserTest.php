@@ -573,4 +573,101 @@ final class ParserTest extends TestCase
         $cluster2 = new ClusterVO(['name' => 'jane_doe']);
         $this->assertFalse($ast->evaluate($cluster2));
     }
+
+    // ==================== SUBCONDITION TESTS (NO ERREUR) ====================
+
+    public function test_parse_subcondition_does_not_throw_error(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        // Aucune de ces syntaxes ne doit provoquer d'erreur
+        $this->parser->parse('addresses[city=kinshasa]');
+    }
+
+    public function test_parse_subcondition_with_and_does_not_throw_error(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        $this->parser->parse('addresses[city=kinshasa & country=RDC]');
+    }
+
+    public function test_parse_subcondition_with_or_does_not_throw_error(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        $this->parser->parse('addresses[city=kinshasa | city=paris]');
+    }
+
+    public function test_parse_subcondition_with_parentheses_does_not_throw_error(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        $this->parser->parse('addresses[(city=kinshasa | city=paris)]');
+    }
+
+    public function test_parse_subcondition_with_like_does_not_throw_error(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        $this->parser->parse('addresses[city=~kin%]');
+    }
+
+    public function test_parse_subcondition_with_wildcard_path_does_not_throw_error(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        $this->parser->parse('tags[0][0]=php');
+        $this->parser->parse('tags[*][0]=php');
+        $this->parser->parse('tags[0][*]=php');
+        $this->parser->parse('tags[*][*]=php');
+    }
+
+    public function test_parse_subcondition_with_exists_does_not_throw_error(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        $this->parser->parse('addresses[*]');
+    }
+
+    public function test_parse_subcondition_with_not_exists_does_not_throw_error(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        $this->parser->parse('addresses[#profile]');
+    }
+
+    public function test_parse_subcondition_with_nested_dot_does_not_throw_error(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        $this->parser->parse('settings.notifications[email=true]');
+    }
+
+    public function test_parse_subcondition_with_complex_does_not_throw_error(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        $this->parser->parse('addresses[city=kinshasa & country=RDC & active=true]');
+    }
+
+    public function test_parse_subcondition_with_nested_path_and_condition_does_not_throw_error(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        $this->parser->parse('tags[0][1]=php & status=active');
+    }
+
+    public function test_parse_subcondition_multiple_does_not_throw_error(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        $this->parser->parse('addresses[city=kinshasa] & settings[theme=dark]');
+    }
+
+    public function test_parse_subcondition_empty_does_not_throw_error(): void
+    {
+        $this->expectNotToPerformAssertions();
+
+        $this->parser->parse('addresses[]');
+    }
 }
