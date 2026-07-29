@@ -14,6 +14,7 @@ use AndyDefer\LaravelCluster\Services\ClusterService;
 use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
 use AndyDefer\LaravelCluster\Tests\IntegrationTestCase;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
+use Illuminate\Support\Facades\DB;
 
 final class ClusterServiceTest extends IntegrationTestCase
 {
@@ -638,4 +639,58 @@ final class ClusterServiceTest extends IntegrationTestCase
         $results = $query->get();
         $this->assertCount(2, $results);
     }
+
+    /*  public function test_raw_json(): void
+     {
+         DB::table('test_clusters')->insert([
+             [
+                 'clusters' => json_encode([
+                     'name' => 'John Doe',
+                     'addresses' => [
+                         ['city' => 'Kinshasa', 'street' => 'Avenue de la Paix'],
+                         ['city' => 'Lubumbashi', 'street' => 'Avenue Lumumba'],
+                     ],
+                 ]),
+             ],
+             [
+                 'clusters' => json_encode([
+                     'name' => 'Jane Smith',
+                     'addresses' => [
+                         ['city' => 'Paris', 'street' => 'Rue de Rivoli'],
+                     ],
+                 ]),
+             ],
+
+             [
+                 'clusters' => json_encode([
+                     'name' => 'Jane Smith',
+                     'addresses' => [
+                         ['city' => 'Paris', 'street' => 'Rue de Rivoli'],
+                     ],
+                 ]),
+             ],
+         ]);
+
+         $results = DB::select("
+     SELECT DISTINCT tc.*
+     FROM test_clusters tc
+     WHERE EXISTS (
+         SELECT 1
+         FROM json_each(tc.clusters, '$.addresses')
+         WHERE json_extract(value, '$.city') = 'Kinshasa'
+     )
+");
+
+         dd($results);
+
+         $count = DB::table('test_clusters')
+             ->whereExists(function ($query) {
+                 $query->select(DB::raw(1))
+                     ->from('json_each(clusters, "$.addresses")')
+                     ->whereRaw("json_extract(value, '$.city') = 'Paris'");
+             })
+             ->count();
+
+         dd($count); // Résultat : 2
+     } */
 }

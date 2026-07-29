@@ -1537,9 +1537,6 @@ final class ClusterVOCollectionTest extends TestCase
             ->where('status', 'active')
             ->orWhereLikePattern('name', '%johnson%');
 
-        // active: john_doe, jane_smith, alice_johnson → 3
-        // ou johnson: bob_johnson, alice_johnson → 2 (mais alice déjà dans active)
-        // total: 4
         $this->assertCount(4, $result);
     }
 }

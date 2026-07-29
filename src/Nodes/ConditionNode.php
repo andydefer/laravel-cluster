@@ -35,6 +35,11 @@ final class ConditionNode extends Node
         private readonly ?string $value = null
     ) {}
 
+    public function getOperator(): ComparisonOperator
+    {
+        return $this->operator;
+    }
+
     /**
      * Evaluates this condition against the provided cluster data.
      *
@@ -143,6 +148,17 @@ final class ConditionNode extends Node
         }
 
         return '$."'.$this->key.'"';
+    }
+
+    /**
+     * Extrait le chemin pour json_each en SQLite
+     *
+     * @param  string  $key  La clé (ex: 'addresses')
+     * @return string Le chemin formaté (ex: '$.addresses')
+     */
+    private function getJsonEachPath(string $key): string
+    {
+        return '$.'.$key;
     }
 
     /**
@@ -309,12 +325,17 @@ final class ConditionNode extends Node
 
     /**
      * Builds an SQLite condition SQL string.
+     * Support pour les sous-conditions avec json_each
      *
      * @param  string  $column  The JSON column name
      * @return string The SQLite condition SQL
      */
     private function buildSqliteCondition(string $column): string
     {
+        // Détecter si c'est une sous-condition (ex: addresses[city=...])
+        // Pour l'instant, on garde le comportement standard
+        // La logique des sous-conditions sera dans un autre node (SubConditionNode)
+
         return match ($this->operator) {
             ComparisonOperator::EXISTS => sprintf("json_extract({$column}, '$.%s') IS NOT NULL", $this->key),
             ComparisonOperator::NOT_EXISTS => sprintf("json_extract({$column}, '$.%s') IS NULL", $this->key),

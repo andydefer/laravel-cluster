@@ -5,54 +5,30 @@ declare(strict_types=1);
 namespace AndyDefer\LaravelCluster\Nodes;
 
 use AndyDefer\LaravelCluster\Contracts\NodeInterface;
+use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Builder;
 
 final class SubConditionNode extends Node
 {
-    private readonly string $parentKey;
-
-    private readonly NodeInterface $condition;
-
-    private readonly array $path;
-
-    public function __construct(string $parentKey, NodeInterface $condition, array $path = [])
-    {
-        $this->parentKey = $parentKey;
-        $this->condition = $condition;
-        $this->path = $path;
-    }
+    public function __construct(
+        private readonly string $path,
+        private readonly NodeInterface $condition
+    ) {}
 
     public function evaluate(ClusterVO $data): bool
     {
-        $nestedData = $data->getNestedData();
+        $originalData = $data->getUnflattened()->toArray();
+        $value = $this->navigatePath($originalData, $this->path);
 
-        if (! isset($nestedData[$this->parentKey]) || ! is_array($nestedData[$this->parentKey])) {
-            return $this->evaluateEmpty();
+        if (! is_array($value)) {
+            return false;
         }
 
-        $items = $nestedData[$this->parentKey];
-
-        if ($this->isExistsCondition()) {
-            return ! empty($items);
-        }
-
-        if ($this->isNotExistsCondition()) {
-            return empty($items);
-        }
-
-        if (! empty($this->path)) {
-            return $this->evaluateWithPath($items);
-        }
-
-        foreach ($items as $item) {
-            if (! is_array($item)) {
-                continue;
-            }
-
-            $subCluster = new ClusterVO($item);
-            if ($this->condition->evaluate($subCluster)) {
+        foreach ($value as $item) {
+            $tempCluster = new ClusterVO($item);
+            if ($this->condition->evaluate($tempCluster)) {
                 return true;
             }
         }
@@ -60,68 +36,22 @@ final class SubConditionNode extends Node
         return false;
     }
 
-    private function evaluateWithPath(array $items): bool
-    {
-        return $this->traversePath($items, $this->path, 0);
-    }
-
-    private function traversePath(array $items, array $path, int $depth): bool
-    {
-        if ($depth >= count($path)) {
-            if (! is_array($items)) {
-                return false;
-            }
-            $subCluster = new ClusterVO($items);
-
-            return $this->condition->evaluate($subCluster);
-        }
-
-        $currentPath = $path[$depth];
-
-        if ($currentPath === '*') {
-            foreach ($items as $item) {
-                if (is_array($item)) {
-                    if ($this->traversePath($item, $path, $depth + 1)) {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        $index = is_numeric($currentPath) ? (int) $currentPath : $currentPath;
-
-        if (! isset($items[$index])) {
-            return false;
-        }
-
-        $item = $items[$index];
-
-        if ($depth + 1 >= count($path)) {
-            if (! is_array($item)) {
-                return false;
-            }
-            $subCluster = new ClusterVO($item);
-
-            return $this->condition->evaluate($subCluster);
-        }
-
-        if (is_array($item)) {
-            return $this->traversePath($item, $path, $depth + 1);
-        }
-
-        return false;
-    }
-
     public function toSql(string $column, DatabaseDriver $driver = DatabaseDriver::MYSQL): string
     {
-        return '';
+        return match ($driver) {
+            DatabaseDriver::MYSQL => $this->buildMySqlSubCondition($column),
+            DatabaseDriver::PGSQL => $this->buildPostgreSqlSubCondition($column),
+            DatabaseDriver::SQLITE => $this->buildSqliteSubCondition($column),
+        };
     }
 
     public function toEloquent(Builder $query, string $column, DatabaseDriver $driver): void
     {
-        // Pas d'implémentation SQL pour l'instant
+        match ($driver) {
+            DatabaseDriver::MYSQL => $this->applyMySqlEloquent($query, $column),
+            DatabaseDriver::PGSQL => $this->applyPostgreSqlEloquent($query, $column),
+            DatabaseDriver::SQLITE => $this->applySqliteEloquent($query, $column),
+        };
     }
 
     public function getChildren(): array
@@ -129,44 +59,133 @@ final class SubConditionNode extends Node
         return [$this->condition];
     }
 
-    private function evaluateEmpty(): bool
+    private function buildSqliteSubCondition(string $column): string
     {
-        if ($this->isExistsCondition()) {
-            return false;
+        $subSql = $this->condition->toSql('value', DatabaseDriver::SQLITE);
+
+        // Enlever les parenthèses extérieures si présentes
+        $subSql = trim($subSql);
+        if (str_starts_with($subSql, '(') && str_ends_with($subSql, ')')) {
+            $subSql = substr($subSql, 1, -1);
         }
 
-        if ($this->isNotExistsCondition()) {
-            return true;
-        }
-
-        return false;
+        return sprintf(
+            "EXISTS (SELECT 1 FROM json_each(%s, '$.%s') WHERE %s)",
+            $column,
+            $this->path,
+            $subSql
+        );
     }
 
-    private function isExistsCondition(): bool
+    private function applySqliteEloquent(Builder $query, string $column): void
     {
-        if ($this->condition instanceof ConditionNode) {
-            $reflection = new \ReflectionClass($this->condition);
-            $operatorProperty = $reflection->getProperty('operator');
-            $operatorProperty->setAccessible(true);
-            $operator = $operatorProperty->getValue($this->condition);
+        $subSql = $this->condition->toSql('value', DatabaseDriver::SQLITE);
 
-            return $operator->isExistence() && $operator->value === '*';
+        // Enlever les parenthèses extérieures si présentes
+        $subSql = trim($subSql);
+        if (str_starts_with($subSql, '(') && str_ends_with($subSql, ')')) {
+            $subSql = substr($subSql, 1, -1);
         }
 
-        return false;
+        // Vérifier si c'est un NOT_EXISTS
+        $isNotExists = false;
+        if ($this->condition instanceof ConditionNode &&
+            $this->condition->getOperator() === ComparisonOperator::NOT_EXISTS) {
+            $isNotExists = true;
+        }
+
+        // Si c'est un chemin avec des points (objet imbriqué)
+        if (strpos($this->path, '.') !== false) {
+            $subSql = str_replace('value', "json_extract({$column}, '$.{$this->path}')", $subSql);
+            $query->whereRaw($subSql);
+
+            return;
+        }
+
+        // Pour NOT_EXISTS, on utilise NOT EXISTS
+        if ($isNotExists) {
+            $sql = "NOT EXISTS (SELECT 1 FROM json_each({$column}, '$.{$this->path}') WHERE {$subSql})";
+        } else {
+            $sql = "EXISTS (SELECT 1 FROM json_each({$column}, '$.{$this->path}') WHERE {$subSql})";
+        }
+
+        $query->whereRaw($sql);
     }
 
-    private function isNotExistsCondition(): bool
+    private function buildMySqlSubCondition(string $column): string
     {
-        if ($this->condition instanceof ConditionNode) {
-            $reflection = new \ReflectionClass($this->condition);
-            $operatorProperty = $reflection->getProperty('operator');
-            $operatorProperty->setAccessible(true);
-            $operator = $operatorProperty->getValue($this->condition);
+        $subSql = $this->condition->toSql('value', DatabaseDriver::MYSQL);
 
-            return $operator->isExistence() && $operator->value === '#';
+        $subSql = trim($subSql);
+        if (str_starts_with($subSql, '(') && str_ends_with($subSql, ')')) {
+            $subSql = substr($subSql, 1, -1);
         }
 
-        return false;
+        return sprintf(
+            "EXISTS (SELECT 1 FROM JSON_TABLE(%s, '$.%s[*]' COLUMNS(value JSON PATH '$')) AS jt WHERE %s)",
+            $column,
+            $this->path,
+            $subSql
+        );
+    }
+
+    private function buildPostgreSqlSubCondition(string $column): string
+    {
+        $subSql = $this->condition->toSql('value', DatabaseDriver::PGSQL);
+
+        $subSql = trim($subSql);
+        if (str_starts_with($subSql, '(') && str_ends_with($subSql, ')')) {
+            $subSql = substr($subSql, 1, -1);
+        }
+
+        return sprintf(
+            "EXISTS (SELECT 1 FROM jsonb_array_elements(%s->'%s') AS value WHERE %s)",
+            $column,
+            $this->path,
+            $subSql
+        );
+    }
+
+    private function applyMySqlEloquent(Builder $query, string $column): void
+    {
+        $subSql = $this->condition->toSql('value', DatabaseDriver::MYSQL);
+
+        $subSql = trim($subSql);
+        if (str_starts_with($subSql, '(') && str_ends_with($subSql, ')')) {
+            $subSql = substr($subSql, 1, -1);
+        }
+
+        $query->whereRaw(
+            "EXISTS (SELECT 1 FROM JSON_TABLE({$column}, '$.{$this->path}[*]' COLUMNS(value JSON PATH '$')) AS jt WHERE {$subSql})"
+        );
+    }
+
+    private function applyPostgreSqlEloquent(Builder $query, string $column): void
+    {
+        $subSql = $this->condition->toSql('value', DatabaseDriver::PGSQL);
+
+        $subSql = trim($subSql);
+        if (str_starts_with($subSql, '(') && str_ends_with($subSql, ')')) {
+            $subSql = substr($subSql, 1, -1);
+        }
+
+        $query->whereRaw(
+            "EXISTS (SELECT 1 FROM jsonb_array_elements({$column}->'{$this->path}') AS value WHERE {$subSql})"
+        );
+    }
+
+    private function navigatePath(array $data, string $path): mixed
+    {
+        $parts = explode('.', $path);
+        $current = $data;
+
+        foreach ($parts as $part) {
+            if (! isset($current[$part])) {
+                return null;
+            }
+            $current = $current[$part];
+        }
+
+        return $current;
     }
 }
