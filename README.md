@@ -13,13 +13,16 @@
 1. [Installation](#installation)
 2. [Pourquoi Laravel Cluster ?](#pourquoi-laravel-cluster-)
 3. [Architecture et concepts clés](#architecture-et-concepts-clés)
-4. [Structure des données (ClusterVO)](#structure-des-données-clustervo)
-5. [Filtrer des collections en mémoire](#filtrer-des-collections-en-mémoire)
-6. [Générer du SQL](#générer-du-sql)
-7. [Intégration avec Eloquent](#intégration-avec-eloquent)
-8. [Filtrage avancé sur tableaux](#filtrage-avancé-sur-tableaux)
-9. [Cas d'usage concrets](#cas-dusage-concrets)
-10. [Référence des opérateurs](#référence-des-opérateurs)
+4. [Le moteur central : ClusterQuery](#le-moteur-central-clusterquery)
+5. [Le service façade : ClusterService](#le-service-façade-clusterservice)
+6. [La collection intelligente : ClusterVOCollection](#la-collection-intelligente-clustervocollection)
+7. [Structure des données : ClusterVO](#structure-des-données-clustervo)
+8. [Filtrer des collections en mémoire](#filtrer-des-collections-en-mémoire)
+9. [Générer du SQL](#générer-du-sql)
+10. [Intégration avec Eloquent](#intégration-avec-eloquent)
+11. [Filtrage avancé sur tableaux : cas concrets](#filtrage-avancé-sur-tableaux--cas-concrets)
+12. [Cas d'usage concrets](#cas-dusage-concrets)
+13. [Référence des opérateurs](#référence-des-opérateurs)
 
 ---
 
@@ -61,13 +64,13 @@ class MyService
 
 **La solution :** Laravel Cluster. Un moteur de requêtes complet qui :
 
-- ✅ Parse des expressions textuelles en arbre syntaxique
-- ✅ Filtre des données en mémoire
-- ✅ Gère les tableaux indexés (tags, rôles, etc.)
-- ✅ Génère du SQL pour MySQL, PostgreSQL et SQLite
-- ✅ S'intègre avec Eloquent via des paramètres liés
-- ✅ Supporte les opérateurs `=`, `!=`, `<`, `>`, `<=`, `>=`, `LIKE`, `EXISTS`
-- ✅ Gère les priorités avec parenthèses
+- Parse des expressions textuelles en arbre syntaxique
+- Filtre des données en mémoire
+- Gère les tableaux indexés (tags, rôles, etc.)
+- Génère du SQL pour MySQL, PostgreSQL et SQLite
+- S'intègre avec Eloquent via des paramètres liés
+- Supporte les opérateurs `=`, `!=`, `<`, `>`, `<=`, `>=`, `=~` (LIKE), `!~` (NOT LIKE), `*` (EXISTS), `#` (NOT EXISTS)
+- Gère les priorités avec parenthèses
 
 ---
 
@@ -76,7 +79,7 @@ class MyService
 ### Chaîne de traitement
 
 ```
-Expression textuelle "age > 18 AND status = 'active'"
+Expression textuelle "age > 18 AND status=active"
     ↓
 [Lexer] → Tokens [Identifier(age), Operator(>), Identifier(18), Operator(AND), Identifier(status), Operator(=), Identifier(active)]
     ↓
@@ -98,11 +101,128 @@ Expression textuelle "age > 18 AND status = 'active'"
 
 ---
 
-## Structure des données (ClusterVO)
+## Le moteur central : ClusterQuery
+
+`ClusterQuery` est le cœur du système. Il orchestre toutes les opérations :
+
+### Méthodes principales
+
+| Méthode | Description |
+|---------|-------------|
+| `parse(string $query): NodeInterface` | Parse une requête en arbre syntaxique (AST) |
+| `filter(ClusterVOCollection $clusters, string $query): ClusterVOCollection` | Filtre une collection en mémoire |
+| `matches(ClusterVO $cluster, string $query): bool` | Teste si un cluster correspond à la requête |
+| `toSql(string $column, string $query, DatabaseDriver $driver): string` | Génère du SQL pour la requête |
+| `applyToEloquent(Builder $query, string $column, string $query, DatabaseDriver $driver): void` | Applique la requête à Eloquent |
+
+### Exemple : Utilisation directe
+
+```php
+use AndyDefer\LaravelCluster\ClusterQuery;
+use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
+
+$engine = new ClusterQuery();
+
+// 1. Parser une requête
+$ast = $engine->parse('age > 18 AND status=active');
+
+// 2. Filtrer une collection
+$filtered = $engine->filter($clusters, 'score > 80');
+
+// 3. Tester un cluster individuel
+$matches = $engine->matches($cluster, 'role=admin');
+
+// 4. Générer du SQL (MySQL)
+$sql = $engine->toSql('metadata', 'age > 18', DatabaseDriver::MYSQL);
+// "(JSON_EXTRACT(metadata, '$."age"') > '18')"
+
+// 5. Appliquer à Eloquent
+$query = User::query();
+$engine->applyToEloquent($query, 'settings', 'theme=dark', DatabaseDriver::MYSQL);
+```
+
+---
+
+## Le service façade : ClusterService
+
+`ClusterService` est une façade qui délègue toutes les opérations à `ClusterQuery`. Il fournit une API simplifiée pour une utilisation dans les services Laravel.
+
+```php
+use AndyDefer\LaravelCluster\Services\ClusterService;
+use AndyDefer\LaravelCluster\ClusterQuery;
+use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
+
+$service = new ClusterService(new ClusterQuery());
+
+// Parser une requête
+$ast = $service->parse('age > 18 AND status=active');
+
+// Filtrer une collection
+$filtered = $service->filter($clusters, 'score > 80');
+
+// Tester un cluster
+$matches = $service->matches($cluster, 'role=admin');
+
+// Générer du SQL
+$sql = $service->toSql('metadata', 'age > 18', DatabaseDriver::MYSQL);
+
+// Appliquer à Eloquent
+$service->applyToEloquent($query, 'settings', 'theme=dark', DatabaseDriver::MYSQL);
+```
+
+---
+
+## La collection intelligente : ClusterVOCollection
+
+`ClusterVOCollection` est une collection typée qui offre une API fluide pour filtrer des clusters. Elle maintient le jeu de données original pour supporter les requêtes complexes avec `OR`.
+
+### Exemples d'utilisation
+
+```php
+$collection = new ClusterVOCollection();
+$collection->add(new ClusterVO(['name' => 'John', 'status' => 'active', 'age' => 25]));
+
+// Filtres d'égalité
+$active = $collection->where('status', 'active');
+$notActive = $collection->whereNot('status', 'active');
+$verified = $collection->whereTrue('verified');
+
+// OR conditions
+$activeOrPending = $collection
+    ->where('status', 'active')
+    ->orWhere('status', 'pending');
+
+// Groupes logiques
+$admins = $collection->whereGroup(function ($q) {
+    return $q->where('status', 'active')
+             ->where('role', 'admin');
+});
+
+// Comparaisons numériques
+$adults = $collection->whereGreaterThanOrEqual('age', 18);
+$youngAdults = $collection->whereBetween('age', 18, 25);
+
+// Recherche textuelle
+$johns = $collection->whereContains('name', 'John');
+$jNames = $collection->whereStartsWith('name', 'J');
+
+// Filtres personnalisés
+$complex = $collection->whereClosure(function ($cluster) {
+    return $cluster->get('age') > 25 && $cluster->get('role') === 'admin';
+});
+
+// Récupération
+$all = $collection->get();
+$firstAdmin = $collection->firstWhere('role', 'admin');
+```
+
+---
+
+## Structure des données : ClusterVO
 
 `ClusterVO` est le conteneur de données qui aplatit automatiquement les structures imbriquées.
 
-### Création d'un ClusterVO
+### Exemple
 
 ```php
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
@@ -116,22 +236,13 @@ $cluster = new ClusterVO([
         'city' => 'Paris',
         'zip' => 75000
     ],
-    'tags' => ['php', 'js', 'docker'],
-    'preferences' => [
-        'theme' => 'dark',
-        'notifications' => true
-    ]
+    'tags' => ['php', 'js', 'docker']
 ]);
-```
 
-### Accès aux données
-
-```php
 // Accès direct (clés aplaties)
 $name = $cluster->get('name');                  // 'John Doe'
 $city = $cluster->get('address.city');          // 'Paris'
 $hasTag = $cluster->get('tags_php');            // 'true'
-$isActive = $cluster->get('active');            // 'true'
 
 // Vérification d'existence
 if ($cluster->has('address.city')) {
@@ -141,50 +252,16 @@ if ($cluster->has('address.city')) {
 // Liste des clés disponibles
 $keys = $cluster->keys();
 // ['id', 'name', 'age', 'active', 'address.city', 'address.zip', 
-//  'tags_php', 'tags_js', 'tags_docker', 'preferences.theme', 
-//  'preferences.notifications']
+//  'tags_php', 'tags_js', 'tags_docker']
 
-// Données brutes (version aplatie)
+// Données brutes
 $flat = $cluster->toArray();
-
-// Données originales (version non-aplatie)
 $original = $cluster->getUnflattened()->toArray();
 ```
-
-### Pourquoi l'aplatissement ?
-
-Les données JSON en base de données sont souvent imbriquées. `ClusterVO` aplatit la structure pour permettre des recherches efficaces :
-
-**Donnée originale :**
-```json
-{
-    "user": {
-        "name": "John",
-        "preferences": {
-            "theme": "dark"
-        }
-    },
-    "tags": ["php", "js"]
-}
-```
-
-**Donnée aplatie :**
-```php
-[
-    'user.name' => 'John',
-    'user.preferences.theme' => 'dark',
-    'tags_php' => 'true',
-    'tags_js' => 'true'
-]
-```
-
-Cela permet de rechercher `user.name = "John"` ou `tags_php = "true"` facilement.
 
 ---
 
 ## Filtrer des collections en mémoire
-
-### Avec ClusterService
 
 ```php
 use AndyDefer\LaravelCluster\Services\ClusterService;
@@ -201,97 +278,18 @@ $clusters->add(new ClusterVO(['id' => 2, 'name' => 'Jane', 'age' => 17, 'status'
 $clusters->add(new ClusterVO(['id' => 3, 'name' => 'Bob', 'age' => 30, 'status' => 'active']));
 
 // Filtrage
-$filtered = $service->filter($clusters, 'age >= 18 AND status = "active"');
-
+$filtered = $service->filter($clusters, 'age >= 18 AND status=active');
 // Résultat : John (25), Bob (30)
-foreach ($filtered as $cluster) {
-    echo $cluster->get('name') . PHP_EOL;
-}
-```
 
-### Exemple : Utilisateurs actifs majeurs
-
-```php
-$users = [
-    new ClusterVO(['id' => 1, 'name' => 'Alice', 'age' => 25, 'active' => true]),
-    new ClusterVO(['id' => 2, 'name' => 'Bob', 'age' => 17, 'active' => true]),
-    new ClusterVO(['id' => 3, 'name' => 'Charlie', 'age' => 30, 'active' => false]),
-    new ClusterVO(['id' => 4, 'name' => 'Diana', 'age' => 22, 'active' => true]),
-];
-
-$collection = new ClusterVOCollection();
-foreach ($users as $user) {
-    $collection->add($user);
-}
-
-$adults = $service->filter($collection, 'active = "true" AND age >= 18');
-// Résultat : Alice (25), Diana (22)
-```
-
-### Exemple : OR avec parenthèses
-
-```php
-// Utilisateurs qui sont soit des admins, soit des managers actifs
-$filtered = $service->filter(
-    $collection,
-    'role = "admin" OR (status = "active" AND role = "manager")'
-);
-
-foreach ($filtered as $user) {
-    echo $user->get('name') . ' - ' . $user->get('role') . PHP_EOL;
-}
-```
-
-### Validation d'un cluster individuel
-
-```php
+// Validation individuelle
 $cluster = new ClusterVO(['age' => 25, 'status' => 'active']);
-
-// Vérifier si le cluster correspond
-$isMatch = $service->matches($cluster, 'age >= 18 AND status = "active"');
+$isMatch = $service->matches($cluster, 'age >= 18 AND status=active');
 // true
-
-// Vérifier avec une condition différente
-$isMatch = $service->matches($cluster, 'role = "admin"');
-// false
-```
-
-### Exemple : Contrôle d'accès basé sur les attributs
-
-```php
-class AccessControl
-{
-    public function __construct(
-        private readonly ClusterService $clusterService
-    ) {}
-
-    public function canAccess(User $user, Resource $resource): bool
-    {
-        $userData = new ClusterVO([
-            'id' => $user->id,
-            'role' => $user->role,
-            'department' => $user->department,
-            'permissions' => $user->permissions->toArray()
-        ]);
-
-        $condition = 'role = "admin" OR (department = "engineering" AND permissions_edit = "true")';
-
-        return $this->clusterService->matches($userData, $condition);
-    }
-}
-
-// Utilisation
-$access = new AccessControl($service);
-if ($access->canAccess($user, $resource)) {
-    // Autoriser l'accès
-}
 ```
 
 ---
 
 ## Générer du SQL
-
-### Exemple de base
 
 ```php
 use AndyDefer\LaravelCluster\Services\ClusterService;
@@ -302,7 +300,7 @@ $service = new ClusterService(new ClusterQuery());
 // MySQL
 $sql = $service->toSql(
     'metadata',
-    'age > 18 AND status = "active"',
+    'age > 18 AND status=active',
     DatabaseDriver::MYSQL
 );
 // "(JSON_EXTRACT(metadata, '$."age"') > '18' AND JSON_EXTRACT(metadata, '$."status"') = 'active')"
@@ -316,34 +314,9 @@ $sql = $service->toSql('metadata', 'age > 18', DatabaseDriver::SQLITE);
 // "CAST(json_extract(metadata, '$.age') AS INTEGER) > '18'"
 ```
 
-### Exemple : Requête avec LIKE
-
-```php
-$sql = $service->toSql(
-    'user_data',
-    'name LIKE "John%" AND email NOT LIKE "%@gmail.com"',
-    DatabaseDriver::MYSQL
-);
-// "JSON_EXTRACT(user_data, '$."name"') LIKE 'John%' AND JSON_EXTRACT(user_data, '$."email"') NOT LIKE '%@gmail.com'"
-```
-
-### Exemple : Requête avec EXISTS et NOT EXISTS
-
-```php
-// EXISTS : vérifier qu'un champ existe
-$sql = $service->toSql('data', '*email', DatabaseDriver::MYSQL);
-// "JSON_EXTRACT(data, '$."email"') IS NOT NULL"
-
-// NOT EXISTS : vérifier qu'un champ n'existe pas
-$sql = $service->toSql('data', '#deleted_at', DatabaseDriver::MYSQL);
-// "JSON_EXTRACT(data, '$."deleted_at"') IS NULL"
-```
-
 ---
 
 ## Intégration avec Eloquent
-
-### Avec ClusterService
 
 ```php
 use AndyDefer\LaravelCluster\Services\ClusterService;
@@ -356,7 +329,7 @@ $query = User::query();
 $service->applyToEloquent(
     $query,
     'settings',
-    'preferences.theme = "dark" AND notifications.enabled = "true"',
+    'preferences.theme=dark AND notifications.enabled=true',
     DatabaseDriver::MYSQL
 );
 
@@ -367,114 +340,11 @@ $users = $query->get();
 // )
 ```
 
-### Exemple : Filtrage dynamique dans un contrôleur
-
-```php
-<?php
-
-namespace App\Http\Controllers;
-
-use AndyDefer\LaravelCluster\Services\ClusterService;
-use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
-use App\Models\User;
-
-class UserController extends Controller
-{
-    public function __construct(
-        private readonly ClusterService $clusterService
-    ) {}
-
-    public function index(Request $request)
-    {
-        $query = User::query();
-
-        // Construction de la requête à partir des paramètres
-        $filters = [];
-        if ($request->has('status')) {
-            $filters[] = 'status = "' . $request->status . '"';
-        }
-        if ($request->has('min_age')) {
-            $filters[] = 'age >= ' . $request->min_age;
-        }
-        if ($request->has('role')) {
-            $filters[] = 'role = "' . $request->role . '"';
-        }
-
-        if (!empty($filters)) {
-            $queryString = implode(' AND ', $filters);
-            $this->clusterService->applyToEloquent(
-                $query,
-                'user_data',
-                $queryString,
-                DatabaseDriver::MYSQL
-            );
-        }
-
-        return $query->paginate(20);
-    }
-}
-```
-
-### Exemple : Utilisation dans un repository
-
-```php
-<?php
-
-namespace App\Repositories;
-
-use AndyDefer\LaravelCluster\Services\ClusterService;
-use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
-use App\Models\User;
-
-class UserRepository
-{
-    public function __construct(
-        private readonly ClusterService $clusterService
-    ) {}
-
-    public function findActiveAdmins(): array
-    {
-        $query = User::query();
-        $this->clusterService->applyToEloquent(
-            $query,
-            'metadata',
-            'status = "active" AND role = "admin"',
-            DatabaseDriver::MYSQL
-        );
-        return $query->get()->toArray();
-    }
-
-    public function findUsersWithSkills(array $skills): array
-    {
-        // Construction de la condition pour les compétences
-        $conditions = [];
-        foreach ($skills as $skill) {
-            $conditions[] = "skills_{$skill} = \"true\"";
-        }
-        $queryString = implode(' AND ', $conditions);
-
-        $query = User::query();
-        $this->clusterService->applyToEloquent(
-            $query,
-            'user_data',
-            $queryString,
-            DatabaseDriver::MYSQL
-        );
-        return $query->get()->toArray();
-    }
-}
-
-// Utilisation
-$repository = new UserRepository($service);
-$admins = $repository->findActiveAdmins();
-$developers = $repository->findUsersWithSkills(['php', 'js']);
-```
-
 ---
 
-## Filtrage avancé sur tableaux
+## Filtrage avancé sur tableaux : cas concrets
 
-### Comment ça fonctionne
+### Le mécanisme d'aplatissement
 
 Les tableaux sont automatiquement aplatis en clés séparées :
 
@@ -497,89 +367,237 @@ Les tableaux sont automatiquement aplatis en clés séparées :
 ]
 ```
 
-### Exemples concrets
-
-#### 1. Filtrer par tags
+### Cas concret 1 : Filtrage de développeurs par compétences
 
 ```php
 use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
-
-$collection = new ClusterVOCollection();
-$collection->add(new ClusterVO([
-    'name' => 'John',
-    'skills' => ['php', 'js', 'docker']
-]));
-$collection->add(new ClusterVO([
-    'name' => 'Jane',
-    'skills' => ['php', 'python']
-]));
-$collection->add(new ClusterVO([
-    'name' => 'Bob',
-    'skills' => ['ruby', 'go']
-]));
-
-// Trouver les développeurs PHP
-$phpDevs = $collection->whereArrayContains('skills', 'php');
-// Résultat : John, Jane
-
-// Trouver les développeurs qui ne connaissent pas PHP
-$noPhp = $collection->whereArrayNotContains('skills', 'php');
-// Résultat : Bob
-
-// Trouver les développeurs qui connaissent PHP OU Python
-$phpOrPython = $collection->whereArrayContainsAny('skills', ['php', 'python']);
-// Résultat : John, Jane
-
-// Trouver les développeurs qui connaissent PHP ET JS
-$fullStack = $collection->whereArrayContainsAll('skills', ['php', 'js']);
-// Résultat : John
-```
-
-#### 2. Filtrer par nombre de compétences
-
-```php
-// Développeurs avec exactement 2 compétences
-$twoSkills = $collection->whereArraySize('skills', 2);
-// Résultat : Jane (php, python)
-
-// Développeurs avec plus de 2 compétences
-$manySkills = $collection->whereArraySizeGreaterThan('skills', 2);
-// Résultat : John (php, js, docker)
-
-// Développeurs avec moins de 3 compétences
-$fewSkills = $collection->whereArraySizeLessThan('skills', 3);
-// Résultat : Jane (2), Bob (2)
-```
-
-#### 3. Utilisation en base de données avec Eloquent
-
-```php
-use App\Models\User;
 use AndyDefer\LaravelCluster\Services\ClusterService;
-use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
+use AndyDefer\LaravelCluster\ClusterQuery;
 
 $service = new ClusterService(new ClusterQuery());
 
-// Trouver les utilisateurs qui maîtrisent PHP
-$query = User::query();
-$service->applyToEloquent(
-    $query,
-    'user_data',
-    'skills_php = "true"',
-    DatabaseDriver::MYSQL
-);
-$phpUsers = $query->get();
+// Base de données des développeurs
+$developers = [
+    ['name' => 'Alice', 'skills' => ['php', 'js', 'docker']],
+    ['name' => 'Bob', 'skills' => ['php', 'python']],
+    ['name' => 'Charlie', 'skills' => ['ruby', 'go']],
+    ['name' => 'Diana', 'skills' => ['php', 'js', 'rust']],
+];
 
-// Trouver les utilisateurs qui maîtrisent PHP ET JS
+$collection = new ClusterVOCollection();
+foreach ($developers as $dev) {
+    $collection->add(new ClusterVO($dev));
+}
+
+// 1. Trouver les développeurs PHP
+$phpDevs = $collection->whereArrayContains('skills', 'php');
+// Résultat : Alice, Bob, Diana
+echo "Développeurs PHP : " . $phpDevs->count() . PHP_EOL;
+
+// 2. Trouver les développeurs qui ne connaissent pas PHP
+$noPhp = $collection->whereArrayNotContains('skills', 'php');
+// Résultat : Charlie
+echo "Développeurs sans PHP : " . $noPhp->count() . PHP_EOL;
+
+// 3. Trouver les développeurs qui connaissent PHP OU Python
+$phpOrPython = $collection->whereArrayContainsAny('skills', ['php', 'python']);
+// Résultat : Alice, Bob, Diana
+echo "Développeurs PHP ou Python : " . $phpOrPython->count() . PHP_EOL;
+
+// 4. Trouver les développeurs qui connaissent PHP ET JS (full-stack)
+$fullStack = $collection->whereArrayContainsAll('skills', ['php', 'js']);
+// Résultat : Alice, Diana
+echo "Développeurs full-stack (PHP+JS) : " . $fullStack->count() . PHP_EOL;
+
+// 5. Trouver les développeurs avec exactement 3 compétences
+$threeSkills = $collection->whereArraySize('skills', 3);
+// Résultat : Alice (php, js, docker), Diana (php, js, rust)
+echo "Développeurs avec 3 compétences : " . $threeSkills->count() . PHP_EOL;
+
+// 6. Trouver les développeurs avec plus de 2 compétences
+$manySkills = $collection->whereArraySizeGreaterThan('skills', 2);
+// Résultat : Alice, Diana
+echo "Développeurs avec > 2 compétences : " . $manySkills->count() . PHP_EOL;
+```
+
+### Cas concret 2 : Filtrage de produits par catégories et tags
+
+```php
+// Catalogue de produits
+$products = [
+    ['name' => 'Laptop', 'categories' => ['electronics', 'computers'], 'price' => 1200],
+    ['name' => 'Phone', 'categories' => ['electronics', 'mobile'], 'price' => 800],
+    ['name' => 'Book', 'categories' => ['education', 'paper'], 'price' => 25],
+    ['name' => 'Tablet', 'categories' => ['electronics', 'computers', 'mobile'], 'price' => 600],
+];
+
+$collection = new ClusterVOCollection();
+foreach ($products as $product) {
+    $collection->add(new ClusterVO($product));
+}
+
+// 1. Produits dans la catégorie electronics
+$electronics = $collection->whereArrayContains('categories', 'electronics');
+// Résultat : Laptop, Phone, Tablet
+
+// 2. Produits dans computers ET mobile
+$hybrid = $collection->whereArrayContainsAll('categories', ['computers', 'mobile']);
+// Résultat : Tablet (les deux catégories)
+
+// 3. Produits dans electronics OU education
+$broad = $collection->whereArrayContainsAny('categories', ['electronics', 'education']);
+// Résultat : Laptop, Phone, Book, Tablet (tous sauf... aucun en fait)
+
+// 4. Produits avec plus d'une catégorie
+$multiCategory = $collection->whereArraySizeGreaterThan('categories', 1);
+// Résultat : Laptop, Phone, Tablet
+```
+
+### Cas concret 3 : Filtrer des utilisateurs par rôles et permissions
+
+```php
+// Utilisateurs avec rôles et permissions
+$users = [
+    ['name' => 'John', 'roles' => ['admin', 'editor'], 'permissions' => ['read', 'write', 'delete']],
+    ['name' => 'Jane', 'roles' => ['viewer'], 'permissions' => ['read']],
+    ['name' => 'Bob', 'roles' => ['editor', 'viewer'], 'permissions' => ['read', 'write']],
+    ['name' => 'Alice', 'roles' => ['admin'], 'permissions' => ['read', 'write', 'delete', 'manage']],
+];
+
+$collection = new ClusterVOCollection();
+foreach ($users as $user) {
+    $collection->add(new ClusterVO($user));
+}
+
+// 1. Admins avec droit de suppression
+$adminDeleters = $collection
+    ->whereArrayContains('roles', 'admin')
+    ->whereArrayContains('permissions', 'delete');
+// Résultat : John, Alice
+
+// 2. Utilisateurs avec au moins 2 rôles
+$multiRoles = $collection->whereArraySizeGreaterThan('roles', 1);
+// Résultat : John (admin, editor), Bob (editor, viewer)
+
+// 3. Utilisateurs sans rôle admin
+$nonAdmins = $collection->whereArrayNotContains('roles', 'admin');
+// Résultat : Jane, Bob
+
+// 4. Utilisateurs avec tous les droits (read, write, delete)
+$fullAccess = $collection->whereArrayContainsAll('permissions', ['read', 'write', 'delete']);
+// Résultat : John, Alice
+```
+
+### Cas concret 4 : OR conditions sur les tableaux en base de données
+
+```php
+use AndyDefer\LaravelCluster\Services\ClusterService;
+use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
+use App\Models\User;
+
+$service = new ClusterService(new ClusterQuery());
+
+// Requête Eloquent : utilisateurs actifs OU ceux qui ont le rôle admin
 $query = User::query();
 $service->applyToEloquent(
     $query,
     'user_data',
-    'skills_php = "true" AND skills_js = "true"',
+    'status=active OR roles_admin=true',
     DatabaseDriver::MYSQL
 );
-$fullStackUsers = $query->get();
+$users = $query->get();
+
+// Requête Eloquent : utilisateurs avec PHP OU Python OU les deux
+$query = User::query();
+$service->applyToEloquent(
+    $query,
+    'user_data',
+    'skills_php=true OR skills_python=true',
+    DatabaseDriver::MYSQL
+);
+$users = $query->get();
+```
+
+### Cas concret 5 : Validation de données avec tableaux
+
+```php
+use AndyDefer\LaravelCluster\Services\ClusterService;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
+
+class TaskValidator
+{
+    public function __construct(
+        private readonly ClusterService $clusterService
+    ) {}
+
+    public function validateTask(array $taskData): bool
+    {
+        $cluster = new ClusterVO($taskData);
+
+        // Règles de validation
+        $rules = [
+            // Doit avoir au moins un assigné
+            'assignees' => 'size > 0',
+            // Ne doit pas avoir plus de 3 tags
+            'tags' => 'size <= 3',
+            // Doit être dans une catégorie valide
+            'categories' => 'contains_any work personal'
+        ];
+
+        foreach ($rules as $field => $rule) {
+            if (!$this->evaluateRule($cluster, $field, $rule)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function evaluateRule(ClusterVO $cluster, string $field, string $rule): bool
+    {
+        // size > 0, size <= 3, contains_any ...
+        if (str_starts_with($rule, 'size > ')) {
+            $min = (int) substr($rule, 6);
+            return $cluster->get($field . '_count', 0) > $min;
+        }
+
+        if (str_starts_with($rule, 'size <= ')) {
+            $max = (int) substr($rule, 7);
+            return $cluster->get($field . '_count', 0) <= $max;
+        }
+
+        if (str_starts_with($rule, 'contains_any ')) {
+            $values = explode(' ', substr($rule, 12));
+            $query = '(' . implode(' OR ', array_map(
+                fn($v) => "{$field}_{$v}=true",
+                $values
+            )) . ')';
+            return $this->clusterService->matches($cluster, $query);
+        }
+
+        return true;
+    }
+}
+```
+
+### Cas concret 6 : Recherche avancée avec groupes OR/AND
+
+```php
+// Recherche de produits éligibles
+$eligibleProducts = $collection->whereGroup(function ($q) {
+    // Produits soit en promotion, soit avec un bon prix
+    return $q->where('promotion', 'true')
+             ->orWhere('price', '<=', '100');
+})->whereGroup(function ($q) {
+    // Et qui ont soit le tag "best-seller", soit "new"
+    return $q->whereArrayContains('tags', 'best-seller')
+             ->orWhereArrayContains('tags', 'new');
+});
+
+foreach ($eligibleProducts as $product) {
+    echo $product->get('name') . PHP_EOL;
+}
 ```
 
 ---
@@ -611,10 +629,10 @@ class CustomerFilterService
             $conditions[] = "revenue >= " . $criteria['min_revenue'];
         }
         if (isset($criteria['industry'])) {
-            $conditions[] = "industry = \"" . $criteria['industry'] . "\"";
+            $conditions[] = "industry=" . $criteria['industry'];
         }
         if (isset($criteria['is_active'])) {
-            $conditions[] = "active = \"" . ($criteria['is_active'] ? 'true' : 'false') . "\"";
+            $conditions[] = "active=" . ($criteria['is_active'] ? 'true' : 'false');
         }
 
         $queryString = implode(' AND ', $conditions);
@@ -660,14 +678,12 @@ class ProductSearchService
     public function searchProducts(array $filters): array
     {
         $query = Product::query();
-
-        // Construction de la requête
         $conditions = [];
         
         if (!empty($filters['categories'])) {
             $categoryConditions = [];
             foreach ($filters['categories'] as $category) {
-                $categoryConditions[] = "categories_{$category} = \"true\"";
+                $categoryConditions[] = "categories_{$category}=true";
             }
             $conditions[] = '(' . implode(' OR ', $categoryConditions) . ')';
         }
@@ -679,7 +695,7 @@ class ProductSearchService
             $conditions[] = "price <= " . $filters['max_price'];
         }
         if (isset($filters['in_stock'])) {
-            $conditions[] = "in_stock = \"" . ($filters['in_stock'] ? 'true' : 'false') . "\"";
+            $conditions[] = "in_stock=" . ($filters['in_stock'] ? 'true' : 'false');
         }
 
         if (!empty($conditions)) {
@@ -695,15 +711,6 @@ class ProductSearchService
         return $query->get()->toArray();
     }
 }
-
-// Utilisation
-$service = new ProductSearchService($clusterService);
-$products = $service->searchProducts([
-    'categories' => ['electronics', 'gadgets'],
-    'min_price' => 100,
-    'max_price' => 500,
-    'in_stock' => true
-]);
 ```
 
 ### Cas 3 : API REST - Filtrage dynamique
@@ -726,9 +733,6 @@ class ResourceController extends Controller
     public function index(Request $request)
     {
         $query = Resource::query();
-
-        // Filtrage dynamique : le client envoie un query string
-        // Exemple: ?filter=status="active" AND category="documents"
         $filter = $request->get('filter');
         
         if ($filter) {
@@ -744,8 +748,7 @@ class ResourceController extends Controller
     }
 }
 
-// Requête API
-// GET /api/resources?filter=status="active" AND category="documents" AND tags_php="true"
+// GET /api/resources?filter=status=active AND category=documents AND tags_php=true
 ```
 
 ### Cas 4 : Filtrage en mémoire pour export
@@ -767,147 +770,15 @@ class DataExportService
 
     public function exportFilteredData(array $sourceData, string $filter): array
     {
-        // Convertir les données en clusters
         $collection = new ClusterVOCollection();
         foreach ($sourceData as $item) {
             $collection->add(new ClusterVO($item));
         }
 
-        // Filtrer en mémoire
         $filtered = $this->clusterService->filter($collection, $filter);
-
-        // Exporter
         return $filtered->toArray();
     }
 }
-
-// Utilisation
-$service = new DataExportService($clusterService);
-$exported = $service->exportFilteredData(
-    $databaseRecords,
-    'department = "sales" AND revenue > 100000 AND active = "true"'
-);
-```
-
-### Cas 5 : Validation de données complexes
-
-```php
-<?php
-
-namespace App\Services;
-
-use AndyDefer\LaravelCluster\Services\ClusterService;
-use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
-
-class DataValidator
-{
-    public function __construct(
-        private readonly ClusterService $clusterService
-    ) {}
-
-    public function validate(array $data, array $rules): bool
-    {
-        $cluster = new ClusterVO($data);
-
-        foreach ($rules as $field => $condition) {
-            $query = "{$field} {$condition}";
-            if (!$this->clusterService->matches($cluster, $query)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-}
-
-// Utilisation
-$validator = new DataValidator($clusterService);
-$isValid = $validator->validate(
-    ['age' => 25, 'status' => 'active', 'role' => 'admin'],
-    [
-        'age' => '>= 18',
-        'status' => '= "active"',
-        'role' => 'IN ["admin", "manager"]'  // Supporté par whereIn
-    ]
-);
-```
-
-### Cas 6 : Filtrage multi-critères avec groupes logiques
-
-```php
-<?php
-
-namespace App\Services;
-
-use AndyDefer\LaravelCluster\Services\ClusterService;
-use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
-use App\Models\Employee;
-
-class EmployeeSearchService
-{
-    public function __construct(
-        private readonly ClusterService $clusterService
-    ) {}
-
-    public function search(array $criteria): array
-    {
-        $query = Employee::query();
-        
-        // Construction d'une requête complexe
-        // (department = "engineering" OR department = "product") 
-        // AND (status = "active" OR status = "probation") 
-        // AND salary >= 50000
-        
-        $conditions = [];
-        
-        if (!empty($criteria['departments'])) {
-            $deptConditions = [];
-            foreach ($criteria['departments'] as $dept) {
-                $deptConditions[] = "department = \"{$dept}\"";
-            }
-            $conditions[] = '(' . implode(' OR ', $deptConditions) . ')';
-        }
-        
-        if (!empty($criteria['statuses'])) {
-            $statusConditions = [];
-            foreach ($criteria['statuses'] as $status) {
-                $statusConditions[] = "status = \"{$status}\"";
-            }
-            $conditions[] = '(' . implode(' OR ', $statusConditions) . ')';
-        }
-        
-        if (isset($criteria['min_salary'])) {
-            $conditions[] = "salary >= {$criteria['min_salary']}";
-        }
-        
-        if (!empty($criteria['skills'])) {
-            foreach ($criteria['skills'] as $skill) {
-                $conditions[] = "skills_{$skill} = \"true\"";
-            }
-        }
-
-        if (!empty($conditions)) {
-            $queryString = implode(' AND ', $conditions);
-            $this->clusterService->applyToEloquent(
-                $query,
-                'employee_data',
-                $queryString,
-                DatabaseDriver::MYSQL
-            );
-        }
-
-        return $query->get()->toArray();
-    }
-}
-
-// Utilisation
-$service = new EmployeeSearchService($clusterService);
-$employees = $service->search([
-    'departments' => ['engineering', 'product'],
-    'statuses' => ['active', 'probation'],
-    'min_salary' => 50000,
-    'skills' => ['php', 'js']
-]);
 ```
 
 ---
@@ -918,21 +789,21 @@ $employees = $service->search([
 
 | Opérateur | Signification | Exemple |
 |-----------|---------------|---------|
-| `=` | Égalité stricte | `status = "active"` |
-| `!=` | Différent | `status != "inactive"` |
-| `<` | Inférieur | `age < 18` |
-| `>` | Supérieur | `age > 18` |
-| `<=` | Inférieur ou égal | `age <= 18` |
-| `>=` | Supérieur ou égal | `age >= 18` |
-| `LIKE` | Correspondance partielle | `name LIKE "John%"` |
-| `NOT LIKE` | Non-correspondance | `email NOT LIKE "%@gmail.com"` |
+| `=` | Égalité | `status=active` |
+| `!=` | Différent | `status!=inactive` |
+| `<` | Inférieur | `age<18` |
+| `>` | Supérieur | `age>18` |
+| `<=` | Inférieur ou égal | `age<=18` |
+| `>=` | Supérieur ou égal | `age>=18` |
+| `=~` | LIKE (correspondance) | `name=~John%` |
+| `!~` | NOT LIKE (non-correspondance) | `email!~%@gmail.com` |
 
 ### Opérateurs logiques
 
 | Opérateur | Signification | Exemple |
 |-----------|---------------|---------|
-| `AND` | ET logique | `age > 18 AND active = "true"` |
-| `OR` | OU logique | `role = "admin" OR role = "manager"` |
+| `AND` | ET logique | `age>18 AND active=true` |
+| `OR` | OU logique | `role=admin OR role=manager` |
 
 ### Opérateurs spéciaux
 
@@ -940,7 +811,19 @@ $employees = $service->search([
 |-----------|---------------|---------|
 | `*` | EXISTS (clé existe) | `*email` → `email IS NOT NULL` |
 | `#` | NOT EXISTS (clé absente) | `#deleted_at` → `deleted_at IS NULL` |
-| `!` | NOT (négation) | `!deleted` → `deleted = "false"` |
+| `!` | NOT (négation) | `!deleted` → `deleted=false` |
+
+### Règles d'écriture des requêtes
+
+**IMPORTANT : Les valeurs ne doivent PAS être entourées de guillemets.**
+
+| ❌ Incorrect | ✅ Correct |
+|--------------|-----------|
+| `status="active"` | `status=active` |
+| `name="John"` | `name=John` |
+| `name LIKE "John%"` | `name=~John%` |
+| `email NOT LIKE "%@gmail.com"` | `email!~%@gmail.com` |
+| `age >= "18"` | `age>=18` |
 
 ### Priorité des opérateurs
 

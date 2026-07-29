@@ -74,7 +74,7 @@ final class ClusterVOCollectionTest extends TestCase
         ]));
     }
 
-    public function test_where(): void
+    public function test_where_returns_collection_with_matching_items(): void
     {
         $result = $this->collection->where('status', 'active');
 
@@ -82,7 +82,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals('active', $result->first()?->get('status'));
     }
 
-    public function test_and_where(): void
+    public function test_and_where_filters_collection_with_multiple_conditions(): void
     {
         $result = $this->collection
             ->andWhere('status', 'active')
@@ -92,7 +92,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals('admin', $result->first()?->get('role'));
     }
 
-    public function test_where_not(): void
+    public function test_where_not_excludes_items_with_matching_value(): void
     {
         $result = $this->collection->whereNot('status', 'inactive');
 
@@ -100,7 +100,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertNotEquals('inactive', $result->first()?->get('status'));
     }
 
-    public function test_where_true(): void
+    public function test_where_true_returns_items_with_true_value(): void
     {
         $result = $this->collection->whereTrue('verified');
 
@@ -108,7 +108,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals('true', $result->first()?->get('verified'));
     }
 
-    public function test_where_false(): void
+    public function test_where_false_returns_items_with_false_value(): void
     {
         $result = $this->collection->whereFalse('verified');
 
@@ -116,7 +116,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals('false', $result->first()?->get('verified'));
     }
 
-    public function test_or_where(): void
+    public function test_or_where_combines_filters_with_or_logic(): void
     {
         $result = $this->collection
             ->where('status', 'active')
@@ -126,7 +126,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertContains($result->first()?->get('status'), ['active', 'pending']);
     }
 
-    public function test_where_group(): void
+    public function test_where_group_applies_conditions_as_a_group(): void
     {
         $result = $this->collection->whereGroup(function (ClusterVOCollection $q) {
             return $q->where('status', 'active')
@@ -136,7 +136,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(4, $result);
     }
 
-    public function test_where_group_with_and_condition(): void
+    public function test_where_group_with_and_condition_combines_group_with_outer_condition(): void
     {
         $result = $this->collection
             ->whereGroup(function (ClusterVOCollection $q) {
@@ -149,7 +149,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals('admin', $result->first()?->get('role'));
     }
 
-    public function test_where_group_nested(): void
+    public function test_where_group_nested_supports_nested_group_conditions(): void
     {
         $result = $this->collection->whereGroup(function (ClusterVOCollection $q) {
             return $q->whereGroup(function (ClusterVOCollection $q2) {
@@ -164,7 +164,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(3, $result);
     }
 
-    public function test_or_where_group_without_prior_filter(): void
+    public function test_or_where_group_without_prior_filter_applies_or_group_to_full_collection(): void
     {
         $result = $this->collection->orWhereGroup(function (ClusterVOCollection $q) {
             return $q->where('role', 'admin')
@@ -174,7 +174,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(2, $result);
     }
 
-    public function test_or_where_group_with_prior_filter(): void
+    public function test_or_where_group_with_prior_filter_combines_filters_with_or(): void
     {
         $result = $this->collection
             ->where('status', 'active')
@@ -186,7 +186,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(3, $result);
     }
 
-    public function test_chain_with_or_where_after_group(): void
+    public function test_chain_with_or_where_after_group_combines_group_and_single_condition(): void
     {
         $result = $this->collection
             ->whereGroup(function (ClusterVOCollection $q) {
@@ -198,7 +198,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(3, $result);
     }
 
-    public function test_or_where_group_with_multiple_conditions(): void
+    public function test_or_where_group_with_multiple_conditions_combines_multiple_or_groups(): void
     {
         $result = $this->collection
             ->whereGroup(function (ClusterVOCollection $q) {
@@ -212,7 +212,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(3, $result);
     }
 
-    public function test_nested_groups(): void
+    public function test_nested_groups_support_deep_nesting_of_conditions(): void
     {
         $result = $this->collection->whereGroup(function (ClusterVOCollection $q) {
             return $q->whereGroup(function (ClusterVOCollection $q2) {
@@ -227,7 +227,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(3, $result);
     }
 
-    public function test_complex_chaining_with_groups(): void
+    public function test_complex_chaining_with_groups_supports_multiple_group_operations(): void
     {
         $result = $this->collection
             ->whereGroup(function (ClusterVOCollection $q) {
@@ -241,7 +241,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(2, $result);
     }
 
-    public function test_complex_chaining_with_or_groups(): void
+    public function test_complex_chaining_with_or_groups_supports_or_groups_in_chain(): void
     {
         $result = $this->collection
             ->where('status', 'active')
@@ -254,7 +254,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(3, $result);
     }
 
-    public function test_where_has(): void
+    public function test_where_has_returns_items_with_existing_key(): void
     {
         $result = $this->collection->whereHas('lang_fr');
 
@@ -262,7 +262,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertTrue($result->first()?->has('lang_fr'));
     }
 
-    public function test_where_missing(): void
+    public function test_where_missing_returns_items_without_key(): void
     {
         $result = $this->collection->whereMissing('deleted');
 
@@ -270,7 +270,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertFalse($result->first()?->has('deleted'));
     }
 
-    public function test_where_in(): void
+    public function test_where_in_returns_items_with_value_in_array(): void
     {
         $result = $this->collection->whereIn('role', ['admin', 'doctor']);
 
@@ -278,7 +278,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertContains($result->first()?->get('role'), ['admin', 'doctor']);
     }
 
-    public function test_where_not_in(): void
+    public function test_where_not_in_excludes_items_with_value_in_array(): void
     {
         $result = $this->collection->whereNotIn('status', ['active', 'pending']);
 
@@ -286,7 +286,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals('inactive', $result->first()?->get('status'));
     }
 
-    public function test_where_greater_than(): void
+    public function test_where_greater_than_returns_items_with_value_greater_than_threshold(): void
     {
         $result = $this->collection->whereGreaterThan('age', 25);
 
@@ -294,7 +294,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertGreaterThan(25, $result->first()?->get('age'));
     }
 
-    public function test_where_greater_than_or_equal(): void
+    public function test_where_greater_than_or_equal_returns_items_with_value_greater_than_or_equal_threshold(): void
     {
         $result = $this->collection->whereGreaterThanOrEqual('age', 25);
 
@@ -302,7 +302,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertGreaterThanOrEqual(25, $result->first()?->get('age'));
     }
 
-    public function test_where_less_than(): void
+    public function test_where_less_than_returns_items_with_value_less_than_threshold(): void
     {
         $result = $this->collection->whereLessThan('age', 25);
 
@@ -310,7 +310,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertLessThan(25, $result->first()?->get('age'));
     }
 
-    public function test_where_less_than_or_equal(): void
+    public function test_where_less_than_or_equal_returns_items_with_value_less_than_or_equal_threshold(): void
     {
         $result = $this->collection->whereLessThanOrEqual('age', 25);
 
@@ -318,7 +318,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertLessThanOrEqual(25, $result->first()?->get('age'));
     }
 
-    public function test_where_between(): void
+    public function test_where_between_returns_items_with_value_in_range(): void
     {
         $result = $this->collection->whereBetween('age', 20, 30);
 
@@ -326,7 +326,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertTrue($result->first()?->get('age') >= 20 && $result->first()?->get('age') <= 30);
     }
 
-    public function test_where_not_between(): void
+    public function test_where_not_between_excludes_items_with_value_in_range(): void
     {
         $result = $this->collection->whereNotBetween('age', 20, 30);
 
@@ -334,14 +334,14 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertTrue($result->first()?->get('age') < 20 || $result->first()?->get('age') > 30);
     }
 
-    public function test_where_null(): void
+    public function test_where_null_returns_items_with_null_value(): void
     {
         $result = $this->collection->whereNull('age');
 
         $this->assertCount(0, $result);
     }
 
-    public function test_where_not_null(): void
+    public function test_where_not_null_returns_items_with_non_null_value(): void
     {
         $result = $this->collection->whereNotNull('age');
 
@@ -349,7 +349,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertNotNull($result->first()?->get('age'));
     }
 
-    public function test_where_contains(): void
+    public function test_where_contains_returns_items_containing_substring(): void
     {
         $result = $this->collection->whereContains('name', 'Bob');
 
@@ -359,7 +359,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertStringContainsString('Bob', (string) $name);
     }
 
-    public function test_where_starts_with(): void
+    public function test_where_starts_with_returns_items_starting_with_prefix(): void
     {
         $result = $this->collection->whereStartsWith('name', 'J');
 
@@ -369,7 +369,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertStringStartsWith('J', (string) $name);
     }
 
-    public function test_where_ends_with(): void
+    public function test_where_ends_with_returns_items_ending_with_suffix(): void
     {
         $result = $this->collection->whereEndsWith('name', 'n');
 
@@ -379,7 +379,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertStringEndsWith('n', (string) $name);
     }
 
-    public function test_where_closure(): void
+    public function test_where_closure_returns_items_matching_custom_callback(): void
     {
         $result = $this->collection->whereClosure(
             fn (ClusterVO $cluster) => $cluster->get('age') > 25 && $cluster->get('role') === 'admin'
@@ -389,7 +389,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals('Charlie Wilson', $result->first()?->get('name'));
     }
 
-    public function test_or_where_closure_without_prior_filter(): void
+    public function test_or_where_closure_without_prior_filter_applies_closure_to_full_collection(): void
     {
         $result = $this->collection->orWhereClosure(
             fn (ClusterVO $cluster) => $cluster->get('role') === 'admin'
@@ -399,7 +399,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals('admin', $result->first()?->get('role'));
     }
 
-    public function test_or_where_closure_with_prior_filter(): void
+    public function test_or_where_closure_with_prior_filter_combines_filters_with_or(): void
     {
         $result = $this->collection
             ->where('status', 'active')
@@ -410,7 +410,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(3, $result);
     }
 
-    public function test_where_closure_with_group(): void
+    public function test_where_closure_with_group_combines_closure_with_other_conditions(): void
     {
         $result = $this->collection
             ->where('status', 'active')
@@ -421,7 +421,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(3, $result);
     }
 
-    public function test_first_where(): void
+    public function test_first_where_returns_first_matching_item(): void
     {
         $result = $this->collection->firstWhere('role', 'admin');
 
@@ -430,14 +430,14 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals(1, $result->get('id'));
     }
 
-    public function test_first_where_not_found(): void
+    public function test_first_where_returns_null_when_no_match_found(): void
     {
         $result = $this->collection->firstWhere('role', 'super_admin');
 
         $this->assertNull($result);
     }
 
-    public function test_get(): void
+    public function test_get_returns_all_items_as_array(): void
     {
         $result = $this->collection->get();
 
@@ -445,7 +445,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertIsArray($result);
     }
 
-    public function test_empty_collection(): void
+    public function test_empty_collection_returns_empty_result_when_filtering(): void
     {
         $emptyCollection = new ClusterVOCollection;
 
@@ -455,14 +455,14 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEmpty($result->get());
     }
 
-    public function test_non_existent_key(): void
+    public function test_where_with_non_existent_key_returns_empty_result(): void
     {
         $result = $this->collection->where('non_existent_key', 'value');
 
         $this->assertCount(0, $result);
     }
 
-    public function test_null_values(): void
+    public function test_where_null_handles_null_values_correctly(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO(['key' => null]));
@@ -473,7 +473,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals(null, $result->first()?->get('key'));
     }
 
-    public function test_numeric_strings(): void
+    public function test_where_handles_numeric_strings_correctly(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO(['age' => '25']));
@@ -485,7 +485,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals(30, $result->first()?->get('age'));
     }
 
-    public function test_where_with_boolean_values(): void
+    public function test_where_with_boolean_values_combines_true_and_false_filters(): void
     {
         $result = $this->collection
             ->whereTrue('verified')
@@ -496,28 +496,28 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals('false', $result->first()?->get('lang_en'));
     }
 
-    public function test_where_in_with_empty_array(): void
+    public function test_where_in_with_empty_array_returns_empty_result(): void
     {
         $result = $this->collection->whereIn('role', []);
 
         $this->assertCount(0, $result);
     }
 
-    public function test_where_not_in_with_empty_array(): void
+    public function test_where_not_in_with_empty_array_returns_all_items(): void
     {
         $result = $this->collection->whereNotIn('role', []);
 
         $this->assertCount(5, $result);
     }
 
-    public function test_where_between_with_invalid_values(): void
+    public function test_where_between_with_invalid_values_returns_empty_result(): void
     {
         $result = $this->collection->whereBetween('role', 'a', 'z');
 
         $this->assertCount(0, $result);
     }
 
-    public function test_chain_with_where_not_after_group(): void
+    public function test_chain_with_where_not_after_group_combines_group_and_not_condition(): void
     {
         $result = $this->collection
             ->whereGroup(function (ClusterVOCollection $q) {
@@ -529,7 +529,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(3, $result);
     }
 
-    public function test_where_like_with_non_string_value(): void
+    public function test_where_like_with_non_string_value_returns_empty_result(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO(['age' => 25]));
@@ -539,14 +539,14 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(0, $result);
     }
 
-    public function test_where_like_with_empty_search(): void
+    public function test_where_like_with_empty_search_returns_all_items(): void
     {
         $result = $this->collection->whereLike('name', '');
 
         $this->assertCount(5, $result);
     }
 
-    public function test_where_like_with_special_characters(): void
+    public function test_where_like_with_special_characters_handles_underscore_correctly(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO(['name' => 'John_Doe']));
@@ -558,7 +558,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals('John_Doe', $result->first()?->get('name'));
     }
 
-    public function test_where_like(): void
+    public function test_where_like_returns_items_matching_pattern(): void
     {
         $result = $this->collection->whereLike('name', 'John');
 
@@ -566,7 +566,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertStringContainsString('John', (string) $result->first()?->get('name'));
     }
 
-    public function test_where_like_multiple_matches(): void
+    public function test_where_like_returns_multiple_matches_for_pattern(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO(['name' => 'Johnny Cash']));
@@ -578,7 +578,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(2, $result);
     }
 
-    public function test_where_like_case_insensitive(): void
+    public function test_where_like_is_case_insensitive(): void
     {
         $result = $this->collection->whereLike('name', 'john');
 
@@ -586,7 +586,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertStringContainsString('John', (string) $result->first()?->get('name'));
     }
 
-    public function test_where_starts(): void
+    public function test_where_starts_returns_items_starting_with_prefix(): void
     {
         $result = $this->collection->whereStarts('name', 'J');
 
@@ -594,7 +594,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertStringStartsWith('J', (string) $result->first()?->get('name'));
     }
 
-    public function test_where_starts_case_insensitive(): void
+    public function test_where_starts_is_case_insensitive(): void
     {
         $result = $this->collection->whereStarts('name', 'j');
 
@@ -602,7 +602,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertStringStartsWith('J', (string) $result->first()?->get('name'));
     }
 
-    public function test_where_ends(): void
+    public function test_where_ends_returns_items_ending_with_suffix(): void
     {
         $result = $this->collection->whereEnds('name', 'e');
 
@@ -610,7 +610,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals('John Doe', $result->first()?->get('name'));
     }
 
-    public function test_where_ends_case_insensitive(): void
+    public function test_where_ends_is_case_insensitive(): void
     {
         $result = $this->collection->whereEnds('name', 'E');
 
@@ -618,7 +618,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals('John Doe', $result->first()?->get('name'));
     }
 
-    public function test_where_not_like(): void
+    public function test_where_not_like_excludes_items_matching_pattern(): void
     {
         $result = $this->collection->whereNotLike('name', 'John');
 
@@ -626,7 +626,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertStringNotContainsString('John', (string) $result->first()?->get('name'));
     }
 
-    public function test_where_not_starts(): void
+    public function test_where_not_starts_excludes_items_starting_with_prefix(): void
     {
         $result = $this->collection->whereNotStarts('name', 'J');
 
@@ -636,7 +636,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertStringStartsWith('B', (string) $name);
     }
 
-    public function test_where_not_ends(): void
+    public function test_where_not_ends_excludes_items_ending_with_suffix(): void
     {
         $result = $this->collection->whereNotEnds('name', 'e');
 
@@ -646,7 +646,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertFalse(str_ends_with(strtolower((string) $name), 'e'));
     }
 
-    public function test_where_array_contains(): void
+    public function test_where_array_contains_returns_items_with_value_in_array(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -671,7 +671,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals(1, $result->first()?->get('id'));
     }
 
-    public function test_where_array_not_contains(): void
+    public function test_where_array_not_contains_excludes_items_with_value_in_array(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -696,7 +696,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals(3, $result->first()?->get('id'));
     }
 
-    public function test_or_where_array_contains(): void
+    public function test_or_where_array_contains_combines_conditions_with_or(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -726,7 +726,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertContains($result->first()?->get('id'), [1, 2]);
     }
 
-    public function test_where_array_contains_any(): void
+    public function test_where_array_contains_any_returns_items_with_any_value_in_array(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -751,7 +751,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertContains($result->first()?->get('id'), [1, 2]);
     }
 
-    public function test_where_array_contains_all(): void
+    public function test_where_array_contains_all_returns_items_with_all_values_in_array(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -776,7 +776,55 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertContains($result->first()?->get('id'), [1, 3]);
     }
 
-    public function test_array_empty_with_array_having_items(): void
+    public function test_where_array_empty_returns_empty_collection_when_array_has_items(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'tags' => ['php', 'js'],
+        ]));
+
+        $result = $collection->whereArrayEmpty('tags');
+
+        $this->assertCount(0, $result);
+    }
+
+    public function test_where_array_empty_returns_collection_with_item_when_array_is_empty(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'tags' => [],
+        ]));
+
+        $result = $collection->whereArrayEmpty('tags');
+
+        $this->assertCount(1, $result);
+    }
+
+    public function test_where_array_not_empty_returns_collection_with_item_when_array_has_items(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'tags' => ['php', 'js'],
+        ]));
+
+        $result = $collection->whereArrayNotEmpty('tags');
+
+        $this->assertCount(1, $result);
+    }
+
+    public function test_where_array_not_empty_returns_empty_collection_when_array_is_empty(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'tags' => [],
+        ]));
+
+        $result = $collection->whereArrayNotEmpty('tags');
+
+        $this->assertCount(0, $result);
+    }
+
+    public function test_where_array_empty_returns_false_for_array_with_items(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -790,7 +838,22 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(0, $result);
     }
 
-    public function test_array_empty_with_missing_key(): void
+    public function test_where_array_empty_returns_true_for_empty_array(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'id' => 1,
+            'name' => 'John',
+            'tags' => [],
+        ]));
+
+        $result = $collection->whereArrayEmpty('tags');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals(1, $result->get()[0]->get('id'));
+    }
+
+    public function test_where_array_empty_with_missing_key_returns_empty_collection(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -803,7 +866,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(0, $result);
     }
 
-    public function test_array_empty_with_real_empty_array(): void
+    public function test_where_array_empty_with_real_empty_array_returns_collection_with_item(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -817,7 +880,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(1, $result);
     }
 
-    public function test_or_where_array_contains_any(): void
+    public function test_or_where_array_contains_any_combines_conditions_with_or(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -847,7 +910,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertContains($result->first()?->get('id'), [1, 2, 3]);
     }
 
-    public function test_or_where_array_contains_all(): void
+    public function test_or_where_array_contains_all_combines_conditions_with_or(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -877,7 +940,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertContains($result->first()?->get('id'), [1, 2]);
     }
 
-    public function test_or_where_array_not_contains(): void
+    public function test_or_where_array_not_contains_combines_conditions_with_or(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -907,7 +970,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertContains($result->first()?->get('id'), [1, 2]);
     }
 
-    public function test_where_array_size(): void
+    public function test_where_array_size_returns_items_with_exact_size(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -932,7 +995,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals(1, $result->first()?->get('id'));
     }
 
-    public function test_where_array_size_greater_than(): void
+    public function test_where_array_size_greater_than_returns_items_with_size_greater_than_threshold(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -957,7 +1020,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertContains($result->first()?->get('id'), [1, 2]);
     }
 
-    public function test_where_array_size_less_than(): void
+    public function test_where_array_size_less_than_returns_items_with_size_less_than_threshold(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -982,7 +1045,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals(3, $result->first()?->get('id'));
     }
 
-    public function test_where_array_empty(): void
+    public function test_where_array_empty_returns_items_with_empty_array(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -1007,7 +1070,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals(2, $result->first()?->get('id'));
     }
 
-    public function test_where_array_not_empty(): void
+    public function test_where_array_not_empty_returns_items_with_non_empty_array(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -1032,7 +1095,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertContains($result->first()?->get('id'), [1, 3]);
     }
 
-    public function test_combined_array_filters(): void
+    public function test_combined_array_filters_apply_multiple_array_conditions(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -1066,7 +1129,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals(1, $result->first()?->get('id'));
     }
 
-    public function test_array_contains_with_non_array_value(): void
+    public function test_where_array_contains_with_non_array_value_returns_empty_collection(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -1080,7 +1143,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(0, $result);
     }
 
-    public function test_array_not_contains_with_non_array_value(): void
+    public function test_where_array_not_contains_with_non_array_value_returns_collection_with_non_array_items(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -1100,7 +1163,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals(1, $result->first()?->get('id'));
     }
 
-    public function test_array_size_with_non_array_value(): void
+    public function test_where_array_size_with_non_array_value_returns_empty_collection(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -1114,7 +1177,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(0, $result);
     }
 
-    public function test_array_empty_with_non_array_value(): void
+    public function test_where_array_empty_with_non_array_value_returns_empty_collection(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -1128,7 +1191,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(0, $result);
     }
 
-    public function test_array_not_empty_with_non_array_value(): void
+    public function test_where_array_not_empty_with_non_array_value_returns_empty_collection(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -1142,7 +1205,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(0, $result);
     }
 
-    public function test_complex_array_query_with_groups(): void
+    public function test_complex_array_query_with_groups_supports_grouped_array_conditions(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -1177,7 +1240,7 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals(1, $result->first()?->get('id'));
     }
 
-    public function test_or_where_array_contains_with_chain(): void
+    public function test_or_where_array_contains_with_chain_combines_multiple_conditions(): void
     {
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
