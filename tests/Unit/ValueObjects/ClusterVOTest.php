@@ -364,6 +364,7 @@ final class ClusterVOTest extends TestCase
             'type' => 'user',
             'status' => 'active',
             'name' => 'John Doe',
+            'passions' => ['musique', 'danse', 'ballet'],
             'tags' => [
                 ['php', 'js'],
                 ['kotlin', 'rust'],

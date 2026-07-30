@@ -140,4 +140,17 @@ enum LogicalOperator: string
             self::NOT => ! $left,
         };
     }
+
+    public function evaluateMultiple(array $results): bool
+    {
+        if (empty($results)) {
+            return $this === self::AND;
+        }
+
+        return match ($this) {
+            self::AND => ! in_array(false, $results, true),
+            self::OR => in_array(true, $results, true),
+            self::NOT => ! $results[0],
+        };
+    }
 }

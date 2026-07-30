@@ -51,6 +51,11 @@ final class GroupNode extends Node
         $this->children = $children;
     }
 
+    public function getOperator(): LogicalOperator
+    {
+        return $this->operator;
+    }
+
     /**
      * Evaluates the group condition against cluster data.
      *

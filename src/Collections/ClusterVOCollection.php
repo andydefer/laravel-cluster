@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AndyDefer\LaravelCluster\Collections;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractTypedCollection;
+use AndyDefer\LaravelCluster\ClusterQuery;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use Closure;
 use Generator;
@@ -40,9 +41,12 @@ final class ClusterVOCollection extends AbstractTypedCollection
      */
     private array $originalItems = [];
 
+    private ClusterQuery $query;
+
     public function __construct()
     {
         parent::__construct(ClusterVO::class);
+        $this->query = new ClusterQuery;
     }
 
     /**
@@ -323,6 +327,17 @@ final class ClusterVOCollection extends AbstractTypedCollection
     {
         $generator = $this->filterWithYield(
             fn (ClusterVO $cluster) => ! in_array($cluster->get($key), $values, true)
+        );
+
+        return $this->createFromGenerator($generator);
+    }
+
+    // Ajoute cette méthode dans ClusterVOCollection
+    public function whereQuery(string $query): self
+    {
+        // Utiliser filterWithYield pour le traitement mémoire
+        $generator = $this->filterWithYield(
+            fn (ClusterVO $cluster) => $this->query->matches($cluster, $query)
         );
 
         return $this->createFromGenerator($generator);

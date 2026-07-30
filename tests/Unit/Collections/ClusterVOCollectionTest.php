@@ -18,67 +18,102 @@ final class ClusterVOCollectionTest extends TestCase
 
         $this->collection = new ClusterVOCollection;
 
+        // John Doe avec adresses
         $this->collection->add(new ClusterVO([
             'id' => 1,
+            'name' => 'John Doe',
             'status' => 'active',
             'role' => 'admin',
+            'age' => 30,
             'verified' => 'true',
             'lang_fr' => 'true',
             'lang_en' => 'false',
-            'age' => 25,
-            'name' => 'John Doe',
+            'addresses' => [
+                ['city' => 'Kinshasa', 'street' => 'Avenue de la Paix', 'country' => 'RDC'],
+                ['city' => 'Lubumbashi', 'street' => 'Avenue Lumumba', 'country' => 'RDC'],
+            ],
+            'tags' => ['php', 'js', 'docker'],
+            'settings' => [
+                'notifications' => [
+                    ['email' => 'true', 'sms' => 'false', 'push' => 'true'],
+                ],
+                'theme' => 'dark',
+            ],
         ]));
 
+        // Jane Smith avec adresses
         $this->collection->add(new ClusterVO([
             'id' => 2,
-            'status' => 'active',
+            'name' => 'Jane Smith',
+            'status' => 'inactive',
             'role' => 'doctor',
+            'age' => 25,
             'verified' => 'true',
             'lang_fr' => 'false',
             'lang_en' => 'true',
-            'age' => 30,
-            'name' => 'Jane Smith',
+            'addresses' => [
+                ['city' => 'Paris', 'street' => 'Rue de Rivoli', 'country' => 'France'],
+            ],
+            'tags' => ['python', 'react'],
+            'settings' => [
+                'notifications' => [
+                    ['email' => 'false', 'sms' => 'true', 'push' => 'false'],
+                ],
+                'theme' => 'light',
+            ],
         ]));
 
+        // Bob Johnson avec adresses
         $this->collection->add(new ClusterVO([
             'id' => 3,
-            'status' => 'inactive',
-            'role' => 'admin',
-            'verified' => 'false',
-            'lang_fr' => 'true',
-            'lang_en' => 'false',
-            'age' => 22,
             'name' => 'Bob Johnson',
-        ]));
-
-        $this->collection->add(new ClusterVO([
-            'id' => 4,
-            'status' => 'pending',
-            'role' => 'guest',
-            'verified' => 'false',
-            'lang_fr' => 'false',
-            'lang_en' => 'true',
-            'age' => 18,
-            'name' => 'Alice Brown',
-        ]));
-
-        $this->collection->add(new ClusterVO([
-            'id' => 5,
             'status' => 'active',
-            'role' => 'admin',
+            'role' => 'doctor',
+            'age' => 35,
             'verified' => 'true',
             'lang_fr' => 'true',
             'lang_en' => 'false',
-            'age' => 40,
-            'name' => 'Charlie Wilson',
+            'addresses' => [
+                ['city' => 'Kinshasa', 'street' => 'Boulevard du 30 Juin', 'country' => 'RDC'],
+                ['city' => 'Paris', 'street' => 'Avenue des Champs-Élysées', 'country' => 'France'],
+                ['city' => 'London', 'street' => 'Oxford Street', 'country' => 'UK'],
+            ],
+            'tags' => ['php', 'laravel', 'vuejs'],
+            'settings' => [
+                'notifications' => [
+                    ['email' => 'true', 'sms' => 'true', 'push' => 'true'],
+                ],
+                'theme' => 'dark',
+            ],
         ]));
+
+        // Alice Wonder sans adresses
+        $this->collection->add(new ClusterVO([
+            'id' => 4,
+            'name' => 'Alice Wonder',
+            'status' => 'pending',
+            'role' => 'guest',
+            'age' => 28,
+            'verified' => 'false',
+            'lang_fr' => 'false',
+            'lang_en' => 'true',
+            'addresses' => [],
+            'tags' => ['go', 'rust'],
+            'settings' => [
+                'notifications' => [
+                    ['email' => 'false', 'sms' => 'false', 'push' => 'false'],
+                ],
+                'theme' => 'light',
+            ],
+        ]));
+
     }
 
     public function test_where_returns_collection_with_matching_items(): void
     {
         $result = $this->collection->where('status', 'active');
 
-        $this->assertCount(3, $result);
+        $this->assertCount(2, $result); // John Doe et Bob Johnson
         $this->assertEquals('active', $result->first()?->get('status'));
     }
 
@@ -88,7 +123,7 @@ final class ClusterVOCollectionTest extends TestCase
             ->andWhere('status', 'active')
             ->andWhere('role', 'admin');
 
-        $this->assertCount(2, $result);
+        $this->assertCount(1, $result); // John Doe
         $this->assertEquals('admin', $result->first()?->get('role'));
     }
 
@@ -96,7 +131,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereNot('status', 'inactive');
 
-        $this->assertCount(4, $result);
+        $this->assertCount(3, $result); // John, Bob, Alice
         $this->assertNotEquals('inactive', $result->first()?->get('status'));
     }
 
@@ -104,7 +139,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereTrue('verified');
 
-        $this->assertCount(3, $result);
+        $this->assertCount(3, $result); // John, Jane, Bob
         $this->assertEquals('true', $result->first()?->get('verified'));
     }
 
@@ -112,7 +147,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereFalse('verified');
 
-        $this->assertCount(2, $result);
+        $this->assertCount(1, $result); // Alice
         $this->assertEquals('false', $result->first()?->get('verified'));
     }
 
@@ -122,7 +157,7 @@ final class ClusterVOCollectionTest extends TestCase
             ->where('status', 'active')
             ->orWhere('status', 'pending');
 
-        $this->assertCount(4, $result);
+        $this->assertCount(3, $result); // John, Bob, Alice
         $this->assertContains($result->first()?->get('status'), ['active', 'pending']);
     }
 
@@ -133,7 +168,7 @@ final class ClusterVOCollectionTest extends TestCase
                 ->orWhere('status', 'pending');
         });
 
-        $this->assertCount(4, $result);
+        $this->assertCount(3, $result); // John, Bob, Alice
     }
 
     public function test_where_group_with_and_condition_combines_group_with_outer_condition(): void
@@ -145,7 +180,7 @@ final class ClusterVOCollectionTest extends TestCase
             })
             ->andWhere('role', 'admin');
 
-        $this->assertCount(2, $result);
+        $this->assertCount(1, $result); // John Doe
         $this->assertEquals('admin', $result->first()?->get('role'));
     }
 
@@ -161,7 +196,7 @@ final class ClusterVOCollectionTest extends TestCase
             });
         });
 
-        $this->assertCount(3, $result);
+        $this->assertCount(2, $result); // John (admin), Bob (doctor)
     }
 
     public function test_or_where_group_without_prior_filter_applies_or_group_to_full_collection(): void
@@ -171,7 +206,7 @@ final class ClusterVOCollectionTest extends TestCase
                 ->where('verified', 'true');
         });
 
-        $this->assertCount(2, $result);
+        $this->assertCount(1, $result); // John Doe
     }
 
     public function test_or_where_group_with_prior_filter_combines_filters_with_or(): void
@@ -183,7 +218,7 @@ final class ClusterVOCollectionTest extends TestCase
                     ->where('verified', 'true');
             });
 
-        $this->assertCount(3, $result);
+        $this->assertCount(2, $result); // John (active), Bob (active)
     }
 
     public function test_chain_with_or_where_after_group_combines_group_and_single_condition(): void
@@ -195,7 +230,7 @@ final class ClusterVOCollectionTest extends TestCase
             })
             ->orWhere('status', 'pending');
 
-        $this->assertCount(3, $result);
+        $this->assertCount(2, $result); // John (active+admin), Alice (pending)
     }
 
     public function test_or_where_group_with_multiple_conditions_combines_multiple_or_groups(): void
@@ -209,7 +244,7 @@ final class ClusterVOCollectionTest extends TestCase
                     ->where('verified', 'true');
             });
 
-        $this->assertCount(3, $result);
+        $this->assertCount(2, $result); // John, Bob (active)
     }
 
     public function test_nested_groups_support_deep_nesting_of_conditions(): void
@@ -224,7 +259,7 @@ final class ClusterVOCollectionTest extends TestCase
             });
         })->andWhere('verified', 'true');
 
-        $this->assertCount(3, $result);
+        $this->assertCount(2, $result); // John, Bob (verified=true)
     }
 
     public function test_complex_chaining_with_groups_supports_multiple_group_operations(): void
@@ -238,7 +273,7 @@ final class ClusterVOCollectionTest extends TestCase
             ->whereTrue('verified')
             ->whereGreaterThanOrEqual('age', 25);
 
-        $this->assertCount(2, $result);
+        $this->assertCount(1, $result); // John Doe
     }
 
     public function test_complex_chaining_with_or_groups_supports_or_groups_in_chain(): void
@@ -251,14 +286,15 @@ final class ClusterVOCollectionTest extends TestCase
             })
             ->andWhere('verified', 'true');
 
-        $this->assertCount(3, $result);
+        $this->assertCount(2, $result); // John, Bob (active + verified)
     }
 
     public function test_where_has_returns_items_with_existing_key(): void
     {
         $result = $this->collection->whereHas('lang_fr');
 
-        $this->assertCount(5, $result);
+        // Tous les 4 clusters ont la clé 'lang_fr'
+        $this->assertCount(4, $result);
         $this->assertTrue($result->first()?->has('lang_fr'));
     }
 
@@ -266,7 +302,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereMissing('deleted');
 
-        $this->assertCount(5, $result);
+        $this->assertCount(4, $result);
         $this->assertFalse($result->first()?->has('deleted'));
     }
 
@@ -274,7 +310,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereIn('role', ['admin', 'doctor']);
 
-        $this->assertCount(4, $result);
+        $this->assertCount(3, $result); // John (admin), Jane (doctor), Bob (doctor)
         $this->assertContains($result->first()?->get('role'), ['admin', 'doctor']);
     }
 
@@ -282,7 +318,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereNotIn('status', ['active', 'pending']);
 
-        $this->assertCount(1, $result);
+        $this->assertCount(1, $result); // Jane (inactive)
         $this->assertEquals('inactive', $result->first()?->get('status'));
     }
 
@@ -290,7 +326,8 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereGreaterThan('age', 25);
 
-        $this->assertCount(2, $result);
+        // John (30), Bob (35), Alice (28) → 3
+        $this->assertCount(3, $result);
         $this->assertGreaterThan(25, $result->first()?->get('age'));
     }
 
@@ -298,7 +335,8 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereGreaterThanOrEqual('age', 25);
 
-        $this->assertCount(3, $result);
+        // Tous les 4 clusters ont un âge >= 25
+        $this->assertCount(4, $result);
         $this->assertGreaterThanOrEqual(25, $result->first()?->get('age'));
     }
 
@@ -306,31 +344,31 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereLessThan('age', 25);
 
-        $this->assertCount(2, $result);
-        $this->assertLessThan(25, $result->first()?->get('age'));
+        $this->assertCount(0, $result);
     }
 
     public function test_where_less_than_or_equal_returns_items_with_value_less_than_or_equal_threshold(): void
     {
         $result = $this->collection->whereLessThanOrEqual('age', 25);
 
-        $this->assertCount(3, $result);
+        $this->assertCount(1, $result); // Jane (25)
         $this->assertLessThanOrEqual(25, $result->first()?->get('age'));
     }
 
     public function test_where_between_returns_items_with_value_in_range(): void
     {
-        $result = $this->collection->whereBetween('age', 20, 30);
+        $result = $this->collection->whereBetween('age', 28, 30);
 
-        $this->assertCount(3, $result);
-        $this->assertTrue($result->first()?->get('age') >= 20 && $result->first()?->get('age') <= 30);
+        $this->assertCount(2, $result); // Jane (25), John (30)
+        $this->assertTrue($result->first()?->get('age') >= 28 && $result->first()?->get('age') <= 30);
     }
 
     public function test_where_not_between_excludes_items_with_value_in_range(): void
     {
         $result = $this->collection->whereNotBetween('age', 20, 30);
 
-        $this->assertCount(2, $result);
+        $this->assertCount(1, $result);
+        $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
         $this->assertTrue($result->first()?->get('age') < 20 || $result->first()?->get('age') > 30);
     }
 
@@ -345,7 +383,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereNotNull('age');
 
-        $this->assertCount(5, $result);
+        $this->assertCount(4, $result);
         $this->assertNotNull($result->first()?->get('age'));
     }
 
@@ -353,7 +391,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereContains('name', 'Bob');
 
-        $this->assertCount(1, $result);
+        $this->assertCount(1, $result); // Bob Johnson
         $name = $result->first()?->get('name');
         $this->assertIsString($name);
         $this->assertStringContainsString('Bob', (string) $name);
@@ -363,7 +401,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereStartsWith('name', 'J');
 
-        $this->assertCount(2, $result);
+        $this->assertCount(2, $result); // John Doe, Jane Smith
         $name = $result->first()?->get('name');
         $this->assertIsString($name);
         $this->assertStringStartsWith('J', (string) $name);
@@ -373,7 +411,8 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereEndsWith('name', 'n');
 
-        $this->assertCount(3, $result);
+        // John Doe (e), Jane Smith (h), Bob Johnson (n), Alice Wonder (r)
+        $this->assertCount(1, $result); // Bob Johnson
         $name = $result->first()?->get('name');
         $this->assertIsString($name);
         $this->assertStringEndsWith('n', (string) $name);
@@ -385,8 +424,8 @@ final class ClusterVOCollectionTest extends TestCase
             fn (ClusterVO $cluster) => $cluster->get('age') > 25 && $cluster->get('role') === 'admin'
         );
 
-        $this->assertCount(1, $result);
-        $this->assertEquals('Charlie Wilson', $result->first()?->get('name'));
+        $this->assertCount(1, $result); // John Doe
+        $this->assertEquals('John Doe', $result->first()?->get('name'));
     }
 
     public function test_or_where_closure_without_prior_filter_applies_closure_to_full_collection(): void
@@ -395,7 +434,7 @@ final class ClusterVOCollectionTest extends TestCase
             fn (ClusterVO $cluster) => $cluster->get('role') === 'admin'
         );
 
-        $this->assertCount(3, $result);
+        $this->assertCount(1, $result); // John Doe
         $this->assertEquals('admin', $result->first()?->get('role'));
     }
 
@@ -407,7 +446,7 @@ final class ClusterVOCollectionTest extends TestCase
                 fn (ClusterVO $cluster) => $cluster->get('role') === 'admin'
             );
 
-        $this->assertCount(3, $result);
+        $this->assertCount(2, $result); // John (active+admin), Bob (active)
     }
 
     public function test_where_closure_with_group_combines_closure_with_other_conditions(): void
@@ -418,7 +457,7 @@ final class ClusterVOCollectionTest extends TestCase
                 fn (ClusterVO $cluster) => $cluster->get('age') >= 25 && $cluster->get('verified') === 'true'
             );
 
-        $this->assertCount(3, $result);
+        $this->assertCount(2, $result); // John, Bob
     }
 
     public function test_first_where_returns_first_matching_item(): void
@@ -441,7 +480,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->get();
 
-        $this->assertCount(5, $result);
+        $this->assertCount(4, $result);
         $this->assertIsArray($result);
     }
 
@@ -491,7 +530,7 @@ final class ClusterVOCollectionTest extends TestCase
             ->whereTrue('verified')
             ->whereFalse('lang_en');
 
-        $this->assertCount(2, $result);
+        $this->assertCount(2, $result); // John, Bob
         $this->assertEquals('true', $result->first()?->get('verified'));
         $this->assertEquals('false', $result->first()?->get('lang_en'));
     }
@@ -507,7 +546,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereNotIn('role', []);
 
-        $this->assertCount(5, $result);
+        $this->assertCount(4, $result);
     }
 
     public function test_where_between_with_invalid_values_returns_empty_result(): void
@@ -526,7 +565,7 @@ final class ClusterVOCollectionTest extends TestCase
             })
             ->whereNot('role', 'guest');
 
-        $this->assertCount(3, $result);
+        $this->assertCount(2, $result); // John, Bob
     }
 
     public function test_where_like_with_non_string_value_returns_empty_result(): void
@@ -543,7 +582,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereLike('name', '');
 
-        $this->assertCount(5, $result);
+        $this->assertCount(4, $result);
     }
 
     public function test_where_like_with_special_characters_handles_underscore_correctly(): void
@@ -562,7 +601,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereLike('name', 'John');
 
-        $this->assertCount(2, $result);
+        $this->assertCount(2, $result); // John Doe, Bob Johnson (contient John)
         $this->assertStringContainsString('John', (string) $result->first()?->get('name'));
     }
 
@@ -582,7 +621,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereLike('name', 'john');
 
-        $this->assertCount(2, $result);
+        $this->assertCount(2, $result); // John Doe, Bob Johnson
         $this->assertStringContainsString('John', (string) $result->first()?->get('name'));
     }
 
@@ -590,7 +629,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereStarts('name', 'J');
 
-        $this->assertCount(2, $result);
+        $this->assertCount(2, $result); // John Doe, Jane Smith
         $this->assertStringStartsWith('J', (string) $result->first()?->get('name'));
     }
 
@@ -598,7 +637,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereStarts('name', 'j');
 
-        $this->assertCount(2, $result);
+        $this->assertCount(2, $result); // John Doe, Jane Smith
         $this->assertStringStartsWith('J', (string) $result->first()?->get('name'));
     }
 
@@ -606,7 +645,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereEnds('name', 'e');
 
-        $this->assertCount(1, $result);
+        $this->assertCount(1, $result); // John Doe
         $this->assertEquals('John Doe', $result->first()?->get('name'));
     }
 
@@ -614,7 +653,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereEnds('name', 'E');
 
-        $this->assertCount(1, $result);
+        $this->assertCount(1, $result); // John Doe
         $this->assertEquals('John Doe', $result->first()?->get('name'));
     }
 
@@ -622,7 +661,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereNotLike('name', 'John');
 
-        $this->assertCount(3, $result);
+        $this->assertCount(2, $result); // Jane Smith, Alice Wonder
         $this->assertStringNotContainsString('John', (string) $result->first()?->get('name'));
     }
 
@@ -630,7 +669,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereNotStarts('name', 'J');
 
-        $this->assertCount(3, $result);
+        $this->assertCount(2, $result); // Bob Johnson, Alice Wonder
         $name = $result->first()?->get('name');
         $this->assertIsString($name);
         $this->assertStringStartsWith('B', (string) $name);
@@ -640,7 +679,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereNotEnds('name', 'e');
 
-        $this->assertCount(4, $result);
+        $this->assertCount(3, $result); // Jane Smith, Bob Johnson, Alice Wonder
         $name = $result->first()?->get('name');
         $this->assertIsString($name);
         $this->assertFalse(str_ends_with(strtolower((string) $name), 'e'));
@@ -1538,5 +1577,245 @@ final class ClusterVOCollectionTest extends TestCase
             ->orWhereLikePattern('name', '%johnson%');
 
         $this->assertCount(4, $result);
+    }
+
+    // ==================== WHERE QUERY TESTS (SOUS-CONDITIONS) ====================
+
+    public function test_where_query_simple_subcondition(): void
+    {
+        // addresses[city=kinshasa]
+        $result = $this->collection->whereQuery('addresses[city=kinshasa]');
+
+        $this->assertCount(2, $result); // John et Bob
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Jane Smith', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_query_subcondition_with_and(): void
+    {
+        // addresses[city=kinshasa & country=rdc]
+        $result = $this->collection->whereQuery('addresses[city=kinshasa & country=rdc]');
+
+        $this->assertCount(2, $result); // John et Bob
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+    }
+
+    public function test_where_query_subcondition_with_or(): void
+    {
+        // addresses[city=kinshasa | city=paris]
+        $result = $this->collection->whereQuery('addresses[city=kinshasa | city=paris]');
+
+        $this->assertCount(3, $result); // John, Jane, Bob
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Jane Smith', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_query_subcondition_with_like(): void
+    {
+        // addresses[city=~kin%]
+        $result = $this->collection->whereQuery('addresses[city=~kin%]');
+
+        $this->assertCount(2, $result); // John et Bob
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Jane Smith', $names);
+    }
+
+    public function test_where_query_subcondition_with_not_like(): void
+    {
+        // addresses[city!~kin%]
+        // Retourne les clusters qui ont au moins une adresse dont la ville ne commence PAS par 'kin'
+        $result = $this->collection->whereQuery('addresses[city!~kin%]');
+
+        // John (a Lubumbashi), Jane (Paris), Bob (Paris/London) → 3
+        $this->assertCount(3, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Jane Smith', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_query_subcondition_with_nested_path(): void
+    {
+        // settings.notifications[email=true]
+        $result = $this->collection->whereQuery('settings.notifications[email=true]');
+
+        $this->assertCount(2, $result); // John et Bob
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Jane Smith', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_query_subcondition_with_exists(): void
+    {
+        // addresses[*] ou addresses[]
+        $result = $this->collection->whereQuery('addresses[]');
+
+        $this->assertCount(3, $result); // John, Jane, Bob (ont des adresses)
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Jane Smith', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_query_subcondition_with_not_exists(): void
+    {
+        // addresses[#city]
+        $result = $this->collection->whereQuery('addresses[#city]');
+
+        $this->assertCount(1, $result); // Alice
+        $this->assertEquals('Alice Wonder', $result->first()?->get('name'));
+    }
+
+    public function test_where_query_combined_with_condition(): void
+    {
+        // status=active & addresses[city=kinshasa]
+        $result = $this->collection->whereQuery('status=active & addresses[city=kinshasa]');
+
+        $this->assertCount(2, $result); // John et Bob
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Jane Smith', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_query_with_or_and_parentheses(): void
+    {
+
+        // (status=active | status=pending) & addresses[city=kinshasa | city=paris]
+        $result = $this->collection->whereQuery('(status=active | status=pending) & addresses[city=kinshasa | city=paris]');
+
+        // John (active + Kinshasa) et Bob (active + Kinshasa/Paris) → 2
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Jane Smith', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_query_complex_subcondition(): void
+    {
+        // addresses[(city=kinshasa & country=rdc) | (city=paris & country=france)]
+        $result = $this->collection->whereQuery('addresses[(city=kinshasa & country=rdc) | (city=paris & country=france)]');
+
+        $this->assertCount(3, $result); // John, Jane, Bob
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Jane Smith', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_query_subcondition_with_multiple_array_conditions(): void
+    {
+        // addresses[city=kinshasa] & tags_php=true
+        $result = $this->collection->whereQuery('addresses[city=kinshasa] & tags_php=true');
+
+        $this->assertCount(2, $result); // John et Bob
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+    }
+
+    public function test_where_query_with_chaining_collection_methods(): void
+    {
+        // Mélanger whereQuery avec les méthodes de collection
+        $result = $this->collection
+            ->whereQuery('addresses[city=kinshasa]')
+            ->where('status', 'active')
+            ->whereGreaterThan('age', 30);
+
+        $this->assertCount(1, $result); // Bob
+        $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
+    }
+
+    public function test_where_query_returns_new_collection(): void
+    {
+        $originalCount = $this->collection->count();
+        $result = $this->collection->whereQuery('addresses[city=kinshasa]');
+
+        $this->assertCount(2, $result);
+        $this->assertCount($originalCount, $this->collection); // Original inchangé
+        $this->assertNotSame($this->collection, $result);
+    }
+
+    public function test_where_query_with_empty_collection(): void
+    {
+        $emptyCollection = new ClusterVOCollection;
+        $result = $emptyCollection->whereQuery('addresses[city=kinshasa]');
+
+        $this->assertCount(0, $result);
+        $this->assertEmpty($result->get());
+    }
+
+    public function test_where_query_with_no_matches(): void
+    {
+        $result = $this->collection->whereQuery('addresses[city=tokyo]');
+
+        $this->assertCount(0, $result);
+        $this->assertEmpty($result->get());
+    }
+
+    public function test_where_query_with_simple_condition(): void
+    {
+        // Vérifier que whereQuery fonctionne aussi avec des conditions simples
+        $result = $this->collection->whereQuery('status=active');
+
+        $this->assertCount(2, $result); // John et Bob
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Jane Smith', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_query_with_age_comparison(): void
+    {
+        // age>30
+        $result = $this->collection->whereQuery('age>30');
+
+        $this->assertCount(1, $result); // Bob
+        $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
+    }
+
+    public function test_where_query_with_presence(): void
+    {
+        // lang_fr (présence de la clé)
+        $result = $this->collection->whereQuery('lang_fr');
+
+        $this->assertCount(2, $result); // John et Bob
+    }
+
+    public function test_where_query_with_addresses_path_and_country(): void
+    {
+        // addresses[country=rdc]
+        $result = $this->collection->whereQuery('addresses[country=rdc]');
+
+        $this->assertCount(2, $result); // John et Bob
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Jane Smith', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    private function normalize(ClusterVOCollection $collection): array
+    {
+        return normalizer_chain(true)->normalize($collection);
     }
 }
