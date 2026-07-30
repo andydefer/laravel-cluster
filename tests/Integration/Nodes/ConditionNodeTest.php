@@ -522,7 +522,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
         $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "JSON_EXTRACT(clusters, '$.\"status\"') = 'active'";
+        $expected = "LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active')";
         $this->assertEquals($expected, $sql);
     }
 
@@ -531,7 +531,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node = new ConditionNode('status', ComparisonOperator::NOT_EQUAL, 'inactive');
         $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "JSON_EXTRACT(clusters, '$.\"status\"') != 'inactive'";
+        $expected = "LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) != LOWER('inactive')";
         $this->assertEquals($expected, $sql);
     }
 
@@ -549,7 +549,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node = new ConditionNode('lang_fr', ComparisonOperator::EQUAL, 'true');
         $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "JSON_EXTRACT(clusters, '$.\"lang_fr\"') = 'true'";
+        $expected = "LOWER(JSON_EXTRACT(clusters, '$.\"lang_fr\"')) = LOWER('true')";
         $this->assertEquals($expected, $sql);
     }
 
@@ -558,7 +558,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node = new ConditionNode('lang_en', ComparisonOperator::EQUAL, 'false');
         $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "JSON_EXTRACT(clusters, '$.\"lang_en\"') = 'false'";
+        $expected = "LOWER(JSON_EXTRACT(clusters, '$.\"lang_en\"')) = LOWER('false')";
         $this->assertEquals($expected, $sql);
     }
 
@@ -585,7 +585,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john');
         $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "JSON_EXTRACT(clusters, '$.\"name\"') LIKE '%john%'";
+        $expected = "LOWER(JSON_EXTRACT(clusters, '$.\"name\"')) LIKE LOWER('%john%')";
         $this->assertEquals($expected, $sql);
     }
 
@@ -594,7 +594,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john%');
         $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "JSON_EXTRACT(clusters, '$.\"name\"') LIKE 'john%'";
+        $expected = "LOWER(JSON_EXTRACT(clusters, '$.\"name\"')) LIKE LOWER('john%')";
         $this->assertEquals($expected, $sql);
     }
 
@@ -603,7 +603,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node = new ConditionNode('name', ComparisonOperator::LIKE, '%doe');
         $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "JSON_EXTRACT(clusters, '$.\"name\"') LIKE '%doe'";
+        $expected = "LOWER(JSON_EXTRACT(clusters, '$.\"name\"')) LIKE LOWER('%doe')";
         $this->assertEquals($expected, $sql);
     }
 
@@ -612,7 +612,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node = new ConditionNode('name', ComparisonOperator::NOT_LIKE, 'john');
         $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "JSON_EXTRACT(clusters, '$.\"name\"') NOT LIKE '%john%'";
+        $expected = "LOWER(JSON_EXTRACT(clusters, '$.\"name\"')) NOT LIKE LOWER('%john%')";
         $this->assertEquals($expected, $sql);
     }
 
@@ -621,7 +621,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
         $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
 
-        $expected = "clusters->>'status' = 'active'";
+        $expected = "LOWER(clusters->>'status') = LOWER('active')";
         $this->assertEquals($expected, $sql);
     }
 
@@ -657,7 +657,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john');
         $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
 
-        $expected = "clusters->>'name' ILIKE '%john%'";
+        $expected = "LOWER(clusters->>'name') LIKE LOWER('%john%')";
         $this->assertEquals($expected, $sql);
     }
 
@@ -666,7 +666,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john%');
         $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
 
-        $expected = "clusters->>'name' ILIKE 'john%'";
+        $expected = "LOWER(clusters->>'name') LIKE LOWER('john%')";
         $this->assertEquals($expected, $sql);
     }
 
@@ -675,7 +675,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node = new ConditionNode('name', ComparisonOperator::NOT_LIKE, 'john');
         $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
 
-        $expected = "clusters->>'name' NOT ILIKE '%john%'";
+        $expected = "LOWER(clusters->>'name') NOT LIKE LOWER('%john%')";
         $this->assertEquals($expected, $sql);
     }
 
@@ -684,7 +684,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "json_extract(clusters, '$.status') = 'active'";
+        $expected = "LOWER(json_extract(clusters, '$.status')) = LOWER('active')";
         $this->assertEquals($expected, $sql);
     }
 
@@ -693,7 +693,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node = new ConditionNode('age', ComparisonOperator::GREATER_THAN, '25');
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "CAST(json_extract(clusters, '$.age') AS INTEGER) > 25";
+        $expected = "CAST(json_extract(clusters, '$.age') AS NUMERIC) > 25";
         $this->assertEquals($expected, $sql);
     }
 
@@ -720,7 +720,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john');
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "json_extract(clusters, '$.name') LIKE '%john%'";
+        $expected = "LOWER(json_extract(clusters, '$.name')) LIKE LOWER('%john%')";
         $this->assertEquals($expected, $sql);
     }
 
@@ -729,7 +729,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node = new ConditionNode('name', ComparisonOperator::NOT_LIKE, 'john');
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "json_extract(clusters, '$.name') NOT LIKE '%john%'";
+        $expected = "LOWER(json_extract(clusters, '$.name')) NOT LIKE LOWER('%john%')";
         $this->assertEquals($expected, $sql);
     }
 
@@ -743,8 +743,9 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $sql = $query->toSql();
-        $this->assertStringContainsString('JSON_EXTRACT(clusters', $sql);
-        $this->assertStringContainsString('= ?', $sql);
+        // Vérifier que le SQL contient LOWER et = LOWER(?) pour l'insensibilité à la casse
+        $this->assertStringContainsString('LOWER(JSON_EXTRACT(clusters', $sql);
+        $this->assertStringContainsString('= LOWER(?)', $sql);
 
         $results = $query->get();
         $this->assertCount(3, $results);
@@ -802,8 +803,8 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::PGSQL);
 
         $sql = $query->toSql();
-        $this->assertStringContainsString("clusters->>'status'", $sql);
-        $this->assertStringContainsString('= ?', $sql);
+        $this->assertStringContainsString("LOWER(clusters->>'status')", $sql);
+        $this->assertStringContainsString('= LOWER(?)', $sql);
 
         $results = $query->get();
         $this->assertCount(3, $results);
@@ -817,8 +818,8 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $sql = $query->toSql();
-        $this->assertStringContainsString("json_extract(clusters, '$.status')", $sql);
-        $this->assertStringContainsString('= ?', $sql);
+        $this->assertStringContainsString("LOWER(json_extract(clusters, '$.status'))", $sql);
+        $this->assertStringContainsString('= LOWER(?)', $sql);
 
         $results = $query->get();
         $this->assertCount(3, $results);
@@ -917,15 +918,12 @@ final class ConditionNodeTest extends IntegrationTestCase
 
     public function test_to_eloquent_mysql_like(): void
     {
-        // Utiliser les données déjà présentes dans la base
-        // Les données contiennent déjà 'john_doe' dans le premier enregistrement
         $node = new ConditionNode('name', ComparisonOperator::LIKE, 'john%');
         $query = TestCluster::query();
 
         $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $results = $query->get();
-        // 'john_doe' est présent dans la base
         $this->assertCount(1, $results);
     }
 
@@ -947,7 +945,6 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
         $results = $query->get();
 
-        // jane_smith contient j, n, h dans l'ordre → 1 résultat
         $this->assertCount(1, $results);
         $this->assertEquals('jane_smith', $results->first()->clusters['name']);
     }
@@ -971,7 +968,8 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::PGSQL);
 
         $sql = $query->toSql();
-        $this->assertStringContainsString('ILIKE', $sql);
+        $this->assertStringContainsString('LOWER(clusters->>\'name\')', $sql);
+        $this->assertStringContainsString('LIKE', $sql);
     }
 
     public function test_to_eloquent_sqlite_like(): void
@@ -982,8 +980,8 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $sql = $query->toSql();
+        $this->assertStringContainsString('LOWER(json_extract(clusters', $sql);
         $this->assertStringContainsString('LIKE', $sql);
-        $this->assertStringContainsString("json_extract(clusters, '$.name')", $sql);
     }
 
     // ==================== COMPLEX CONDITIONS TESTS ====================
@@ -1051,7 +1049,7 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $sql = $query->toSql();
-        $this->assertStringContainsString('JSON_EXTRACT', $sql);
+        $this->assertStringContainsString('LOWER(JSON_EXTRACT', $sql);
     }
 
     public function test_get_json_path(): void

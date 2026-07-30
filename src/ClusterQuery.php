@@ -8,7 +8,6 @@ use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
 use AndyDefer\LaravelCluster\Contracts\NodeInterface;
 use AndyDefer\LaravelCluster\Contracts\ParserInterface;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
-use AndyDefer\LaravelCluster\Nodes\SubConditionNode;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -79,23 +78,12 @@ final class ClusterQuery
      */
     public function filter(ClusterVOCollection $clusters, string $query): ClusterVOCollection
     {
-        echo "\n=== ClusterQuery::filter ===\n";
-        echo "Query: $query\n";
-        echo 'Collection count: '.$clusters->count()."\n";
 
         $ast = $this->parse($query);
-
-        echo 'AST class: '.get_class($ast)."\n";
-        if ($ast instanceof SubConditionNode) {
-            echo 'AST path: '.$ast->getPath()."\n";
-            echo 'AST condition: '.get_class($ast->getCondition())."\n";
-        }
 
         $result = $clusters->filter(
             fn (ClusterVO $cluster) => $ast->evaluate($cluster)
         );
-
-        echo 'Result count: '.$result->count()."\n";
 
         return $result;
     }

@@ -202,7 +202,7 @@ final class GroupNodeTest extends IntegrationTestCase
 
         $sql = $group->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "(JSON_EXTRACT(clusters, '$.\"status\"') = 'active' AND JSON_EXTRACT(clusters, '$.\"role\"') = 'admin')";
+        $expected = "(LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active') AND LOWER(JSON_EXTRACT(clusters, '$.\"role\"')) = LOWER('admin'))";
         $this->assertEquals($expected, $sql);
     }
 
@@ -215,7 +215,7 @@ final class GroupNodeTest extends IntegrationTestCase
 
         $sql = $group->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "(JSON_EXTRACT(clusters, '$.\"status\"') = 'active' OR JSON_EXTRACT(clusters, '$.\"role\"') = 'admin')";
+        $expected = "(LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active') OR LOWER(JSON_EXTRACT(clusters, '$.\"role\"')) = LOWER('admin'))";
         $this->assertEquals($expected, $sql);
     }
 
@@ -229,7 +229,7 @@ final class GroupNodeTest extends IntegrationTestCase
 
         $sql = $group->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "(JSON_EXTRACT(clusters, '$.\"status\"') = 'active' AND JSON_EXTRACT(clusters, '$.\"role\"') = 'admin' AND JSON_EXTRACT(clusters, '$.\"verified\"') = 'true')";
+        $expected = "(LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active') AND LOWER(JSON_EXTRACT(clusters, '$.\"role\"')) = LOWER('admin') AND LOWER(JSON_EXTRACT(clusters, '$.\"verified\"')) = LOWER('true'))";
         $this->assertEquals($expected, $sql);
     }
 
@@ -241,7 +241,7 @@ final class GroupNodeTest extends IntegrationTestCase
 
         $sql = $group->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "JSON_EXTRACT(clusters, '$.\"status\"') = 'active'";
+        $expected = "LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active')";
         $this->assertEquals($expected, $sql);
     }
 
@@ -257,7 +257,7 @@ final class GroupNodeTest extends IntegrationTestCase
 
         $sql = $outerGroup->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "((JSON_EXTRACT(clusters, '$.\"status\"') = 'active' OR JSON_EXTRACT(clusters, '$.\"role\"') = 'admin') AND JSON_EXTRACT(clusters, '$.\"verified\"') = 'true')";
+        $expected = "((LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active') OR LOWER(JSON_EXTRACT(clusters, '$.\"role\"')) = LOWER('admin')) AND LOWER(JSON_EXTRACT(clusters, '$.\"verified\"')) = LOWER('true'))";
         $this->assertEquals($expected, $sql);
     }
 
@@ -270,7 +270,7 @@ final class GroupNodeTest extends IntegrationTestCase
 
         $sql = $group->toSql('clusters', DatabaseDriver::PGSQL);
 
-        $expected = "(clusters->>'status' = 'active' AND clusters->>'role' = 'admin')";
+        $expected = "(LOWER(clusters->>'status') = LOWER('active') AND LOWER(clusters->>'role') = LOWER('admin'))";
         $this->assertEquals($expected, $sql);
     }
 
@@ -283,7 +283,7 @@ final class GroupNodeTest extends IntegrationTestCase
 
         $sql = $group->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "(json_extract(clusters, '$.status') = 'active' AND json_extract(clusters, '$.role') = 'admin')";
+        $expected = "(LOWER(json_extract(clusters, '$.status')) = LOWER('active') AND LOWER(json_extract(clusters, '$.role')) = LOWER('admin'))";
         $this->assertEquals($expected, $sql);
     }
 
@@ -300,7 +300,7 @@ final class GroupNodeTest extends IntegrationTestCase
         $group->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $sql = $query->toSql();
-        $this->assertStringContainsString(' and ', $sql);
+        $this->assertStringContainsString(' and ', strtolower($sql));
 
         $results = $query->get();
         $this->assertCount(2, $results);
@@ -317,7 +317,7 @@ final class GroupNodeTest extends IntegrationTestCase
         $group->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $sql = $query->toSql();
-        $this->assertStringContainsString(' or ', $sql);
+        $this->assertStringContainsString(' or ', strtolower($sql));
 
         $results = $query->get();
         $this->assertCount(3, $results);

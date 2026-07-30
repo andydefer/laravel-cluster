@@ -29,30 +29,21 @@ final class SubConditionNode extends Node
 
     public function evaluate(ClusterVO $data): bool
     {
-        echo "\n=== SubConditionNode::evaluate ===\n";
-        echo "Path: {$this->path}\n";
 
         $originalData = $data->getUnflattened()->toArray();
-        echo 'Original data: '.json_encode($originalData)."\n";
 
         $value = $this->navigatePath($originalData, $this->path);
-        echo 'Value at path: '.json_encode($value)."\n";
-        echo 'Value type: '.gettype($value)."\n";
 
         // Cas spécial : condition __empty__ (vérifier que le tableau n'est pas vide)
         if ($this->condition instanceof ConditionNode && $this->condition->isEmptyCondition()) {
-            echo "Empty condition detected\n";
             $result = is_array($value) && ! empty($value);
-            echo 'Result: '.($result ? 'true' : 'false')."\n";
 
             return $result;
         }
 
         // Cas spécial : wildcard EXISTS (addresses[])
         if ($this->condition instanceof ConditionNode && $this->condition->isWildcardExists()) {
-            echo "Wildcard EXISTS detected\n";
             $result = is_array($value) && ! empty($value);
-            echo 'Result: '.($result ? 'true' : 'false')."\n";
 
             return $result;
         }
@@ -60,11 +51,9 @@ final class SubConditionNode extends Node
         // Cas spécial : NOT_EXISTS (addresses[#city])
         if ($this->condition instanceof ConditionNode &&
             $this->condition->getOperator() === ComparisonOperator::NOT_EXISTS) {
-            echo "NOT_EXISTS detected\n";
 
             // Si le chemin n'existe pas ou n'est pas un tableau ou est vide
             if (! is_array($value) || empty($value)) {
-                echo "No array or empty array -> return true\n";
 
                 return true;
             }
@@ -77,40 +66,31 @@ final class SubConditionNode extends Node
                 $tempCluster = new ClusterVO($item);
                 // Si la condition NOT_EXISTS est vraie pour un élément (la clé n'existe pas)
                 if ($this->condition->evaluate($tempCluster)) {
-                    echo "Found element without the key -> return true\n";
 
                     return true;
                 }
             }
-            echo "All elements have the key -> return false\n";
 
             return false;
         }
 
         if (! is_array($value)) {
-            echo "Value is not an array -> return false\n";
 
             return false;
         }
 
         foreach ($value as $index => $item) {
-            echo "Item $index: ".json_encode($item)."\n";
             if (! is_array($item)) {
-                echo "Item is not an array -> skip\n";
 
                 continue;
             }
             $tempCluster = new ClusterVO($item);
             $result = $this->condition->evaluate($tempCluster);
-            echo "Condition result for item $index: ".($result ? 'true' : 'false')."\n";
             if ($result) {
-                echo "Found match -> return true\n";
 
                 return true;
             }
         }
-
-        echo "No match found -> return false\n";
 
         return false;
     }

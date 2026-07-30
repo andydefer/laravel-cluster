@@ -317,7 +317,6 @@ final class ClusterQueryTest extends IntegrationTestCase
 
     public function test_filter_subcondition_simple(): void
     {
-        echo "\n=== test_filter_subcondition_simple ===\n";
 
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
@@ -334,20 +333,7 @@ final class ClusterQueryTest extends IntegrationTestCase
             ],
         ]));
 
-        echo 'Collection count before filter: '.$collection->count()."\n";
-        echo "Query: addresses[city=kinshasa]\n";
-
-        // Voir les données de la collection
-        foreach ($collection->get() as $index => $cluster) {
-            echo "Cluster $index: ".json_encode($cluster->toArray())."\n";
-        }
-
-        $result = $this->clusterQuery->filter($collection, 'addresses[city=kinshasa]');
-
-        echo 'Result count: '.$result->count()."\n";
-        foreach ($result->get() as $index => $cluster) {
-            echo "Result $index: ".json_encode($cluster->toArray())."\n";
-        }
+        $result = $this->clusterQuery->filter($collection, 'addresses[city=Kinshasa]');
 
         $this->assertCount(1, $result);
         $this->assertEquals('John', $result->get()[0]->get('name'));
@@ -881,17 +867,6 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->assertEquals('John', $results->first()->clusters['name']);
     }
 
-    // Tests MySQL et PostgreSQL marqués comme skipped car la base de test est SQLite
-    public function test_apply_to_eloquent_subcondition_mysql(): void
-    {
-        $this->markTestSkipped('MySQL specific test, skipping in SQLite environment.');
-    }
-
-    public function test_apply_to_eloquent_subcondition_postgres(): void
-    {
-        $this->markTestSkipped('PostgreSQL specific test, skipping in SQLite environment.');
-    }
-
     // ==================== FILTER TESTS (ELOQUENT) ====================
 
     public function test_apply_to_eloquent_simple(): void
@@ -1153,28 +1128,28 @@ final class ClusterQueryTest extends IntegrationTestCase
     {
         $sql = $this->clusterQuery->toSql('clusters', 'lang_fr', DatabaseDriver::SQLITE);
 
-        $this->assertStringContainsString("json_extract(clusters, '$.lang_fr') = 'true'", $sql);
+        $this->assertStringContainsString("LOWER(json_extract(clusters, '$.lang_fr')) = LOWER('true')", $sql);
     }
 
     public function test_to_sql_with_absence(): void
     {
         $sql = $this->clusterQuery->toSql('clusters', '!lang_fr', DatabaseDriver::SQLITE);
 
-        $this->assertStringContainsString("json_extract(clusters, '$.lang_fr') = 'false'", $sql);
+        $this->assertStringContainsString("LOWER(json_extract(clusters, '$.lang_fr')) = LOWER('false')", $sql);
     }
 
     public function test_to_sql_with_true_value(): void
     {
         $sql = $this->clusterQuery->toSql('clusters', 'lang_fr=true', DatabaseDriver::SQLITE);
 
-        $this->assertStringContainsString("json_extract(clusters, '$.lang_fr') = 'true'", $sql);
+        $this->assertStringContainsString("LOWER(json_extract(clusters, '$.lang_fr')) = LOWER('true')", $sql);
     }
 
     public function test_to_sql_with_false_value(): void
     {
         $sql = $this->clusterQuery->toSql('clusters', 'lang_fr=false', DatabaseDriver::SQLITE);
 
-        $this->assertStringContainsString("json_extract(clusters, '$.lang_fr') = 'false'", $sql);
+        $this->assertStringContainsString("LOWER(json_extract(clusters, '$.lang_fr')) = LOWER('false')", $sql);
     }
 
     // ==================== EDGE CASES TESTS ====================

@@ -313,7 +313,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
 
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE json_extract(value, '$.city') = 'kinshasa')";
+        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE LOWER(json_extract(value, '$.city')) = LOWER('kinshasa'))";
         $this->assertEquals($expected, $sql);
     }
 
@@ -326,7 +326,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
 
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE json_extract(value, '$.city') = 'kinshasa' AND json_extract(value, '$.country') = 'rdc')";
+        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE LOWER(json_extract(value, '$.city')) = LOWER('kinshasa') AND LOWER(json_extract(value, '$.country')) = LOWER('rdc'))";
         $this->assertEquals($expected, $sql);
     }
 
@@ -339,7 +339,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
 
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE json_extract(value, '$.city') = 'kinshasa' OR json_extract(value, '$.city') = 'paris')";
+        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE LOWER(json_extract(value, '$.city')) = LOWER('kinshasa') OR LOWER(json_extract(value, '$.city')) = LOWER('paris'))";
         $this->assertEquals($expected, $sql);
     }
 
@@ -350,7 +350,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
 
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE json_extract(value, '$.city') LIKE 'kin%')";
+        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE LOWER(json_extract(value, '$.city')) LIKE LOWER('kin%'))";
         $this->assertEquals($expected, $sql);
     }
 
@@ -361,7 +361,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
 
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE json_extract(value, '$.city') NOT LIKE 'kin%')";
+        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE LOWER(json_extract(value, '$.city')) NOT LIKE LOWER('kin%'))";
         $this->assertEquals($expected, $sql);
     }
 
@@ -383,7 +383,6 @@ final class SubConditionNodeTest extends IntegrationTestCase
 
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        // NOT EXISTS avec IS NOT NULL à l'intérieur
         $expected = "NOT EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE json_extract(value, '$.city') IS NOT NULL)";
         $this->assertEquals($expected, $sql);
     }
@@ -395,7 +394,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
 
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.settings.notifications') WHERE json_extract(value, '$.email') = 'true')";
+        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.settings.notifications') WHERE LOWER(json_extract(value, '$.email')) = LOWER('true'))";
         $this->assertEquals($expected, $sql);
     }
 
