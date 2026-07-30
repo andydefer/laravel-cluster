@@ -4,10 +4,23 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelCluster\SqlFunctions;
 
-use AndyDefer\LaravelCluster\Contracts\SqlFunctionInterface;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 
-final class JsonLengthFunction implements SqlFunctionInterface
+/**
+ * Calculates the length of a JSON array.
+ *
+ * This function is similar to COUNT but specifically for JSON arrays.
+ * It provides compatibility across different database drivers.
+ *
+ * @example
+ * $jsonLength = new JsonLengthFunction();
+ * $jsonLength->execute(['a', 'b', 'c']); // 3
+ * @example
+ * // SQL generation for different drivers
+ * $jsonLength->toSql('clusters', 'addresses', DatabaseDriver::MYSQL);
+ * // JSON_LENGTH(clusters, '$.addresses')
+ */
+final class JsonLengthFunction extends AbstractSqlFunction
 {
     public function getName(): string
     {
@@ -18,17 +31,17 @@ final class JsonLengthFunction implements SqlFunctionInterface
     {
         return match ($driver) {
             DatabaseDriver::SQLITE => sprintf(
-                "json_array_length(%s, '$.%s')",  // ✅ SQLite
+                "json_array_length(%s, '$.%s')",
                 $column,
                 $path
             ),
             DatabaseDriver::MYSQL => sprintf(
-                "JSON_LENGTH(%s, '$.%s')",        // ✅ MySQL
+                "JSON_LENGTH(%s, '$.%s')",
                 $column,
                 $path
             ),
             DatabaseDriver::PGSQL => sprintf(
-                "jsonb_array_length(%s->'%s')",   // ✅ PostgreSQL
+                "jsonb_array_length(%s->'%s')",
                 $column,
                 $path
             ),
@@ -46,16 +59,6 @@ final class JsonLengthFunction implements SqlFunctionInterface
             return count($value);
         }
 
-        return 0;
-    }
-
-    public function validateArgs(array $args): bool
-    {
-        return count($args) === 1;
-    }
-
-    public function getDefaultValue(): mixed
-    {
         return 0;
     }
 }

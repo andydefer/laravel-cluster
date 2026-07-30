@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace AndyDefer\LaravelCluster\Contracts\Filters;
+namespace AndyDefer\LaravelCluster\Contracts;
 
 interface AggregateFunctionInterface
 {

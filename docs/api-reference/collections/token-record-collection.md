@@ -1,479 +1,351 @@
-# TokenRecordCollection - Référence Technique
+# TokenRecordCollection - Technical Reference
 
 ## Description
 
-Collection typée spécialisée pour la gestion d'objets `TokenRecord` avec des capacités de filtrage basées sur le type, la valeur, la position et les catégories sémantiques des tokens (opérateurs, identifiants, parenthèses, etc.).
+Collection typée d'objets TokenRecord avec des capacités de filtrage spécialisées. Elle fournit des méthodes dédiées pour filtrer les tokens par type, valeur ou position, facilitant le travail avec les flux de tokens du lexer.
 
 ## Hiérarchie
 
 ```
-AbstractTypedCollection
+AbstractTypedCollection<TokenRecord>
     └── TokenRecordCollection
 ```
 
-**Interfaces :** Aucune (hérite de `AbstractTypedCollection`)
-
 ## Rôle principal
 
-Cette collection sert de conteneur intelligent pour des objets `TokenRecord` représentant des tokens d'expression. Elle permet de :
+Collection spécialisée pour les tokens générés par le lexer. Elle permet de :
 
-- Filtrer les tokens par type (`TokenType`)
-- Filtrer par valeur (exacte ou multiple)
-- Isoler des catégories spécifiques (opérateurs, identifiants, parenthèses)
-- Distinguer les opérateurs de comparaison des opérateurs logiques
-- Accéder aux tokens par leur position dans l'expression
-- Extraire les valeurs des tokens sous forme de collection de chaînes
-
-Cette collection est particulièrement utile dans les analyseurs syntaxiques, les moteurs de requêtes et les systèmes de parsing d'expressions.
+- **Filtrer par type** : opérateurs, identifiants, parenthèses, etc.
+- **Filtrer par valeur** : valeur exacte ou multiples valeurs
+- **Accéder par position** : recherche par position ou à partir d'une position
+- **Exclure les tokens de fin** : pour le parsing
+- **Distinguer les opérateurs** : comparaison vs logiques
 
 ---
 
-## API / Méthodes publiques
+## API
 
-### Filtres par catégorie
+### `__construct()`
 
-#### `operators(): self`
+Crée une nouvelle collection vide.
 
-Filtre la collection pour n'inclure que les tokens de type opérateur.
+**Exemple :**
+```php
+$collection = new TokenRecordCollection();
+```
 
-**Retourne :** `self` - Nouvelle collection contenant uniquement les tokens opérateurs
+---
+
+### `operators(): self`
+
+Filtre et retourne uniquement les tokens d'opérateurs.
+
+**Retourne :** `self` - Collection contenant uniquement les opérateurs
 
 **Exemple :**
 ```php
 $operators = $tokens->operators();
-// $operators contient uniquement les tokens de type Operator
 ```
 
 ---
 
-#### `identifiers(): self`
+### `identifiers(): self`
 
-Filtre la collection pour n'inclure que les tokens de type identifiant.
+Filtre et retourne uniquement les tokens d'identifiants.
 
-**Retourne :** `self` - Nouvelle collection contenant uniquement les tokens identifiants
+**Retourne :** `self` - Collection contenant uniquement les identifiants
 
 **Exemple :**
 ```php
 $identifiers = $tokens->identifiers();
-// $identifiers contient uniquement les tokens de type Identifier
 ```
 
 ---
 
-#### `parens(): self`
+### `parens(): self`
 
-Filtre la collection pour n'inclure que les tokens de type parenthèse.
+Filtre et retourne uniquement les tokens de parenthèses.
 
-**Retourne :** `self` - Nouvelle collection contenant uniquement les tokens parenthèses
+**Retourne :** `self` - Collection contenant uniquement les parenthèses
 
 **Exemple :**
 ```php
 $parens = $tokens->parens();
-// $parens contient uniquement les tokens '(' et ')'
 ```
 
 ---
 
-### Filtres par type
+### `ofType(TokenType $type): self`
 
-#### `ofType(TokenType $type): self`
-
-Filtre la collection pour n'inclure que les tokens d'un type spécifique.
+Filtre les tokens par leur type.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$type` | `TokenType` | Type de token à filtrer |
+| `$type` | `TokenType` | Le type de token à filtrer |
 
-**Retourne :** `self` - Nouvelle collection contenant uniquement les tokens du type spécifié
+**Retourne :** `self` - Collection contenant uniquement les tokens du type donné
 
 **Exemple :**
 ```php
-$identifiers = $tokens->ofType(TokenType::Identifier);
-$strings = $tokens->ofType(TokenType::String);
-$numbers = $tokens->ofType(TokenType::Number);
+$identifiers = $tokens->ofType(TokenType::IDENTIFIER);
 ```
 
 ---
 
-### Filtres par valeur
+### `withValue(string $value): self`
 
-#### `withValue(string $value): self`
-
-Filtre la collection pour n'inclure que les tokens ayant une valeur spécifique.
+Filtre les tokens par leur valeur.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$value` | `string` | Valeur exacte à rechercher |
+| `$value` | `string` | La valeur à rechercher |
 
-**Retourne :** `self` - Nouvelle collection contenant uniquement les tokens avec la valeur spécifiée
+**Retourne :** `self` - Collection contenant uniquement les tokens avec la valeur donnée
 
 **Exemple :**
 ```php
-$equalsTokens = $tokens->withValue('=');
-$andTokens = $tokens->withValue('AND');
+$statusTokens = $tokens->withValue('status');
 ```
 
 ---
 
-#### `withValues(array $values): self`
+### `withValues(array $values): self`
 
-Filtre la collection pour n'inclure que les tokens dont la valeur est dans le tableau donné.
+Filtre les tokens par plusieurs valeurs.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$values` | `array<string>` | Tableau des valeurs acceptées |
+| `$values` | `array<string>` | Les valeurs à rechercher |
 
-**Retourne :** `self` - Nouvelle collection contenant uniquement les tokens avec les valeurs correspondantes
+**Retourne :** `self` - Collection contenant uniquement les tokens avec les valeurs données
 
 **Exemple :**
 ```php
-$comparisonOps = $tokens->withValues(['=', '!=', '<', '>', '<=', '>=']);
+$roleTokens = $tokens->withValues(['role', 'status']);
 ```
 
 ---
 
-### Filtres d'exclusion
+### `withoutEnd(): self`
 
-#### `withoutEnd(): self`
+Exclut le token de fin de la collection.
 
-Filtre la collection pour exclure les tokens de fin d'expression.
-
-**Retourne :** `self` - Nouvelle collection sans les tokens de fin
+**Retourne :** `self` - Collection sans le token END
 
 **Exemple :**
 ```php
 $tokensWithoutEnd = $tokens->withoutEnd();
-// Exclut les tokens de type TokenType::End
 ```
 
 ---
 
-### Filtres par catégorie d'opérateurs
+### `comparisonOperators(): self`
 
-#### `comparisonOperators(): self`
+Filtre et retourne uniquement les tokens d'opérateurs de comparaison.
 
-Filtre la collection pour n'inclure que les tokens d'opérateurs de comparaison.
-
-Inclut les opérateurs comme `=`, `!=`, `<`, `>`, `<=`, `>=`, `LIKE`, etc.
-
-**Retourne :** `self` - Nouvelle collection contenant uniquement les tokens d'opérateurs de comparaison
+**Retourne :** `self` - Collection contenant uniquement les opérateurs de comparaison
 
 **Exemple :**
 ```php
-$comparisonOps = $tokens->comparisonOperators();
-// Retourne : =, !=, <, >, <=, >=, LIKE
+$comparisons = $tokens->comparisonOperators();
 ```
 
 ---
 
-#### `logicalOperators(): self`
+### `logicalOperators(): self`
 
-Filtre la collection pour n'inclure que les tokens d'opérateurs logiques.
+Filtre et retourne uniquement les tokens d'opérateurs logiques.
 
-Inclut les opérateurs comme `AND`, `OR`, `NOT`.
-
-**Retourne :** `self` - Nouvelle collection contenant uniquement les tokens d'opérateurs logiques
+**Retourne :** `self` - Collection contenant uniquement les opérateurs logiques
 
 **Exemple :**
 ```php
-$logicalOps = $tokens->logicalOperators();
-// Retourne : AND, OR, NOT
+$logicals = $tokens->logicalOperators();
 ```
 
 ---
 
-#### `pureComparisonOperators(): self`
+### `atPosition(int $position): ?TokenRecord`
 
-Filtre la collection pour n'inclure que les opérateurs de comparaison purs.
-
-Retourne uniquement les opérateurs de comparaison (`=`, `!=`, `<`, `>`, `<=`, `>=`, `LIKE`) en excluant explicitement les opérateurs logiques (`AND`, `OR`, `NOT`).
-
-**Retourne :** `self` - Nouvelle collection contenant uniquement les tokens d'opérateurs de comparaison purs
-
-**Exemple :**
-```php
-$pureComparisonOps = $tokens->pureComparisonOperators();
-// Retourne : =, !=, <, >, <=, >=, LIKE
-// Exclut : AND, OR, NOT
-```
-
----
-
-#### `pureLogicalOperators(): self`
-
-Filtre la collection pour n'inclure que les opérateurs logiques purs.
-
-Retourne uniquement les opérateurs logiques (`AND`, `OR`, `NOT`).
-
-**Retourne :** `self` - Nouvelle collection contenant uniquement les tokens d'opérateurs logiques purs
-
-**Exemple :**
-```php
-$pureLogicalOps = $tokens->pureLogicalOperators();
-// Retourne : AND, OR, NOT
-```
-
----
-
-### Accès par position
-
-#### `atPosition(int $position): ?TokenRecord`
-
-Récupère le token à une position spécifique dans l'expression.
+Récupère un token par sa position.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$position` | `int` | Index de position à rechercher |
+| `$position` | `int` | La position à rechercher |
 
-**Retourne :** `TokenRecord|null` - Token à la position, ou `null` si non trouvé
+**Retourne :** `TokenRecord|null` - Le token à la position donnée, ou null si non trouvé
 
 **Exemple :**
 ```php
-$firstToken = $tokens->atPosition(0);
-$secondToken = $tokens->atPosition(1);
+$token = $tokens->atPosition(7);
 ```
 
 ---
 
-#### `fromPosition(int $position): self`
+### `fromPosition(int $position): self`
 
-Crée une nouvelle collection contenant les tokens à partir d'une position spécifique (inclusive).
+Retourne tous les tokens à partir de la position donnée.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$position` | `int` | Position de départ (incluse) |
+| `$position` | `int` | La position de départ |
 
-**Retourne :** `self` - Nouvelle collection avec les tokens à partir de la position
+**Retourne :** `self` - Collection contenant les tokens à partir de la position
 
 **Exemple :**
 ```php
-$remainingTokens = $tokens->fromPosition(3);
-// Contient les tokens aux positions 3, 4, 5, ...
+$remaining = $tokens->fromPosition(35);
 ```
 
 ---
 
-### Extraction de valeurs
+### `values(): StringTypedCollection`
 
-#### `values(): StringTypedCollection`
+Retourne toutes les valeurs des tokens sous forme de collection de chaînes.
 
-Extrait et retourne les valeurs de tous les tokens sous forme de collection de chaînes.
-
-**Retourne :** `StringTypedCollection` - Collection contenant uniquement les valeurs des tokens
+**Retourne :** `StringTypedCollection` - Les valeurs des tokens
 
 **Exemple :**
 ```php
 $values = $tokens->values();
-// Retourne : ['id', '=', '123', 'AND', 'status', '=', 'active']
+// ['status', '=', 'active', 'AND', ...]
+```
 
-foreach ($values as $value) {
-    echo $value . PHP_EOL;
-}
+---
+
+### `pureComparisonOperators(): self`
+
+Filtre et retourne uniquement les tokens d'opérateurs de comparaison purs. Exclut les opérateurs logiques (AND, OR) du résultat.
+
+**Retourne :** `self` - Collection contenant uniquement les opérateurs de comparaison purs
+
+**Exemple :**
+```php
+$pureComparisons = $tokens->pureComparisonOperators();
+```
+
+---
+
+### `pureLogicalOperators(): self`
+
+Filtre et retourne uniquement les tokens d'opérateurs logiques purs.
+
+**Retourne :** `self` - Collection contenant uniquement les opérateurs logiques
+
+**Exemple :**
+```php
+$pureLogicals = $tokens->pureLogicalOperators();
+```
+
+---
+
+### `subOpens(): self`
+
+Filtre et retourne uniquement les tokens de crochets ouvrants de sous-conditions (`[`).
+
+**Retourne :** `self` - Collection contenant uniquement les tokens SUB_OPEN
+
+**Exemple :**
+```php
+$subOpens = $tokens->subOpens();
+```
+
+---
+
+### `subCloses(): self`
+
+Filtre et retourne uniquement les tokens de crochets fermants de sous-conditions (`]`).
+
+**Retourne :** `self` - Collection contenant uniquement les tokens SUB_CLOSE
+
+**Exemple :**
+```php
+$subCloses = $tokens->subCloses();
 ```
 
 ---
 
 ## Cas d'utilisation
 
-### Cas 1 : Analyse d'une expression de filtrage
-
-Extraire les composants d'une expression de filtrage complexe.
+### Cas 1 : Filtrage des opérateurs
 
 ```php
-<?php
+$tokens = $lexer->tokenize('status=active & role=admin');
 
-use AndyDefer\LaravelCluster\Collections\TokenRecordCollection;
-use AndyDefer\LaravelCluster\Records\TokenRecord;
-use AndyDefer\LaravelCluster\Enums\TokenType;
+$operators = $tokens->operators();
+foreach ($operators as $op) {
+    echo $op->value . "\n"; // =, &, =
+}
+```
 
-// Supposons que nous ayons une collection de tokens
-$tokens = new TokenRecordCollection();
-// Ajout des tokens : "id", "=", "123", "AND", "status", "=", "active"
+### Cas 2 : Récupération des identifiants
 
-// Extraire les identifiants
+```php
 $identifiers = $tokens->identifiers();
-// Résultat : "id", "status"
-
-// Extraire les opérateurs de comparaison
-$comparisonOps = $tokens->comparisonOperators();
-// Résultat : "=", "="
-
-// Extraire les valeurs (opérandes)
-$values = $tokens->values();
-// Résultat : ["id", "=", "123", "AND", "status", "=", "active"]
-```
-
----
-
-### Cas 2 : Validation d'une expression SQL WHERE
-
-Valider la structure d'une clause WHERE en vérifiant les opérateurs.
-
-```php
-<?php
-
-use AndyDefer\LaravelCluster\Collections\TokenRecordCollection;
-
-function validateWhereClause(TokenRecordCollection $tokens): bool
-{
-    // Vérifier qu'il y a au moins un opérateur de comparaison
-    $comparisonCount = $tokens->pureComparisonOperators()->count();
-    if ($comparisonCount === 0) {
-        return false;
-    }
-
-    // Vérifier que les opérateurs logiques sont bien placés
-    $logicalOps = $tokens->pureLogicalOperators();
-    foreach ($logicalOps as $op) {
-        // Vérifier que chaque opérateur logique a des opérandes des deux côtés
-        // (logique métier spécifique)
-    }
-
-    return true;
+foreach ($identifiers as $id) {
+    echo $id->value . "\n"; // status, active, role, admin
 }
 ```
 
----
-
-### Cas 3 : Extraction des conditions d'une requête
-
-Extraire les paires champ-opérateur-valeur d'une expression de requête.
+### Cas 3 : Distinction des opérateurs
 
 ```php
-<?php
+// Opérateurs de comparaison uniquement
+$comparisons = $tokens->comparisonOperators();
+// =, =
 
-use AndyDefer\LaravelCluster\Collections\TokenRecordCollection;
+// Opérateurs logiques uniquement
+$logicals = $tokens->logicalOperators();
+// AND
 
-function extractConditions(TokenRecordCollection $tokens): array
-{
-    $conditions = [];
-    $currentCondition = [];
-
-    foreach ($tokens as $token) {
-        if ($token->type->isOperator() && 
-            in_array($token->value, ['AND', 'OR', 'NOT'], true)) {
-            if (!empty($currentCondition)) {
-                $conditions[] = $currentCondition;
-                $currentCondition = [];
-            }
-            $conditions[] = ['operator' => $token->value];
-            continue;
-        }
-        
-        $currentCondition[] = $token;
-    }
-
-    if (!empty($currentCondition)) {
-        $conditions[] = $currentCondition;
-    }
-
-    return $conditions;
-}
-
-// Utilisation
-$tokens = new TokenRecordCollection();
-// ... ajout des tokens : id = 123 AND status = 'active'
-
-$conditions = extractConditions($tokens);
-// Résultat : [
-//     [TokenRecord(id), TokenRecord(=), TokenRecord(123)],
-//     ['operator' => 'AND'],
-//     [TokenRecord(status), TokenRecord(=), TokenRecord(active)]
-// ]
+// Opérateurs de comparaison purs (sans AND/OR)
+$pure = $tokens->pureComparisonOperators();
+// =, =
 ```
 
----
-
-### Cas 4 : Suggestion d'auto-complétion
-
-Fournir des suggestions d'auto-complétion basées sur le contexte des tokens.
+### Cas 4 : Recherche par position
 
 ```php
-<?php
-
-use AndyDefer\LaravelCluster\Collections\TokenRecordCollection;
-use AndyDefer\LaravelCluster\Enums\TokenType;
-
-function suggestNextToken(TokenRecordCollection $tokens, string $prefix): array
-{
-    // Filtrer les identifiants qui commencent par le préfixe
-    $suggestions = $tokens
-        ->identifiers()
-        ->filter(function ($token) use ($prefix) {
-            return str_starts_with($token->value, $prefix);
-        });
-
-    // Récupérer les valeurs uniques
-    return array_unique($suggestions->values()->toArray());
+$token = $tokens->atPosition(7);
+if ($token) {
+    echo "Token at position 7: {$token->value}\n";
 }
 
-// Utilisation
-$suggestions = suggestNextToken($tokens, 'us');
-// Retourne : ['user', 'username', 'user_id']
+// Tokens à partir de la position 16
+$remaining = $tokens->fromPosition(16);
 ```
 
----
+### Cas 5 : Crochets de sous-conditions
 
-## Gestion des erreurs
+```php
+$tokens = $lexer->tokenize('addresses[city=Kinshasa]');
 
-La classe `TokenRecordCollection` ne lève pas directement d'exceptions. Elle délègue la validation des types à la classe parente `AbstractTypedCollection` qui peut lever des exceptions si un objet de type incorrect est ajouté.
+$subOpens = $tokens->subOpens();
+// Token avec valeur '['
 
-| Situation | Exception | Message |
-|-----------|-----------|---------|
-| Ajout d'un objet non `TokenRecord` | `InvalidArgumentException` | Dépend de l'implémentation parente |
-| Position de token non trouvée | `null` retourné, pas d'exception | N/A |
-| Filtre sans résultat | Collection vide retournée, pas d'exception | N/A |
+$subCloses = $tokens->subCloses();
+// Token avec valeur ']'
+```
 
----
+### Cas 6 : Exclusion du token END
 
-## Intégration
+```php
+$tokens = $lexer->tokenize('status=active');
 
-`TokenRecordCollection` s'intègre avec :
+$withoutEnd = $tokens->withoutEnd();
+// 3 tokens (sans END)
 
-- **`TokenRecord`** : L'objet manipulé par la collection
-- **`TokenType`** : Enumération des types de tokens
-- **`ComparisonOperator`** : Enumération des opérateurs de comparaison
-- **`LogicalOperator`** : Enumération des opérateurs logiques
-- **`StringTypedCollection`** : Utilisée pour le retour de la méthode `values()`
-
-Cette collection est typiquement utilisée par :
-
-- **Analyseurs syntaxiques** : Pour traiter les expressions
-- **Moteurs de requêtes** : Pour parser les conditions WHERE
-- **Systèmes d'auto-complétion** : Pour suggérer les tokens suivants
-- **Validateurs d'expressions** : Pour vérifier la syntaxe
+$all = $tokens;
+// 4 tokens (avec END)
+```
 
 ---
 
 ## Performance
 
-### Complexité algorithmique
-
-| Opération | Complexité | Notes |
-|-----------|------------|-------|
-| `operators()`, `identifiers()` | O(n) | Parcourt tous les tokens |
-| `ofType()` | O(n) | Parcourt tous les tokens |
-| `withValue()` | O(n) | Parcourt tous les tokens |
-| `withValues()` | O(n * m) | n = tokens, m = valeurs à vérifier |
-| `atPosition()` | O(n) | Parcourt jusqu'à la position trouvée |
-| `fromPosition()` | O(n) | Parcourt tous les tokens |
-| `values()` | O(n) | Extrait les valeurs de tous les tokens |
-| `pureComparisonOperators()` | O(n) | Parcourt tous les tokens avec vérification des enums |
-| `pureLogicalOperators()` | O(n) | Parcourt tous les tokens avec vérification des enums |
-
-### Optimisations
-
-- Les filtres créent une **nouvelle collection** à chaque appel, préservant l'originale
-- Utilisation de méthodes d'énumération (`isOperator()`, `isIdentifier()`) pour des vérifications sémantiques rapides
-- Comparaisons strictes (`===`) pour les opérations d'égalité
-- Les collections sont typées, évitant les vérifications de type runtime
-
-### Considérations mémoire
-
-- Chaque opération de filtrage crée une nouvelle collection
-- `values()` crée une nouvelle `StringTypedCollection` avec les valeurs
-- Pour de très grandes collections, les multiples filtrages peuvent consommer de la mémoire
-- Les méthodes avec `in_array()` sur les valeurs d'énumération sont optimisées
+- **Complexité :** O(n) pour chaque filtre où n est le nombre de tokens
+- **Mémoire :** Chaque filtre crée une nouvelle collection
+- **Optimisation :** Utilisation de `array_filter` avec des appels de méthode
 
 ---
 
@@ -483,13 +355,6 @@ Cette collection est typiquement utilisée par :
 |-------------|---------|
 | PHP 8.1+ | ✅ Complet |
 | PHP 8.0 | ✅ Complet |
-| PHP 7.4 | ❌ Non supporté (nécessite PHP 8.0+) |
-
-**Dépendances :**
-- `AbstractTypedCollection` - Collection typée de base
-- `StringTypedCollection` - Collection typée pour les chaînes
-- `TokenRecord` - Objet token
-- `TokenType`, `ComparisonOperator`, `LogicalOperator` - Enums de types et opérateurs
 
 ---
 
@@ -500,119 +365,135 @@ Cette collection est typiquement utilisée par :
 
 declare(strict_types=1);
 
-use AndyDefer\LaravelCluster\Collections\TokenRecordCollection;
-use AndyDefer\LaravelCluster\Records\TokenRecord;
+use AndyDefer\LaravelCluster\Lexer;
 use AndyDefer\LaravelCluster\Enums\TokenType;
 
-// Création de la collection
-$tokens = new TokenRecordCollection();
+$lexer = new Lexer();
+$tokens = $lexer->tokenize('status=active & role=admin & addresses[city=Kinshasa]');
 
-// Ajout de tokens représentant une clause WHERE
-$tokens->add(new TokenRecord(
-    position: 0,
-    type: TokenType::Identifier,
-    value: 'user_id'
-));
+// ==================== FILTRAGE PAR TYPE ====================
 
-$tokens->add(new TokenRecord(
-    position: 1,
-    type: TokenType::Operator,
-    value: '='
-));
+$operators = $tokens->operators();
+echo "Operators (" . $operators->count() . "):\n";
+foreach ($operators as $op) {
+    echo "  {$op->value}\n";
+}
+// Operators (5):
+//   =
+//   &
+//   =
+//   &
+//   =
 
-$tokens->add(new TokenRecord(
-    position: 2,
-    type: TokenType::Number,
-    value: '123'
-));
-
-$tokens->add(new TokenRecord(
-    position: 3,
-    type: TokenType::Operator,
-    value: 'AND'
-));
-
-$tokens->add(new TokenRecord(
-    position: 4,
-    type: TokenType::Identifier,
-    value: 'status'
-));
-
-$tokens->add(new TokenRecord(
-    position: 5,
-    type: TokenType::Operator,
-    value: '='
-));
-
-$tokens->add(new TokenRecord(
-    position: 6,
-    type: TokenType::String,
-    value: 'active'
-));
-
-$tokens->add(new TokenRecord(
-    position: 7,
-    type: TokenType::End,
-    value: ''
-));
-
-// Filtrage : extraire les identifiants
 $identifiers = $tokens->identifiers();
-echo "Identifiants trouvés : " . count($identifiers) . PHP_EOL;
-// Résultat : 2 (user_id, status)
+echo "Identifiers (" . $identifiers->count() . "):\n";
+foreach ($identifiers as $id) {
+    echo "  {$id->value}\n";
+}
+// Identifiers (8):
+//   status
+//   active
+//   role
+//   admin
+//   addresses
+//   city
+//   Kinshasa
+//   (identifier dans la sous-condition)
 
-// Filtrage : extraire les opérateurs de comparaison
-$comparisonOps = $tokens->comparisonOperators();
-echo "Opérateurs de comparaison : " . count($comparisonOps) . PHP_EOL;
-// Résultat : 2 (=, =)
+// ==================== FILTRAGE PAR VALEUR ====================
 
-// Filtrage : extraire les opérateurs logiques
-$logicalOps = $tokens->logicalOperators();
-echo "Opérateurs logiques : " . count($logicalOps) . PHP_EOL;
-// Résultat : 1 (AND)
+$equalTokens = $tokens->withValue('=');
+echo "Equals tokens (" . $equalTokens->count() . "):\n";
+foreach ($equalTokens as $token) {
+    echo "  Position: {$token->position}\n";
+}
+// Equals tokens (2):
+//   Position: 6
+//   Position: 24
 
-// Extraire toutes les valeurs
+// ==================== DISTINCTION DES OPÉRATEURS ====================
+
+$comparisons = $tokens->comparisonOperators();
+echo "Comparison operators (" . $comparisons->count() . "):\n";
+foreach ($comparisons as $op) {
+    echo "  {$op->value}\n";
+}
+// Comparison operators (2):
+//   =
+//   =
+
+$logicals = $tokens->logicalOperators();
+echo "Logical operators (" . $logicals->count() . "):\n";
+foreach ($logicals as $op) {
+    echo "  {$op->value}\n";
+}
+// Logical operators (2):
+//   AND
+//   AND
+
+// ==================== CROCHETS DE SOUS-CONDITIONS ====================
+
+$subOpens = $tokens->subOpens();
+echo "Sub-opens (" . $subOpens->count() . "):\n";
+foreach ($subOpens as $token) {
+    echo "  Value: {$token->value}, Position: {$token->position}\n";
+}
+// Sub-opens (1):
+//   Value: [, Position: 33
+
+$subCloses = $tokens->subCloses();
+echo "Sub-closes (" . $subCloses->count() . "):\n";
+foreach ($subCloses as $token) {
+    echo "  Value: {$token->value}, Position: {$token->position}\n";
+}
+// Sub-closes (1):
+//   Value: ], Position: 48
+
+// ==================== POSITION ====================
+
+$token = $tokens->atPosition(6);
+if ($token) {
+    echo "Token at position 6: {$token->value} ({$token->type->name})\n";
+}
+// Token at position 6: = (OPERATOR)
+
+$fromPosition = $tokens->fromPosition(24);
+echo "Tokens from position 24:\n";
+foreach ($fromPosition as $token) {
+    echo "  {$token->value} ({$token->type->name}) @ {$token->position}\n";
+}
+// = (OPERATOR) @ 24
+// role (IDENTIFIER) @ 26
+// AND (OPERATOR) @ 32
+// addresses (IDENTIFIER) @ 35
+// [ (SUB_OPEN) @ 44
+// city (IDENTIFIER) @ 45
+// = (OPERATOR) @ 50
+// Kinshasa (IDENTIFIER) @ 52
+// ] (SUB_CLOSE) @ 60
+// END @ 60
+
+// ==================== VALEURS ====================
+
 $values = $tokens->values();
-echo "Valeurs : " . implode(' ', $values->toArray()) . PHP_EOL;
-// Résultat : "user_id = 123 AND status = active"
+echo "All values:\n";
+foreach ($values as $value) {
+    echo "  '$value'\n";
+}
+// 'status', '=', 'active', 'AND', 'role', '=', 'admin', 'AND', 'addresses', '[', 'city', '=', 'Kinshasa', ']', ''
 
-// Accès par position
-$firstToken = $tokens->atPosition(0);
-echo "Premier token : " . $firstToken->value . PHP_EOL;
-// Résultat : "user_id"
+// ==================== EXCLUSION DU END ====================
 
-// Tokens à partir de la position 3
-$remaining = $tokens->fromPosition(3);
-echo "Tokens restants : " . count($remaining) . PHP_EOL;
-// Résultat : 5 (AND, status, =, active, end)
-
-// Utilisation avancée : opérateurs purs
-$pureComparison = $tokens->pureComparisonOperators();
-echo "Opérateurs de comparaison purs : " . count($pureComparison) . PHP_EOL;
-// Résultat : 2 (=, =)
-
-$pureLogical = $tokens->pureLogicalOperators();
-echo "Opérateurs logiques purs : " . count($pureLogical) . PHP_EOL;
-// Résultat : 1 (AND)
-
-// Chaînage de filtres : opérateurs de comparaison qui ne sont pas logiques
-$nonLogicalComparison = $tokens
-    ->comparisonOperators()
-    ->filter(function ($token) use ($logicalOps) {
-        return !in_array($token->value, ['AND', 'OR', 'NOT'], true);
-    });
-
-echo "Opérateurs non-logiques : " . count($nonLogicalComparison) . PHP_EOL;
-// Résultat : 2 (=, =)
+$withoutEnd = $tokens->withoutEnd();
+echo "Without END: " . $withoutEnd->count() . " tokens\n";
+// Without END: 15 tokens
 ```
 
 ---
 
 ## Voir aussi
 
-- `TokenRecord` - Structure de données représentant un token
+- `TokenRecord` - Enregistrement d'un token
 - `TokenType` - Énumération des types de tokens
-- `ComparisonOperator` - Énumération des opérateurs de comparaison
-- `LogicalOperator` - Énumération des opérateurs logiques
-- `StringTypedCollection` - Collection typée pour les chaînes
-- `AbstractTypedCollection` - Classe parente des collections typées
+- `Lexer` - Générateur de tokens
+- `AbstractTypedCollection` - Collection typée parente

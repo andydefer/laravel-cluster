@@ -16,8 +16,30 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
 
+/**
+ * Service provider for the Laravel Cluster package.
+ *
+ * Registers the core services, binds interfaces to implementations,
+ * and provides macros for Eloquent Builder and Laravel Collections.
+ *
+ * @example
+ * // In config/app.php
+ * 'providers' => [
+ *     // ...
+ *     ClusterServiceProvider::class,
+ * ];
+ * @example
+ * // Usage in Eloquent
+ * User::whereCluster('clusters', 'status=active')->get();
+ * @example
+ * // Usage in Collections
+ * $collection->whereCluster('clusters', 'status=active');
+ */
 final class ClusterServiceProvider extends ServiceProvider
 {
+    /**
+     * Registers the package services in the container.
+     */
     public function register(): void
     {
         $this->app->singleton(ClusterQuery::class, function (): ClusterQuery {
@@ -37,12 +59,16 @@ final class ClusterServiceProvider extends ServiceProvider
         $this->app->alias(SqlFunctionRegistry::class, 'cluster.sql_functions');
     }
 
+    /**
+     * Bootstraps the package services.
+     *
+     * Registers custom SQLite functions and adds the `whereCluster` macro
+     * to Eloquent Builder and Laravel Collections.
+     */
     public function boot(): void
     {
-        // ✅ Uniquement pour SQLite (les autres bases ont déjà les fonctions)
         $this->registerSqliteFunctionsIfNeeded();
 
-        // ✅ Macro sur Builder - whereCluster
         Builder::macro('whereCluster', function (string $column, string $query) {
             /** @var Builder $this */
             $connection = $this->getConnection();
@@ -61,7 +87,6 @@ final class ClusterServiceProvider extends ServiceProvider
             return $this;
         });
 
-        // ✅ Macro sur Collection - whereCluster
         Collection::macro('whereCluster', function (string $column, string $query) {
             /** @var Collection $this */
             $clusterCollection = new ClusterVOCollection;
@@ -101,8 +126,12 @@ final class ClusterServiceProvider extends ServiceProvider
     }
 
     /**
-     * ✅ Enregistrer les fonctions SQL personnalisées UNIQUEMENT pour SQLite
-     * Les autres bases (MySQL, PostgreSQL) ont déjà ces fonctions nativement
+     * Registers custom SQL functions for SQLite databases only.
+     *
+     * MySQL and PostgreSQL already have these functions natively.
+     * For SQLite, we register JSON_* functions as custom PDO functions.
+     *
+     * @throws \Throwable If registration fails, the error is reported but not thrown
      */
     private function registerSqliteFunctionsIfNeeded(): void
     {
@@ -110,15 +139,12 @@ final class ClusterServiceProvider extends ServiceProvider
             $connection = DB::connection();
             $driverName = $connection->getDriverName();
 
-            // ✅ Uniquement pour SQLite
             if ($driverName !== 'sqlite') {
                 return;
             }
 
             $pdo = $connection->getPdo();
 
-            // ✅ JSON_LENGTH - alias pour json_array_length (existe déjà dans SQLite)
-            // Mais on le crée pour compatibilité avec MySQL
             $pdo->sqliteCreateFunction('JSON_LENGTH', function ($json, $path = null) {
                 if ($json === null) {
                     return null;
@@ -144,7 +170,6 @@ final class ClusterServiceProvider extends ServiceProvider
                 return is_array($current) ? count($current) : null;
             });
 
-            // ✅ JSON_AVG - moyenne sur un tableau JSON
             $pdo->sqliteCreateFunction('JSON_AVG', function ($json, $path) {
                 if ($json === null) {
                     return null;
@@ -172,7 +197,6 @@ final class ClusterServiceProvider extends ServiceProvider
                 return $count > 0 ? array_sum($numbers) / $count : null;
             });
 
-            // ✅ JSON_SUM - somme sur un tableau JSON
             $pdo->sqliteCreateFunction('JSON_SUM', function ($json, $path) {
                 if ($json === null) {
                     return null;
@@ -199,7 +223,6 @@ final class ClusterServiceProvider extends ServiceProvider
                 return array_sum($numbers);
             });
 
-            // ✅ JSON_MIN - minimum sur un tableau JSON
             $pdo->sqliteCreateFunction('JSON_MIN', function ($json, $path) {
                 if ($json === null) {
                     return null;
@@ -226,7 +249,6 @@ final class ClusterServiceProvider extends ServiceProvider
                 return ! empty($numbers) ? min($numbers) : null;
             });
 
-            // ✅ JSON_MAX - maximum sur un tableau JSON
             $pdo->sqliteCreateFunction('JSON_MAX', function ($json, $path) {
                 if ($json === null) {
                     return null;
@@ -254,7 +276,6 @@ final class ClusterServiceProvider extends ServiceProvider
             });
 
         } catch (\Throwable $e) {
-            // ✅ Ne pas bloquer l'application
             report($e);
         }
     }

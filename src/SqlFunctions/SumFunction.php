@@ -4,10 +4,20 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelCluster\SqlFunctions;
 
-use AndyDefer\LaravelCluster\Contracts\SqlFunctionInterface;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 
-final class SumFunction implements SqlFunctionInterface
+/**
+ * Calculates the sum of numeric values in a JSON array.
+ *
+ * @example
+ * $sum = new SumFunction();
+ * $sum->execute([10, 20, 30]); // 60.0
+ * @example
+ * // SQL generation for different drivers
+ * $sum->toSql('clusters', 'prices', DatabaseDriver::PGSQL);
+ * // (clusters->>'prices')::numeric
+ */
+final class SumFunction extends AbstractSqlFunction
 {
     public function getName(): string
     {
@@ -49,30 +59,5 @@ final class SumFunction implements SqlFunctionInterface
         $numbers = $this->extractNumbers($value);
 
         return array_sum($numbers);
-    }
-
-    private function extractNumbers(array $array): array
-    {
-        $numbers = [];
-
-        foreach ($array as $item) {
-            if (is_array($item)) {
-                $numbers = array_merge($numbers, $this->extractNumbers($item));
-            } elseif (is_numeric($item)) {
-                $numbers[] = (float) $item;
-            }
-        }
-
-        return $numbers;
-    }
-
-    public function validateArgs(array $args): bool
-    {
-        return count($args) === 1;
-    }
-
-    public function getDefaultValue(): mixed
-    {
-        return 0.0;
     }
 }

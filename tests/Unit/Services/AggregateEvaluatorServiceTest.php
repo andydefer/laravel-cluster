@@ -12,6 +12,19 @@ use AndyDefer\LaravelCluster\Tests\Fixtures\Functions\WeightedAvgFunction;
 use AndyDefer\LaravelCluster\Tests\Fixtures\TestRegistryFactory;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * Unit tests for AggregateEvaluatorService.
+ *
+ * Tests cover:
+ * - Evaluating aggregate expressions (COUNT, SUM, AVG, MIN, MAX, LENGTH)
+ * - Evaluating boolean functions (EXISTS, HAS, ALL, IS_EMPTY)
+ * - Complex expressions with AND/OR operators
+ * - Direct function evaluation (evaluateDirect)
+ * - Expression validation
+ * - Edge cases (null values, missing paths, empty arrays)
+ * - Performance with caching
+ * - Custom function integration
+ */
 final class AggregateEvaluatorServiceTest extends TestCase
 {
     private AggregateEvaluatorService $evaluator;

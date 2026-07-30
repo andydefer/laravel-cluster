@@ -5,7 +5,25 @@ declare(strict_types=1);
 namespace AndyDefer\LaravelCluster\Functions;
 
 /**
- * Checks if all elements in an array have a specific key-value pair.
+ * Determines whether every element in a collection satisfies a key-value condition.
+ *
+ * The ALL function evaluates each item in the target array and returns true
+ * only if all items contain the specified key with the expected value.
+ * If the collection is empty or not an array, it returns false.
+ *
+ * @example
+ * $function = new AllFunction();
+ * $result = $function->execute(
+ *     ['items' => [['status' => 'active'], ['status' => 'active']]],
+ *     ['items', 'status', 'active']
+ * );
+ * // Returns: true
+ *
+ * $result = $function->execute(
+ *     ['items' => [['status' => 'active'], ['status' => 'inactive']]],
+ *     ['items', 'status', 'active']
+ * );
+ * // Returns: false
  */
 final class AllFunction extends AbstractAggregateFunction
 {
@@ -13,16 +31,16 @@ final class AllFunction extends AbstractAggregateFunction
     {
         $path = $args[0] ?? null;
         $key = $args[1] ?? null;
-        $value = $args[2] ?? null;
+        $expectedValue = $args[2] ?? null;
 
-        $items = $this->resolveArg($data, $path);
+        $items = $this->resolvePath($data, $path);
 
         if (! is_array($items) || empty($items)) {
             return false;
         }
 
         foreach ($items as $item) {
-            if (! is_array($item) || ! isset($item[$key]) || $item[$key] != $value) {
+            if (! $this->itemMatchesCondition($item, $key, $expectedValue)) {
                 return false;
             }
         }
@@ -63,5 +81,10 @@ final class AllFunction extends AbstractAggregateFunction
     public function validateArgs(array $args): bool
     {
         return count($args) === 3;
+    }
+
+    private function itemMatchesCondition(array $item, ?string $key, mixed $expectedValue): bool
+    {
+        return is_array($item) && array_key_exists($key, $item) && $item[$key] == $expectedValue;
     }
 }

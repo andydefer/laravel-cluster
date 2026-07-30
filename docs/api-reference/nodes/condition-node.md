@@ -1,157 +1,111 @@
-# ConditionNode - Référence Technique
+# ConditionNode - Technical Reference
 
 ## Description
 
-Représente une condition de comparaison atomique dans une requête, comparant une clé JSON à une valeur via un opérateur de comparaison.
+Représente un nœud de condition simple dans l'arbre syntaxique abstrait (AST). Il gère les opérations de comparaison entre un chemin JSON et une valeur, avec un support multi-drivers (SQLite, MySQL, PostgreSQL).
 
-## Hiérarchie / Implémentations
+## Hiérarchie
 
 ```
-Node (abstract)
+Node
     └── ConditionNode
 ```
 
-**Interfaces implémentées :**
-- `NodeInterface`
-
 ## Rôle principal
 
-`ConditionNode` constitue la feuille de l'arbre syntaxique des requêtes. Il évalue une condition simple comme `status = 'active'` ou `age > 18` en comparant une clé d'un objet JSON à une valeur donnée. Il supporte les opérateurs de comparaison, d'existence, et les motifs LIKE pour les recherches textuelles.
+Évalue une condition de comparaison sur un cluster et génère le SQL correspondant pour différents drivers de base de données. Il supporte :
+
+- **Comparaison simple** : `=`, `!=`, `>`, `<`, `>=`, `<=`
+- **Comparaison stricte** : `===`, `!==`
+- **Opérateurs spéciaux** : `EXISTS`, `NOT_EXISTS`
+- **Recherche textuelle** : `LIKE`, `NOT_LIKE`
+- **Comparaison spaceship** : `<=>`
 
 ---
 
-## API / Méthodes publiques
+## API
 
 ### `__construct(string $key, ComparisonOperator $operator, ?string $value = null)`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$key` | `string` | Clé JSON à évaluer |
-| `$operator` | `ComparisonOperator` | Opérateur de comparaison |
-| `$value` | `?string` | Valeur de comparaison (null pour EXISTS/NOT_EXISTS) |
-
-**Retourne :** `void`
-
-**Exceptions :** Aucune
+| `$key` | `string` | La clé JSON à vérifier |
+| `$operator` | `ComparisonOperator` | L'opérateur de comparaison |
+| `$value` | `string|null` | La valeur de comparaison (optionnelle) |
 
 **Exemple :**
 ```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-
-// Égalité simple
 $node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
-
-// Existence d'une clé
-$node = new ConditionNode('email', ComparisonOperator::EXISTS);
-
-// Recherche textuelle
-$node = new ConditionNode('name', ComparisonOperator::LIKE, 'john%');
 ```
 
 ---
 
 ### `getOperator(): ComparisonOperator`
 
-Retourne l'opérateur de comparaison du nœud.
+Retourne l'opérateur de comparaison.
 
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| Aucun | - | - |
+**Retourne :** `ComparisonOperator` - L'opérateur
 
-**Retourne :** `ComparisonOperator` - L'opérateur de comparaison
+---
 
-**Exceptions :** Aucune
+### `getKey(): string`
 
-**Exemple :**
-```php
-<?php
+Retourne la clé JSON.
 
-$node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
-$operator = $node->getOperator(); // ComparisonOperator::EQUAL
-```
+**Retourne :** `string` - La clé
+
+---
+
+### `getValue(): ?string`
+
+Retourne la valeur de comparaison.
+
+**Retourne :** `string|null` - La valeur
 
 ---
 
 ### `isEmptyCondition(): bool`
 
-Vérifie si la condition est une condition factice `__empty__` utilisée pour tester si un tableau est vide.
+Détermine si la condition est vide (utilisée pour les sous-conditions).
 
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| Aucun | - | - |
-
-**Retourne :** `bool` - `true` si c'est une condition `__empty__`, `false` sinon
-
-**Exceptions :** Aucune
+**Retourne :** `bool` - `true` si la condition est `__empty__` avec `EQUAL`
 
 **Exemple :**
 ```php
-<?php
-
-$node = new ConditionNode('__empty__', ComparisonOperator::EQUAL);
-$isEmpty = $node->isEmptyCondition(); // true
+$node = new ConditionNode('__empty__', ComparisonOperator::EQUAL, 'true');
+$node->isEmptyCondition(); // true
 ```
 
 ---
 
 ### `isWildcardExists(): bool`
 
-Vérifie si la condition est un `EXISTS` sur un wildcard (`*`) utilisé pour tester si un tableau contient des éléments.
+Détermine si la condition est un wildcard EXISTS.
 
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| Aucun | - | - |
-
-**Retourne :** `bool` - `true` si c'est une condition wildcard EXISTS, `false` sinon
-
-**Exceptions :** Aucune
+**Retourne :** `bool` - `true` si la clé est `*` avec `EXISTS`
 
 **Exemple :**
 ```php
-<?php
-
 $node = new ConditionNode('*', ComparisonOperator::EXISTS);
-$isWildcard = $node->isWildcardExists(); // true
+$node->isWildcardExists(); // true
 ```
 
 ---
 
 ### `evaluate(ClusterVO $data): bool`
 
-Évalue la condition contre les données d'un cluster.
+Évalue la condition contre un cluster.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$data` | `ClusterVO` | Données du cluster à évaluer |
+| `$data` | `ClusterVO` | Le cluster à évaluer |
 
 **Retourne :** `bool` - `true` si la condition est satisfaite
 
-**Comportement spécifique :**
-- **EXISTS** : Vérifie si la clé existe dans les données
-- **NOT_EXISTS** : Vérifie si la clé n'existe pas
-- **Clé manquante** : Retourne `false` (sauf pour EQUAL avec 'false' ou 'null')
-- **Autres opérateurs** : Compare la valeur via l'opérateur
-
-**Exceptions :** Aucune
-
 **Exemple :**
 ```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-
-$node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
 $cluster = new ClusterVO(['status' => 'active']);
-
+$node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
 $result = $node->evaluate($cluster); // true
 ```
 
@@ -159,212 +113,149 @@ $result = $node->evaluate($cluster); // true
 
 ### `toSql(string $column, DatabaseDriver $driver = DatabaseDriver::MYSQL): string`
 
-Génère une expression SQL pour la condition.
+Génère l'expression SQL pour la condition.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$column` | `string` | Nom de la colonne JSON |
-| `$driver` | `DatabaseDriver` | Driver de base de données (MYSQL, PGSQL, SQLITE) |
+| `$column` | `string` | La colonne JSON en base de données |
+| `$driver` | `DatabaseDriver` | Le driver de base de données |
 
-**Retourne :** `string` - Expression SQL pour la condition
-
-**Exceptions :** 
-- `InvalidArgumentException` si l'opérateur n'est pas supporté
-- `InvalidArgumentException` si la clé JSON est invalide
+**Retourne :** `string` - L'expression SQL
 
 **Exemple :**
 ```php
-<?php
-
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
-
 $node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
-$sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
-// "LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active')"
+$sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+// LOWER(json_extract(clusters, '$.status')) = LOWER('active')
 ```
 
 ---
 
 ### `toEloquent(Builder $query, string $column, DatabaseDriver $driver): void`
 
-Applique la condition à un constructeur de requête Eloquent.
+Applique la condition à un builder Eloquent.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$query` | `Builder` | Constructeur de requête Eloquent |
-| `$column` | `string` | Nom de la colonne JSON |
-| `$driver` | `DatabaseDriver` | Driver de base de données |
-
-**Retourne :** `void` (modifie `$query` par référence)
-
-**Exceptions :**
-- `InvalidArgumentException` si l'opérateur n'est pas supporté
-- `InvalidArgumentException` si la clé JSON est invalide
+| `$query` | `Builder` | Le builder Eloquent |
+| `$column` | `string` | La colonne JSON |
+| `$driver` | `DatabaseDriver` | Le driver de base de données |
 
 **Exemple :**
 ```php
-<?php
-
-use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
-
 $node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
-$query = TestCluster::query();
-
-$node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
-$results = $query->get(); // Clusters avec status = 'active'
+$query = User::query();
+$node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+$users = $query->get();
 ```
 
 ---
 
 ### `getChildren(): array`
 
-Retourne les nœuds enfants (toujours vide pour une condition atomique).
+Retourne les nœuds enfants (vide pour les feuilles).
 
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| Aucun | - | - |
+**Retourne :** `array` - Un tableau vide
 
-**Retourne :** `array<int, NodeInterface>` - Tableau vide
+---
 
-**Exceptions :** Aucune
+## Gestion des clés manquantes
 
-**Exemple :**
-```php
-<?php
+| Opérateur | Clé existante | Clé manquante |
+|-----------|---------------|---------------|
+| `EXISTS` | `true` | `false` |
+| `NOT_EXISTS` | `false` | `true` |
+| `EQUAL` avec `'false'` ou `'null'` | Dépend de la valeur | `true` |
+| Autres opérateurs | Dépend de la valeur | `false` |
 
-$node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
-$children = $node->getChildren(); // []
-```
+---
+
+## Opérateurs supportés
+
+| Opérateur | SQL généré | Description |
+|-----------|------------|-------------|
+| `EQUAL` | `= LOWER(value)` | Égalité insensible à la casse |
+| `EQUAL_LOOSE` | `= LOWER(value)` | Égalité insensible à la casse |
+| `EQUAL_STRICT` | `= value` | Égalité sensible à la casse |
+| `NOT_EQUAL` | `!= LOWER(value)` | Différent insensible à la casse |
+| `NOT_EQUAL_STRICT` | `!= value` | Différent sensible à la casse |
+| `GREATER_THAN` | `> value` | Supérieur |
+| `GREATER_THAN_OR_EQUAL` | `>= value` | Supérieur ou égal |
+| `LESS_THAN` | `< value` | Inférieur |
+| `LESS_THAN_OR_EQUAL` | `<= value` | Inférieur ou égal |
+| `SPACESHIP` | `<=> value` | Comparaison |
+| `LIKE` | `LIKE pattern` | Recherche insensible à la casse |
+| `NOT_LIKE` | `NOT LIKE pattern` | Exclusion insensible à la casse |
+| `EXISTS` | `IS NOT NULL` | La clé existe |
+| `NOT_EXISTS` | `IS NULL` | La clé n'existe pas |
 
 ---
 
 ## Cas d'utilisation
 
-### Cas 1 : Filtrage simple par égalité
-
-Rechercher les clusters ayant un statut spécifique.
+### Cas 1 : Condition simple
 
 ```php
-<?php
+$node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
 
-declare(strict_types=1);
-
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
-use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
-
-$activeNodes = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
-
-$collection = new ClusterVOCollection([
-    new ClusterVO(['status' => 'active', 'name' => 'Cluster A']),
-    new ClusterVO(['status' => 'inactive', 'name' => 'Cluster B']),
-    new ClusterVO(['status' => 'active', 'name' => 'Cluster C']),
-]);
-
-$filtered = $collection->filter(
-    fn (ClusterVO $cluster) => $activeNodes->evaluate($cluster)
-);
-// Résultat : 2 clusters (A et C)
-```
-
-### Cas 2 : Vérification d'existence de clé
-
-Trouver les clusters qui ont un champ optionnel défini.
-
-```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-
-// Clusters ayant une adresse email définie
-$hasEmail = new ConditionNode('email', ComparisonOperator::EXISTS);
-
-$collection->filter(fn ($cluster) => $hasEmail->evaluate($cluster));
-
-// Clusters n'ayant pas d'email
-$noEmail = new ConditionNode('email', ComparisonOperator::NOT_EXISTS);
-$collection->filter(fn ($cluster) => $noEmail->evaluate($cluster));
-```
-
-### Cas 3 : Recherche textuelle avec motifs LIKE
-
-Effectuer une recherche insensible à la casse sur les noms.
-
-```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-
-// Rechercher les noms commençant par 'john'
-$startsWithJohn = new ConditionNode('name', ComparisonOperator::LIKE, 'john%');
-
-// Rechercher les noms contenant 'doe'
-$containsDoe = new ConditionNode('name', ComparisonOperator::LIKE, '%doe%');
-
-// Rechercher les noms se terminant par 'son'
-$endsWithSon = new ConditionNode('name', ComparisonOperator::LIKE, '%son');
-
-$collection->filter(fn ($cluster) => $startsWithJohn->evaluate($cluster));
-```
-
-### Cas 4 : Comparaisons numériques
-
-Filtrer les clusters par âge ou score.
-
-```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-
-// Clusters avec âge >= 18
-$adults = new ConditionNode('age', ComparisonOperator::GREATER_THAN_OR_EQUAL, '18');
-
-// Clusters avec score > 80
-$highScore = new ConditionNode('score', ComparisonOperator::GREATER_THAN, '80');
-
-// Clusters avec score entre 60 et 90
-$between = new GroupNode(
-    LogicalOperator::AND,
-    new ConditionNode('score', ComparisonOperator::GREATER_THAN_OR_EQUAL, '60'),
-    new ConditionNode('score', ComparisonOperator::LESS_THAN_OR_EQUAL, '90')
-);
-```
-
-### Cas 5 : Conditions de valeur manquante
-
-Comportement spécifique pour les clés manquantes avec certaines valeurs.
-
-```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
-
-$nodeFalse = new ConditionNode('active', ComparisonOperator::EQUAL, 'false');
-$nodeNull = new ConditionNode('deleted_at', ComparisonOperator::EQUAL, 'null');
-
+// Évaluation
 $cluster = new ClusterVO(['status' => 'active']);
-// Les clés manquantes sont considérées comme 'false' ou 'null'
-$resultFalse = $nodeFalse->evaluate($cluster); // true
-$resultNull = $nodeNull->evaluate($cluster);   // true
+$result = $node->evaluate($cluster); // true
+
+// SQL
+$sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+// LOWER(json_extract(clusters, '$.status')) = LOWER('active')
+```
+
+### Cas 2 : Comparaison numérique
+
+```php
+$node = new ConditionNode('age', ComparisonOperator::GREATER_THAN, '18');
+
+$sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+// CAST(json_extract(clusters, '$.age') AS NUMERIC) > 18
+
+$sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
+// CAST(JSON_EXTRACT(clusters, '$."age"') AS DECIMAL(10,2)) > 18
+```
+
+### Cas 3 : LIKE pattern
+
+```php
+$node = new ConditionNode('name', ComparisonOperator::LIKE, 'John%');
+
+$sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+// LOWER(json_extract(clusters, '$.name')) LIKE LOWER('John%')
+```
+
+### Cas 4 : EXISTS / NOT_EXISTS
+
+```php
+// Existence d'une clé
+$node = new ConditionNode('email', ComparisonOperator::EXISTS);
+$sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+// json_extract(clusters, '$.email') IS NOT NULL
+
+// Absence d'une clé
+$node = new ConditionNode('email', ComparisonOperator::NOT_EXISTS);
+$sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+// json_extract(clusters, '$.email') IS NULL
+```
+
+### Cas 5 : Application Eloquent
+
+```php
+$query = User::query();
+
+// Condition simple
+$node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
+$node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+
+// Chaînage
+$node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
+$node2->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+
+$users = $query->get();
 ```
 
 ---
@@ -373,100 +264,26 @@ $resultNull = $nodeNull->evaluate($cluster);   // true
 
 | Situation | Exception | Message |
 |-----------|-----------|---------|
-| Opérateur non supporté en SQL | `InvalidArgumentException` | `Unsupported operator: {operator_name}` |
-| Clé JSON invalide | `InvalidArgumentException` | `Invalid JSON key: {key}` |
-| Opérateur non supporté en Eloquent | `InvalidArgumentException` | `Unsupported operator: {operator_name}` |
-
-**Note :** Les opérateurs `EQUAL_LOOSE`, `EQUAL_STRICT`, `NOT_EQUAL_STRICT`, et `SPACESHIP` sont supportés uniquement en PHP (évaluation directe) et peuvent ne pas être implémentés dans toutes les bases de données.
-
----
-
-## Intégration
-
-### Avec `ClusterQuery`
-```php
-<?php
-
-use AndyDefer\LaravelCluster\ClusterQuery;
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-
-$clusterQuery = new ClusterQuery();
-$ast = $clusterQuery->parse('status=active');
-// $ast est un ConditionNode
-
-$result = $clusterQuery->filter($collection, 'status=active');
-// Le parser génère un ConditionNode qui évalue la collection
-```
-
-### Avec `GroupNode`
-```php
-<?php
-
-use AndyDefer\LaravelCluster\Nodes\GroupNode;
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\LogicalOperator;
-
-// Groupe AND de deux conditions
-$group = new GroupNode(
-    LogicalOperator::AND,
-    new ConditionNode('status', ComparisonOperator::EQUAL, 'active'),
-    new ConditionNode('role', ComparisonOperator::EQUAL, 'admin')
-);
-```
-
-### Avec `SubConditionNode`
-```php
-<?php
-
-use AndyDefer\LaravelCluster\Nodes\SubConditionNode;
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-
-// Condition sur un sous-objet
-$sub = new SubConditionNode(
-    'addresses',
-    new ConditionNode('city', ComparisonOperator::EQUAL, 'kinshasa')
-);
-// Le ConditionNode est utilisé comme condition interne du SubConditionNode
-```
+| Clé invalide | `InvalidArgumentException` | `Invalid JSON key: {key}` |
+| Opérateur non supporté | `InvalidArgumentException` | `Unsupported operator: {operator}` |
 
 ---
 
 ## Performance
 
-| Opération | Complexité | Détails |
-|-----------|------------|---------|
-| `evaluate()` | **O(1)** | Accès direct au tableau associatif, comparaison simple |
-| `toSql()` | **O(1)** | Génération de string simple, pas de boucle |
-| `toEloquent()` | **O(1)** | Application d'un whereRaw, pas de boucle |
-| Mémoire | **O(1)** | Stocke uniquement clé, opérateur et valeur |
-
-**Optimisations :**
-- **Accès direct** : Utilise `array_key_exists()` pour un accès O(1)
-- **Court-circuit** : EXISTS/NOT_EXISTS sont évalués immédiatement
-- **Pas de cache** : Chaque appel `evaluate()` recalcule (les données peuvent changer)
-- **Comparaisons natives** : Utilise les opérateurs PHP pour la comparaison
-
-**Considérations :**
-- Les comparaisons de chaînes sont insensibles à la casse (utilisation de `strtolower` ou `LOWER()` en SQL)
-- Les opérateurs numériques (`<`, `>`, etc.) fonctionnent sur des chaînes converties en numérique
-- Le pattern LIKE est échappé pour les caractères spéciaux `%`, `_`, `\`
+- **Évaluation :** O(1) - Accès direct aux données aplaties
+- **SQL :** Génération à la volée, pas de cache
+- **Eloquent :** Ajout de conditions `whereRaw`, pas d'impact significatif
 
 ---
 
 ## Compatibilité
 
-| Version | Support |
-|---------|---------|
-| PHP 8.1+ | ✅ Complet (types, énumérations) |
-| PHP 8.0 | ✅ Complet |
-| PHP 7.4 | ❌ Non supporté (utilise PHP 8+ uniquement) |
-
-| Base de données | Support |
-|-----------------|---------|
-| MySQL 5.7+ | ✅ Complet (JSON_EXTRACT, LOWER) |
-| PostgreSQL 10+ | ✅ Complet (opérateur -> et ->>, LOWER) |
-| SQLite 3.10+ | ✅ Complet (json_extract, LOWER) |
+| Driver | JSON Extraction | LIKE | Numeric |
+|--------|-----------------|------|---------|
+| SQLite | `json_extract` | `LOWER(...) LIKE` | `CAST(... AS NUMERIC)` |
+| MySQL | `JSON_EXTRACT` | `LOWER(...) LIKE` | `CAST(... AS DECIMAL(10,2))` |
+| PostgreSQL | `->>` | `LOWER(...) LIKE` | `::numeric` |
 
 ---
 
@@ -478,76 +295,71 @@ $sub = new SubConditionNode(
 declare(strict_types=1);
 
 use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Nodes\GroupNode;
 use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-use AndyDefer\LaravelCluster\Enums\LogicalOperator;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
-use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
-use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
 
-// 1. Construction d'une condition composite
-// (status = 'active' AND (age >= 25 OR score > 80))
-$statusCondition = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
+// ==================== CRÉATION ====================
 
-$ageCondition = new ConditionNode('age', ComparisonOperator::GREATER_THAN_OR_EQUAL, '25');
-$scoreCondition = new ConditionNode('score', ComparisonOperator::GREATER_THAN, '80');
-$ageOrScore = new GroupNode(LogicalOperator::OR, $ageCondition, $scoreCondition);
+$statusNode = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
+$ageNode = new ConditionNode('age', ComparisonOperator::GREATER_THAN, '18');
+$nameNode = new ConditionNode('name', ComparisonOperator::LIKE, 'John%');
+$existsNode = new ConditionNode('email', ComparisonOperator::EXISTS);
+$notExistsNode = new ConditionNode('email', ComparisonOperator::NOT_EXISTS);
 
-$finalCondition = new GroupNode(LogicalOperator::AND, $statusCondition, $ageOrScore);
+// ==================== ÉVALUATION ====================
 
-// 2. Évaluation sur une collection
-$collection = new ClusterVOCollection([
-    new ClusterVO(['status' => 'active', 'age' => '30', 'score' => '75']), // true
-    new ClusterVO(['status' => 'active', 'age' => '22', 'score' => '85']), // true
-    new ClusterVO(['status' => 'inactive', 'age' => '30', 'score' => '90']), // false
-    new ClusterVO(['status' => 'active', 'age' => '20', 'score' => '70']), // false
+$cluster = new ClusterVO([
+    'status' => 'active',
+    'age' => 25,
+    'name' => 'John Doe',
+    'email' => 'john@example.com',
 ]);
 
-$filtered = $collection->filter(
-    fn (ClusterVO $cluster) => $finalCondition->evaluate($cluster)
-);
-// Résultat : 2 clusters
+var_dump($statusNode->evaluate($cluster)); // true
+var_dump($ageNode->evaluate($cluster)); // true
+var_dump($nameNode->evaluate($cluster)); // true
+var_dump($existsNode->evaluate($cluster)); // true
+var_dump($notExistsNode->evaluate($cluster)); // false
 
-// 3. Génération SQL (MySQL)
-$sql = $statusCondition->toSql('clusters', DatabaseDriver::MYSQL);
-// "LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active')"
+// ==================== GÉNÉRATION SQL ====================
 
-// 4. Génération SQL (SQLite)
-$sql = $statusCondition->toSql('clusters', DatabaseDriver::SQLITE);
-// "LOWER(json_extract(clusters, '$.status')) = LOWER('active')"
+$column = 'clusters';
 
-// 5. Génération SQL (PostgreSQL)
-$sql = $statusCondition->toSql('clusters', DatabaseDriver::PGSQL);
-// "LOWER(clusters->>'status') = LOWER('active')"
+echo "SQLite:\n";
+echo $statusNode->toSql($column, DatabaseDriver::SQLITE) . "\n";
+// LOWER(json_extract(clusters, '$.status')) = LOWER('active')
 
-// 6. Application à Eloquent
-$query = TestCluster::query();
-$statusCondition->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
-$results = $query->get();
-echo "Nombre de résultats : " . $results->count();
+echo $ageNode->toSql($column, DatabaseDriver::SQLITE) . "\n";
+// CAST(json_extract(clusters, '$.age') AS NUMERIC) > 18
 
-// 7. Cas d'usage : recherche LIKE insensible à la casse
-$likeNode = new ConditionNode('name', ComparisonOperator::LIKE, 'john%');
-$query = TestCluster::query();
-$likeNode->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
-$results = $query->get();
-// Tous les noms commençant par 'john' (insensible à la casse)
+echo "MySQL:\n";
+echo $statusNode->toSql($column, DatabaseDriver::MYSQL) . "\n";
+// LOWER(JSON_EXTRACT(clusters, '$."status"')) = LOWER('active')
 
-// 8. Cas d'usage : vérification d'existence
-$existsNode = new ConditionNode('email', ComparisonOperator::EXISTS);
-$query = TestCluster::query();
-$existsNode->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
-$results = $query->get();
-// Tous les clusters ayant un champ 'email'
+echo "PostgreSQL:\n";
+echo $statusNode->toSql($column, DatabaseDriver::PGSQL) . "\n";
+// LOWER(clusters->>'status') = LOWER('active')
+
+// ==================== APPLICATION ELOQUENT ====================
+
+$query = User::query();
+
+$statusNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+$ageNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+$nameNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+
+$users = $query->get();
+// Utilisateurs avec status='active', age>18, et nom commençant par 'John'
 ```
 
 ---
 
 ## Voir aussi
 
-- `GroupNode` - Groupe de conditions avec opérateurs logiques
-- `SubConditionNode` - Condition sur sous-objets (tableaux)
-- `ClusterQuery` - Service principal pour l'évaluation des requêtes
-- `ComparisonOperator` - Énumération des opérateurs de comparaison
-- `NodeInterface` - Interface commune à tous les nœuds de l'AST
+- `ComparisonOperator` - Énumération des opérateurs
+- `DatabaseDriver` - Énumération des drivers
+- `Node` - Classe parente
+- `GroupNode` - Groupe de conditions
+- `SubConditionNode` - Sous-condition
+- `FunctionNode` - Fonction SQL

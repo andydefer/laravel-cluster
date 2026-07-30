@@ -16,6 +16,15 @@ use AndyDefer\LaravelCluster\Tests\IntegrationTestCase;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Integration tests for FunctionNode.
+ *
+ * Tests cover:
+ * - In-memory evaluation of aggregate functions (COUNT, SUM, AVG, MIN, MAX, LENGTH)
+ * - SQL generation for different database drivers (SQLite, MySQL, PostgreSQL)
+ * - Eloquent query application with function conditions
+ * - Edge cases (empty arrays, null values, missing paths, unknown functions)
+ */
 final class FunctionNodeTest extends IntegrationTestCase
 {
     private SqlFunctionRegistry $registry;
@@ -28,7 +37,6 @@ final class FunctionNodeTest extends IntegrationTestCase
 
         TestCluster::truncate();
 
-        // Cluster 1: John avec 2 adresses et scores
         TestCluster::create([
             'clusters' => [
                 'name' => 'John Doe',
@@ -44,7 +52,6 @@ final class FunctionNodeTest extends IntegrationTestCase
             ],
         ]);
 
-        // Cluster 2: Jane avec 1 adresse et scores
         TestCluster::create([
             'clusters' => [
                 'name' => 'Jane Smith',
@@ -59,7 +66,6 @@ final class FunctionNodeTest extends IntegrationTestCase
             ],
         ]);
 
-        // Cluster 3: Bob avec 3 adresses et scores
         TestCluster::create([
             'clusters' => [
                 'name' => 'Bob Johnson',
@@ -76,7 +82,6 @@ final class FunctionNodeTest extends IntegrationTestCase
             ],
         ]);
 
-        // Cluster 4: Alice sans adresses et scores
         TestCluster::create([
             'clusters' => [
                 'name' => 'Alice Wonder',
@@ -451,7 +456,6 @@ final class FunctionNodeTest extends IntegrationTestCase
 
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        // Avec null, la condition devient IS NOT NULL
         $expected = "json_array_length(clusters, '$.addresses') IS NOT NULL";
         $this->assertEquals($expected, $sql);
     }
@@ -476,7 +480,6 @@ final class FunctionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        // Seul Bob a 3 adresses
         $this->assertCount(1, $results);
         $this->assertEquals('Bob Johnson', $results->first()->clusters['name']);
     }
@@ -501,7 +504,6 @@ final class FunctionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        // Bob a 1800, John a 600
         $this->assertCount(2, $results);
         $names = $results->pluck('clusters')->pluck('name')->toArray();
         $this->assertContains('John Doe', $names);
@@ -516,7 +518,6 @@ final class FunctionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        // John (85) et Bob (95)
         $this->assertCount(2, $results);
         $names = $results->pluck('clusters')->pluck('name')->toArray();
         $this->assertContains('John Doe', $names);
@@ -531,7 +532,6 @@ final class FunctionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        // Jane a min 70, Alice a min 60
         $this->assertCount(2, $results);
         $names = $results->pluck('clusters')->pluck('name')->toArray();
         $this->assertContains('Jane Smith', $names);
@@ -546,7 +546,6 @@ final class FunctionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        // Bob a max 98
         $this->assertCount(1, $results);
         $this->assertEquals('Bob Johnson', $results->first()->clusters['name']);
     }
@@ -559,7 +558,6 @@ final class FunctionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        // Tous les noms font plus de 5 caractères
         $this->assertCount(4, $results);
     }
 
@@ -571,7 +569,6 @@ final class FunctionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        // John a 2 adresses
         $this->assertCount(1, $results);
         $this->assertEquals('John Doe', $results->first()->clusters['name']);
     }
@@ -586,7 +583,6 @@ final class FunctionNodeTest extends IntegrationTestCase
         $countNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        // Bob seulement (active et 3 adresses)
         $this->assertCount(1, $results);
         $this->assertEquals('Bob Johnson', $results->first()->clusters['name']);
     }
@@ -602,7 +598,6 @@ final class FunctionNodeTest extends IntegrationTestCase
         $groupNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        // John et Bob (active et plus de 1 adresse)
         $this->assertCount(2, $results);
         $names = $results->pluck('clusters')->pluck('name')->toArray();
         $this->assertContains('John Doe', $names);
@@ -640,15 +635,20 @@ final class FunctionNodeTest extends IntegrationTestCase
             'addresses' => 'not_an_array',
         ]);
 
-        // ✅ COUNT sur une string retourne sa longueur
         $this->assertTrue($node->evaluate($cluster));
     }
 
+    /**
+     * Checks if the current database connection is PostgreSQL.
+     */
     private function isPostgres(): bool
     {
         return DB::connection()->getDriverName() === 'pgsql';
     }
 
+    /**
+     * Checks if the current database connection is MySQL.
+     */
     private function isMysql(): bool
     {
         return DB::connection()->getDriverName() === 'mysql';

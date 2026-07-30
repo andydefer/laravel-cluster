@@ -18,6 +18,26 @@ use AndyDefer\LaravelCluster\Records\TokenRecord;
 use AndyDefer\LaravelCluster\Registry\SqlFunctionRegistry;
 use RuntimeException;
 
+/**
+ * Parser for converting token streams into an Abstract Syntax Tree (AST).
+ *
+ * This class transforms tokens from the lexer into a tree of Node objects
+ * representing the query structure. It handles:
+ * - Logical operators (AND, OR)
+ * - Comparison operators (=, !=, >, <, >=, <=, LIKE, etc.)
+ * - Functions (COUNT, SUM, AVG, etc.)
+ * - Sub-conditions (addresses[city=Kinshasa])
+ * - Parentheses for grouping
+ * - Special operators (NOT, EXISTS (*), NOT_EXISTS (#))
+ *
+ * @example
+ * $parser = new Parser();
+ * $ast = $parser->parse('status=active & COUNT(addresses) > 2');
+ * // GroupNode containing ConditionNode and FunctionNode
+ * @example
+ * $ast = $parser->parse('addresses[city=Kinshasa]');
+ * // SubConditionNode with ConditionNode inside
+ */
 final class Parser implements ParserInterface
 {
     private TokenRecordCollection $tokens;
@@ -33,6 +53,14 @@ final class Parser implements ParserInterface
         $this->functionRegistry = app(SqlFunctionRegistry::class);
     }
 
+    /**
+     * Parses a query string into an Abstract Syntax Tree.
+     *
+     * @param  string  $query  The query string to parse
+     * @return Node The root node of the AST
+     *
+     * @throws RuntimeException When the query is invalid
+     */
     public function parse(string $query): Node
     {
         $cacheKey = md5($query);
@@ -51,12 +79,22 @@ final class Parser implements ParserInterface
         return $node;
     }
 
+    /**
+     * Initializes the parser state for a new parse.
+     *
+     * @param  string  $query  The query to parse
+     */
     private function initializeParserState(string $query): void
     {
         $this->tokens = (new Lexer)->tokenize($query);
         $this->position = 0;
     }
 
+    /**
+     * Ensures no unexpected tokens remain after parsing.
+     *
+     * @throws RuntimeException When unexpected tokens remain
+     */
     private function ensureNoRemainingTokens(): void
     {
         if ($this->position < $this->tokens->count() - 1) {
@@ -69,6 +107,12 @@ final class Parser implements ParserInterface
         }
     }
 
+    /**
+     * Retrieves a token at a specific position.
+     *
+     * @param  int  $position  The position to retrieve
+     * @return TokenRecord|null The token, or null if out of bounds
+     */
     private function getToken(int $position): ?TokenRecord
     {
         $tokens = $this->tokens->toArray();
@@ -76,6 +120,11 @@ final class Parser implements ParserInterface
         return $tokens[$position] ?? null;
     }
 
+    /**
+     * Parses an expression with logical operators.
+     *
+     * @return Node The parsed expression node
+     */
     private function parseExpression(): Node
     {
         $left = $this->parseTerm();
@@ -96,6 +145,14 @@ final class Parser implements ParserInterface
         return $left;
     }
 
+    /**
+     * Parses a single term (condition, function, or grouped expression).
+     *
+     *
+     * @return Node The parsed term node
+     *
+     * @throws RuntimeException When the term is invalid
+     */
     private function parseTerm(): Node
     {
         $token = $this->getToken($this->position);
@@ -104,14 +161,12 @@ final class Parser implements ParserInterface
             throw new RuntimeException('Unexpected end of expression');
         }
 
-        // Détection des fonctions SQL via le registre
         if ($token->type === TokenType::IDENTIFIER) {
             $functionName = strtoupper($token->value);
             if ($this->functionRegistry->has($functionName)) {
                 return $this->parseFunction($functionName);
             }
 
-            // Vérifier si c'est une fonction inconnue (suivi d'une parenthèse)
             $nextToken = $this->getToken($this->position + 1);
             if ($nextToken && $nextToken->type === TokenType::PAREN && $nextToken->value === '(') {
                 throw new RuntimeException(sprintf('Unknown function "%s"', $functionName));
@@ -132,29 +187,29 @@ final class Parser implements ParserInterface
     }
 
     /**
-     * Parse une fonction SQL (ex: COUNT(addresses) > 2)
-     * ou COUNT(addresses) sans opérateur → COUNT > 0
+     * Parses a SQL function expression.
+     *
+     * @param  string  $functionName  The name of the function
+     * @return FunctionNode The parsed function node
+     *
+     * @throws RuntimeException When the function syntax is invalid
      */
     private function parseFunction(string $functionName): Node
     {
         $functionName = strtoupper($functionName);
 
-        // Vérifier que la fonction existe dans le registre
         if (! $this->functionRegistry->has($functionName)) {
             throw new RuntimeException(sprintf('Unknown function "%s"', $functionName));
         }
 
-        // Consommer le nom de la fonction
         $this->advancePosition();
 
-        // Vérifier la parenthèse ouvrante
         $openParen = $this->getToken($this->position);
         if (! $openParen || $openParen->type !== TokenType::PAREN || $openParen->value !== '(') {
             throw new RuntimeException('Expected opening parenthesis after function name');
         }
         $this->advancePosition();
 
-        // Récupérer le chemin (l'argument)
         $pathToken = $this->getToken($this->position);
         if (! $pathToken || $pathToken->type !== TokenType::IDENTIFIER) {
             throw new RuntimeException('Expected path argument for function');
@@ -162,30 +217,25 @@ final class Parser implements ParserInterface
         $path = $pathToken->value;
         $this->advancePosition();
 
-        // Vérifier la parenthèse fermante
         $closeParen = $this->getToken($this->position);
         if (! $closeParen || $closeParen->type !== TokenType::PAREN || $closeParen->value !== ')') {
             throw new RuntimeException('Expected closing parenthesis');
         }
         $this->advancePosition();
 
-        // Avancer jusqu'au prochain token significatif (non-espace)
         $this->advanceToNextSignificantToken();
 
-        // Vérifier l'opérateur et la valeur
         $operator = null;
         $value = null;
 
         $nextToken = $this->getToken($this->position);
 
-        // Si on a un opérateur
         if ($nextToken && $nextToken->type === TokenType::OPERATOR) {
             $op = ComparisonOperator::fromValue($nextToken->value);
             if ($op !== null) {
                 $operator = $op;
                 $this->advancePosition();
 
-                // Avancer jusqu'au prochain token significatif (non-espace)
                 $this->advanceToNextSignificantToken();
 
                 $valueToken = $this->getToken($this->position);
@@ -196,7 +246,6 @@ final class Parser implements ParserInterface
             }
         }
 
-        // Si pas d'opérateur, on met COUNT > 0 par défaut
         if ($operator === null) {
             $operator = ComparisonOperator::GREATER_THAN;
             $value = '0';
@@ -206,7 +255,7 @@ final class Parser implements ParserInterface
     }
 
     /**
-     * Avance la position jusqu'au prochain token significatif (non-espace)
+     * Advances the position to the next significant (non-space) token.
      */
     private function advanceToNextSignificantToken(): void
     {
@@ -221,23 +270,25 @@ final class Parser implements ParserInterface
     }
 
     /**
-     * Parse une sous-condition seule (ex: addresses[] )
+     * Parses a standalone sub-condition (e.g., addresses[] or addresses[city=kinshasa]).
+     *
+     *
+     * @return SubConditionNode The parsed sub-condition node
+     *
+     * @throws RuntimeException When the sub-condition syntax is invalid
      */
     private function parseSubConditionAlone(): Node
     {
-        // Consommer le SUB_OPEN
         $this->advancePosition();
 
         $nextToken = $this->getToken($this->position);
 
-        // Si on a directement SUB_CLOSE, c'est une sous-condition vide
         if ($nextToken && $nextToken->type === TokenType::SUB_CLOSE) {
             $this->advancePosition();
 
             return new SubConditionNode('', new ConditionNode('__empty__', ComparisonOperator::EQUAL, 'true'));
         }
 
-        // Si c'est un wildcard * (ex: addresses[*])
         if ($nextToken && $nextToken->type === TokenType::IDENTIFIER && $nextToken->value === '*') {
             $this->advancePosition();
             $closeToken = $this->getToken($this->position);
@@ -248,7 +299,6 @@ final class Parser implements ParserInterface
             }
         }
 
-        // Sinon, c'est une sous-condition normale (ex: addresses[city=kinshasa])
         $condition = $this->parseExpression();
 
         $closeToken = $this->getToken($this->position);
@@ -265,6 +315,12 @@ final class Parser implements ParserInterface
         return new SubConditionNode('', $condition);
     }
 
+    /**
+     * Parses an identifier term (key or path).
+     *
+     * @param  string  $key  The identifier
+     * @return Node The parsed node
+     */
     private function parseIdentifierTerm(string $key): Node
     {
         $this->advancePosition();
@@ -309,6 +365,11 @@ final class Parser implements ParserInterface
         return $this->parseCondition($key);
     }
 
+    /**
+     * Determines if the current position is an index path (e.g., tags[0][0]).
+     *
+     * @return bool True if the current position is an index path
+     */
     private function isIndexPath(): bool
     {
         $tempPos = $this->position;
@@ -359,6 +420,12 @@ final class Parser implements ParserInterface
         return false;
     }
 
+    /**
+     * Consumes index brackets and builds a full path (e.g., tags[0][0]).
+     *
+     * @param  string  $baseKey  The base key
+     * @return string The full path with brackets
+     */
     private function consumeIndexBrackets(string $baseKey): string
     {
         $path = $baseKey;
@@ -394,6 +461,14 @@ final class Parser implements ParserInterface
         return $path;
     }
 
+    /**
+     * Parses a sub-condition with a parent key (e.g., addresses[city=kinshasa]).
+     *
+     * @param  string  $parentKey  The parent key
+     * @return SubConditionNode The parsed sub-condition node
+     *
+     * @throws RuntimeException When the sub-condition syntax is invalid
+     */
     private function parseSubCondition(string $parentKey): Node
     {
         $this->advancePosition();
@@ -432,6 +507,12 @@ final class Parser implements ParserInterface
         return new SubConditionNode($parentKey, $condition);
     }
 
+    /**
+     * Parses a condition (key + operator + value).
+     *
+     * @param  string  $key  The key of the condition
+     * @return ConditionNode The parsed condition node
+     */
     private function parseCondition(string $key): Node
     {
         $nextToken = $this->getToken($this->position);
@@ -461,6 +542,14 @@ final class Parser implements ParserInterface
         return $this->parseComparisonCondition($key, $operator);
     }
 
+    /**
+     * Parses a NOT condition (e.g., NOT status).
+     *
+     * @param  string  $key  The key of the condition
+     * @return ConditionNode The parsed condition node
+     *
+     * @throws RuntimeException When the NOT condition syntax is invalid
+     */
     private function parseNotCondition(string $key): Node
     {
         $this->advancePosition();
@@ -475,6 +564,15 @@ final class Parser implements ParserInterface
         return new ConditionNode($valueToken->value, ComparisonOperator::EQUAL, 'false');
     }
 
+    /**
+     * Parses a comparison condition (e.g., status=active).
+     *
+     * @param  string  $key  The key of the condition
+     * @param  string  $operator  The comparison operator
+     * @return ConditionNode The parsed condition node
+     *
+     * @throws RuntimeException When the comparison syntax is invalid
+     */
     private function parseComparisonCondition(string $key, string $operator): Node
     {
         $comparisonOperator = ComparisonOperator::fromValue($operator);
@@ -500,6 +598,14 @@ final class Parser implements ParserInterface
         return new ConditionNode($key, $comparisonOperator, $valueToken->value);
     }
 
+    /**
+     * Parses a NOT operator at the beginning of a term.
+     *
+     *
+     * @return ConditionNode The parsed condition node
+     *
+     * @throws RuntimeException When the NOT operator syntax is invalid
+     */
     private function parseNotOperator(): Node
     {
         $this->advancePosition();
@@ -514,6 +620,14 @@ final class Parser implements ParserInterface
         return new ConditionNode($nextToken->value, ComparisonOperator::EQUAL, 'false');
     }
 
+    /**
+     * Parses an EXISTS operator (*).
+     *
+     *
+     * @return ConditionNode The parsed condition node
+     *
+     * @throws RuntimeException When the EXISTS operator syntax is invalid
+     */
     private function parseExistsOperator(): Node
     {
         $this->advancePosition();
@@ -528,6 +642,14 @@ final class Parser implements ParserInterface
         return new ConditionNode($nextToken->value, ComparisonOperator::EXISTS);
     }
 
+    /**
+     * Parses a NOT_EXISTS operator (#).
+     *
+     *
+     * @return ConditionNode The parsed condition node
+     *
+     * @throws RuntimeException When the NOT_EXISTS operator syntax is invalid
+     */
     private function parseNotExistsOperator(): Node
     {
         $this->advancePosition();
@@ -542,6 +664,14 @@ final class Parser implements ParserInterface
         return new ConditionNode($nextToken->value, ComparisonOperator::NOT_EXISTS);
     }
 
+    /**
+     * Parses a grouped expression inside parentheses.
+     *
+     *
+     * @return Node The parsed grouped expression node
+     *
+     * @throws RuntimeException When the grouped expression syntax is invalid
+     */
     private function parseGroupedExpression(): Node
     {
         $this->advancePosition();
@@ -558,11 +688,20 @@ final class Parser implements ParserInterface
         return $node;
     }
 
+    /**
+     * Advances the current position by one.
+     */
     private function advancePosition(): void
     {
         $this->position++;
     }
 
+    /**
+     * Determines if a token is a logical operator (AND or OR).
+     *
+     * @param  TokenRecord|null  $token  The token to check
+     * @return bool True if the token is a logical operator
+     */
     private function isLogicalOperator(?TokenRecord $token): bool
     {
         return $token !== null
@@ -570,21 +709,45 @@ final class Parser implements ParserInterface
             && in_array($token->value, ['AND', 'OR'], true);
     }
 
+    /**
+     * Determines if a token is a NOT operator.
+     *
+     * @param  TokenRecord  $token  The token to check
+     * @return bool True if the token is a NOT operator
+     */
     private function isNotOperator(TokenRecord $token): bool
     {
         return $token->type === TokenType::OPERATOR && $token->value === 'NOT';
     }
 
+    /**
+     * Determines if a token is an EXISTS operator (*).
+     *
+     * @param  TokenRecord  $token  The token to check
+     * @return bool True if the token is an EXISTS operator
+     */
     private function isExistsOperator(TokenRecord $token): bool
     {
         return $token->type === TokenType::OPERATOR && $token->value === '*';
     }
 
+    /**
+     * Determines if a token is a NOT_EXISTS operator (#).
+     *
+     * @param  TokenRecord  $token  The token to check
+     * @return bool True if the token is a NOT_EXISTS operator
+     */
     private function isNotExistsOperator(TokenRecord $token): bool
     {
         return $token->type === TokenType::OPERATOR && $token->value === '#';
     }
 
+    /**
+     * Determines if a token is an opening parenthesis.
+     *
+     * @param  TokenRecord  $token  The token to check
+     * @return bool True if the token is an opening parenthesis
+     */
     private function isOpeningParenthesis(TokenRecord $token): bool
     {
         return $token->type === TokenType::PAREN && $token->value === '(';

@@ -20,6 +20,17 @@ use AndyDefer\LaravelCluster\Registry\AggregateFunctionRegistry;
 use AndyDefer\LaravelCluster\Tests\Fixtures\Functions\CustomFunction;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * Unit tests for AggregateExpressionParser.
+ *
+ * Tests cover:
+ * - Parsing simple aggregate expressions (COUNT, SUM, AVG, MIN, MAX, LENGTH)
+ * - Parsing boolean functions (EXISTS, HAS, ALL, IS_EMPTY)
+ * - Argument parsing (multiple arguments, variables, arrays, strings, booleans)
+ * - Splitting complex expressions with AND/OR operators
+ * - Nested function expressions
+ * - Edge cases (empty arguments, spaces, special characters, escaped quotes)
+ */
 final class AggregateExpressionParserTest extends TestCase
 {
     private AggregateExpressionParser $parser;
@@ -32,7 +43,6 @@ final class AggregateExpressionParserTest extends TestCase
 
         $this->registry = new AggregateFunctionRegistry;
 
-        // Enregistrer toutes les fonctions réelles
         $this->registry->register(new CountFunction);
         $this->registry->register(new SumFunction);
         $this->registry->register(new AvgFunction);
@@ -44,7 +54,6 @@ final class AggregateExpressionParserTest extends TestCase
         $this->registry->register(new AllFunction);
         $this->registry->register(new IsEmptyFunction);
 
-        // Enregistrer la fonction CUSTOM pour les tests (accepte plusieurs arguments)
         $this->registry->register(new CustomFunction);
 
         $this->parser = new AggregateExpressionParser($this->registry);
@@ -207,7 +216,6 @@ final class AggregateExpressionParserTest extends TestCase
 
     public function test_parse_args_empty(): void
     {
-        // CUSTOM accepte 0 argument
         $result = $this->parser->parse('{CUSTOM()}');
 
         $this->assertNotNull($result);
@@ -355,7 +363,7 @@ final class AggregateExpressionParserTest extends TestCase
         }
     }
 
-    // ==================== TESTS POUR LES FONCTIONS BOOLÉENNES ====================
+    // ==================== BOOLEAN FUNCTION TESTS ====================
 
     public function test_parse_boolean_function_with_operator_ignores_operator(): void
     {
@@ -379,7 +387,7 @@ final class AggregateExpressionParserTest extends TestCase
         $this->assertNull($result['value']);
     }
 
-    // ==================== TESTS POUR LES FONCTIONS IMBRIQUÉES ====================
+    // ==================== NESTED FUNCTION TESTS ====================
 
     public function test_parse_with_nested_function_in_expression(): void
     {
@@ -399,7 +407,6 @@ final class AggregateExpressionParserTest extends TestCase
 
     public function test_parse_with_multiple_nested_functions(): void
     {
-        // Utiliser CUSTOM qui accepte plusieurs arguments
         $result = $this->parser->parse('{CUSTOM({LENGTH(name) > 5}, {SUM(prices) > 100}) > 2}');
 
         $this->assertNotNull($result);
@@ -422,19 +429,16 @@ final class AggregateExpressionParserTest extends TestCase
 
     public function test_parse_with_deep_nested_functions(): void
     {
-        // Utiliser LENGTH au lieu de TRIM (TRIM n'existe pas)
         $result = $this->parser->parse('{COUNT({LENGTH({LENGTH(name)}) > 5}) > 2}');
 
         $this->assertNotNull($result);
         $this->assertEquals('COUNT', $result['functionName']);
 
-        // Niveau 1: LENGTH
         $this->assertIsArray($result['args'][0]);
         $this->assertEquals('LENGTH', $result['args'][0]['functionName']);
         $this->assertEquals(AggregateOperator::GREATER_THAN, $result['args'][0]['operator']);
         $this->assertEquals(5, $result['args'][0]['value']);
 
-        // Niveau 2: LENGTH (à l'intérieur de LENGTH)
         $this->assertIsArray($result['args'][0]['args'][0]);
         $this->assertEquals('LENGTH', $result['args'][0]['args'][0]['functionName']);
         $this->assertEquals(['name'], $result['args'][0]['args'][0]['args']);
@@ -481,15 +485,12 @@ final class AggregateExpressionParserTest extends TestCase
         $this->assertEquals(AggregateOperator::GREATER_THAN, $result['operator']);
         $this->assertEquals(2, $result['value']);
 
-        // L'argument est une expression combinée
         $this->assertIsArray($result['args'][0]);
         $this->assertEquals('complex_expression', $result['args'][0]['type']);
 
-        // Vérifier les parties
         $parts = $result['args'][0]['parts'];
         $this->assertCount(2, $parts);
 
-        // Première partie: LENGTH
         $this->assertEquals('{LENGTH(name) > 5}', $parts[0]['expression']);
         $this->assertEquals('&', $parts[0]['operator']);
         $this->assertIsArray($parts[0]['parsed']);
@@ -498,7 +499,6 @@ final class AggregateExpressionParserTest extends TestCase
         $this->assertEquals(AggregateOperator::GREATER_THAN, $parts[0]['parsed']['operator']);
         $this->assertEquals(5, $parts[0]['parsed']['value']);
 
-        // Deuxième partie: SUM
         $this->assertEquals('{SUM(prices) > 100}', $parts[1]['expression']);
         $this->assertEquals('&', $parts[1]['operator']);
         $this->assertIsArray($parts[1]['parsed']);

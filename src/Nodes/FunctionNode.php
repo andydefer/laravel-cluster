@@ -9,7 +9,21 @@ use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 use AndyDefer\LaravelCluster\Registry\SqlFunctionRegistry;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Builder;
+use InvalidArgumentException;
 
+/**
+ * Represents a SQL function node in the query AST.
+ *
+ * This node handles aggregate functions (COUNT, SUM, AVG, MIN, MAX) and
+ * JSON functions (JSON_LENGTH) applied to JSON data paths.
+ *
+ * @example
+ * $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
+ * $node->evaluate($cluster); // true if addresses count > 2
+ * @example
+ * $node = new FunctionNode('AVG', 'scores', ComparisonOperator::GREATER_THAN_OR_EQUAL, '85');
+ * $node->toSql('clusters', DatabaseDriver::MYSQL);
+ */
 final class FunctionNode extends Node
 {
     private string $functionName;
@@ -25,6 +39,12 @@ final class FunctionNode extends Node
         $this->functionName = strtoupper($functionName);
     }
 
+    /**
+     * Evaluates the function against a cluster data object.
+     *
+     * @param  ClusterVO  $cluster  The cluster data to evaluate against
+     * @return bool True if the function condition matches
+     */
     public function evaluate(ClusterVO $cluster): bool
     {
         $registry = app(SqlFunctionRegistry::class);
@@ -45,6 +65,15 @@ final class FunctionNode extends Node
         return $this->operator->evaluate($result, $this->value);
     }
 
+    /**
+     * Generates the SQL expression for this function.
+     *
+     * @param  string  $column  The database column containing JSON data
+     * @param  DatabaseDriver  $driver  The database driver to use
+     * @return string The SQL expression
+     *
+     * @throws InvalidArgumentException When the operator is unsupported
+     */
     public function toSql(string $column, DatabaseDriver $driver = DatabaseDriver::MYSQL): string
     {
         $registry = app(SqlFunctionRegistry::class);
@@ -87,10 +116,17 @@ final class FunctionNode extends Node
             ComparisonOperator::LESS_THAN_OR_EQUAL => sprintf('%s <= %s', $sqlExpression, $castedValue),
             ComparisonOperator::EXISTS => sprintf('%s IS NOT NULL', $sqlExpression),
             ComparisonOperator::NOT_EXISTS => sprintf('%s IS NULL', $sqlExpression),
-            default => throw new \InvalidArgumentException('Unsupported operator for SQL function'),
+            default => throw new InvalidArgumentException('Unsupported operator for SQL function'),
         };
     }
 
+    /**
+     * Applies this function to an Eloquent query builder.
+     *
+     * @param  Builder  $query  The Eloquent query builder
+     * @param  string  $column  The database column containing JSON data
+     * @param  DatabaseDriver  $driver  The database driver to use
+     */
     public function toEloquent(Builder $query, string $column, DatabaseDriver $driver): void
     {
         if ($this->isAggregateFunction()) {
@@ -104,18 +140,26 @@ final class FunctionNode extends Node
         $query->whereRaw($sql);
     }
 
+    /**
+     * Returns the children nodes (empty for leaf nodes).
+     *
+     * @return array<self> An empty array
+     */
     public function getChildren(): array
     {
         return [];
     }
 
+    /**
+     * Determines if the current function is an aggregate function.
+     */
     private function isAggregateFunction(): bool
     {
         return in_array($this->functionName, $this->aggregateFunctions, true);
     }
 
     /**
-     * ✅ Construire une sous-requête pour les fonctions d'agrégation
+     * Builds a SQL subquery for aggregate functions.
      */
     private function buildAggregateSql(string $column, DatabaseDriver $driver): string
     {
@@ -123,7 +167,6 @@ final class FunctionNode extends Node
         $returnType = $registry->getReturnType($this->functionName);
         $function = strtolower($this->functionName);
 
-        // ✅ Pour SQLite, sous-requête directe dans WHERE
         if ($driver === DatabaseDriver::SQLITE) {
             $castedValue = $this->castValue($this->value ?? '0', $returnType);
             $operatorMap = [
@@ -146,7 +189,6 @@ final class FunctionNode extends Node
             );
         }
 
-        // ✅ Pour MySQL/PostgreSQL
         $sqlExpression = $registry->toSql($this->functionName, $column, $this->path, $driver);
 
         if ($sqlExpression === null) {
@@ -169,6 +211,9 @@ final class FunctionNode extends Node
         };
     }
 
+    /**
+     * Builds a SQLite JSON_LENGTH expression.
+     */
     private function buildSqliteJsonLength(string $column): string
     {
         $castedValue = $this->castValue($this->value ?? '0', 'int');
@@ -193,6 +238,13 @@ final class FunctionNode extends Node
         };
     }
 
+    /**
+     * Extracts a value from the data array using a dot-notation path.
+     *
+     * @param  array<string, mixed>  $data  The source data
+     * @param  string  $path  The dot-notation path to extract
+     * @return mixed The extracted value, or null if not found
+     */
     private function extractValue(array $data, string $path): mixed
     {
         if (empty($path)) {
@@ -216,6 +268,13 @@ final class FunctionNode extends Node
         return $current;
     }
 
+    /**
+     * Casts a value to the appropriate SQL type.
+     *
+     * @param  string  $value  The value to cast
+     * @param  string|null  $returnType  The target type ('int', 'float', 'bool')
+     * @return string The casted value as a SQL string
+     */
     private function castValue(string $value, ?string $returnType): string
     {
         if ($returnType === null) {

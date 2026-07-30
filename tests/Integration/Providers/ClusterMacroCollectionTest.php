@@ -8,6 +8,15 @@ use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
 use AndyDefer\LaravelCluster\Tests\IntegrationTestCase;
 use Illuminate\Support\Collection;
 
+/**
+ * Integration tests for the Collection whereCluster macro.
+ *
+ * Tests cover:
+ * - Simple and complex conditions on collections
+ * - Aggregate functions (COUNT, SUM, AVG, MIN, MAX, HAS, EXISTS)
+ * - Chaining with other collection methods
+ * - Edge cases (empty collections, invalid queries, non-existent keys)
+ */
 final class ClusterMacroCollectionTest extends IntegrationTestCase
 {
     private string $column = 'clusters';
@@ -21,6 +30,9 @@ final class ClusterMacroCollectionTest extends IntegrationTestCase
         $this->createTestData();
     }
 
+    /**
+     * Creates test data with various cluster configurations.
+     */
     private function createTestData(): void
     {
         $data = [
@@ -93,7 +105,7 @@ final class ClusterMacroCollectionTest extends IntegrationTestCase
         }
     }
 
-    // ==================== TESTS SUR COLLECTION ====================
+    // ==================== COLLECTION TESTS ====================
 
     public function test_where_cluster_on_collection_simple_condition(): void
     {
@@ -201,7 +213,7 @@ final class ClusterMacroCollectionTest extends IntegrationTestCase
         $this->assertNotContains('Alice Wonder', $names);
     }
 
-    // ==================== TESTS AGRÉGATIONS SUR COLLECTION ====================
+    // ==================== AGGREGATION TESTS ON COLLECTION ====================
 
     public function test_where_cluster_on_collection_with_count_aggregation(): void
     {
@@ -227,7 +239,6 @@ final class ClusterMacroCollectionTest extends IntegrationTestCase
     {
         $users = TestCluster::all();
 
-        // ✅ SUM(scores) > 250 → John (255) et Bob (285) → 2
         $result = $users->whereCluster($this->column, '{SUM(scores) > 250}');
 
         $this->assertCount(2, $result);
@@ -293,14 +304,13 @@ final class ClusterMacroCollectionTest extends IntegrationTestCase
             'status=active & {COUNT(addresses) > 1} & {AVG(scores) >= 85}'
         );
 
-        // ✅ John et Bob → 2
         $this->assertCount(2, $result);
         $names = $result->pluck('name')->toArray();
         $this->assertContains('John Doe', $names);
         $this->assertContains('Bob Johnson', $names);
     }
 
-    // ==================== TESTS CHAÎNAGE ====================
+    // ==================== CHAINING TESTS ====================
 
     public function test_where_cluster_on_collection_chained_with_other_collection_methods(): void
     {
@@ -337,7 +347,6 @@ final class ClusterMacroCollectionTest extends IntegrationTestCase
 
         $result = $users->whereCluster($this->column, 'status=active');
 
-        // ✅ Les clés doivent être préservées (0 et 2)
         $this->assertCount(2, $result);
         $this->assertArrayHasKey(0, $result->toArray());
         $this->assertArrayHasKey(2, $result->toArray());
@@ -379,7 +388,6 @@ final class ClusterMacroCollectionTest extends IntegrationTestCase
     {
         $users = TestCluster::all();
 
-        // ✅ Une requête invalide retourne une collection vide (pas d'exception)
         $result = $users->whereCluster($this->column, 'invalid query');
 
         $this->assertInstanceOf(Collection::class, $result);

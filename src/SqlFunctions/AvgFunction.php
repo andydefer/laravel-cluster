@@ -4,10 +4,20 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelCluster\SqlFunctions;
 
-use AndyDefer\LaravelCluster\Contracts\SqlFunctionInterface;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 
-final class AvgFunction implements SqlFunctionInterface
+/**
+ * Calculates the average of numeric values in a JSON array.
+ *
+ * @example
+ * $avg = new AvgFunction();
+ * $avg->execute([10, 20, 30]); // 20.0
+ * @example
+ * // SQL generation for different drivers
+ * $avg->toSql('clusters', 'scores', DatabaseDriver::MYSQL);
+ * // AVG(CAST(JSON_EXTRACT(clusters, '$.scores') AS DECIMAL(10,2)))
+ */
+final class AvgFunction extends AbstractSqlFunction
 {
     public function getName(): string
     {
@@ -50,30 +60,5 @@ final class AvgFunction implements SqlFunctionInterface
         $count = count($numbers);
 
         return $count > 0 ? array_sum($numbers) / $count : 0.0;
-    }
-
-    private function extractNumbers(array $array): array
-    {
-        $numbers = [];
-
-        foreach ($array as $item) {
-            if (is_array($item)) {
-                $numbers = array_merge($numbers, $this->extractNumbers($item));
-            } elseif (is_numeric($item)) {
-                $numbers[] = (float) $item;
-            }
-        }
-
-        return $numbers;
-    }
-
-    public function validateArgs(array $args): bool
-    {
-        return count($args) === 1;
-    }
-
-    public function getDefaultValue(): mixed
-    {
-        return 0.0;
     }
 }

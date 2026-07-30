@@ -18,6 +18,26 @@ use AndyDefer\LaravelCluster\Parser\AggregateExpressionParser;
 use AndyDefer\LaravelCluster\Registry\AggregateFunctionRegistry;
 use InvalidArgumentException;
 
+/**
+ * Service for evaluating aggregate function expressions against data arrays.
+ *
+ * This service parses and evaluates complex expressions containing aggregate
+ * functions like COUNT, SUM, AVG, etc. It supports logical operators (&, |)
+ * and can handle both boolean and numeric functions.
+ *
+ * @example
+ * $service = new AggregateEvaluatorService();
+ * $data = ['addresses' => ['a', 'b', 'c'], 'status' => 'active'];
+ *
+ * // Simple function
+ * $service->evaluate($data, 'COUNT(addresses) > 2'); // true
+ *
+ * // Complex expression
+ * $service->evaluate($data, 'COUNT(addresses) > 1 & status=active'); // true
+ *
+ * // Direct execution
+ * $service->evaluateDirect($data, 'COUNT', ['addresses']); // 3
+ */
 final class AggregateEvaluatorService
 {
     private AggregateFunctionRegistry $registry;
@@ -32,35 +52,42 @@ final class AggregateEvaluatorService
         $this->parser = new AggregateExpressionParser($this->registry);
     }
 
+    /**
+     * Evaluates an expression against the provided data.
+     *
+     * @param  array<string, mixed>  $data  The data to evaluate against
+     * @param  string  $expression  The expression to evaluate
+     * @return bool True if the expression evaluates to true
+     */
     public function evaluate(array $data, string $expression): bool
     {
-
         $expression = trim($expression);
 
         if ($expression === '') {
-
             return true;
         }
 
-        $result = $this->evaluateComplex($data, $expression);
-
-        return $result;
+        return $this->evaluateComplex($data, $expression);
     }
 
+    /**
+     * Evaluates a complex expression with logical operators.
+     *
+     * @param  array<string, mixed>  $data  The data to evaluate against
+     * @param  string  $expression  The expression to evaluate
+     * @return bool True if the expression evaluates to true
+     */
     private function evaluateComplex(array $data, string $expression): bool
     {
-
         $parts = $this->parser->split($expression);
 
         if (count($parts) === 1) {
-
             return $this->evaluateSingle($data, $parts[0]['expression']);
         }
 
         $result = null;
 
-        foreach ($parts as $index => $part) {
-
+        foreach ($parts as $part) {
             $value = $this->evaluateSingle($data, $part['expression']);
 
             if ($result === null) {
@@ -76,19 +103,23 @@ final class AggregateEvaluatorService
                 '|' => $result || $value,
                 default => $result && $value,
             };
-
         }
 
         return $result ?? false;
     }
 
+    /**
+     * Evaluates a single function expression.
+     *
+     * @param  array<string, mixed>  $data  The data to evaluate against
+     * @param  string  $expression  The expression to evaluate
+     * @return bool True if the expression evaluates to true
+     */
     private function evaluateSingle(array $data, string $expression): bool
     {
-
         $parsed = $this->parser->parse($expression);
 
         if ($parsed === null) {
-
             return false;
         }
 
@@ -99,32 +130,31 @@ final class AggregateEvaluatorService
 
         $result = $this->registry->execute($functionName, $data, $args);
 
-        // ✅ DEBUG : Afficher le type et la valeur du résultat
-
         $function = $this->registry->get($functionName);
 
         if ($function && $function->returnsBoolean()) {
-            $boolResult = (bool) $result;
-
-            return $boolResult;
+            return (bool) $result;
         }
 
         if ($operator === null) {
-            $boolResult = (bool) $result;
-
-            return $boolResult;
+            return (bool) $result;
         }
 
-        // ✅ DEBUG : Afficher la comparaison
-
-        $operatorResult = $operator->evaluate($result, $value);
-
-        return $operatorResult;
+        return $operator->evaluate($result, $value);
     }
 
+    /**
+     * Executes a function directly without expression parsing.
+     *
+     * @param  array<string, mixed>  $data  The data to evaluate against
+     * @param  string  $functionName  The name of the function to execute
+     * @param  array<int, string>  $args  The function arguments
+     * @return mixed The result of the function execution
+     *
+     * @throws InvalidArgumentException When the function is not registered
+     */
     public function evaluateDirect(array $data, string $functionName, array $args = []): mixed
     {
-
         $functionName = strtoupper($functionName);
 
         if (! $this->registry->has($functionName)) {
@@ -133,11 +163,15 @@ final class AggregateEvaluatorService
             );
         }
 
-        $result = $this->registry->execute($functionName, $data, $args);
-
-        return $result;
+        return $this->registry->execute($functionName, $data, $args);
     }
 
+    /**
+     * Validates an expression syntax.
+     *
+     * @param  string  $expression  The expression to validate
+     * @return bool True if the expression is syntactically valid
+     */
     public function validate(string $expression): bool
     {
         try {
@@ -157,16 +191,25 @@ final class AggregateEvaluatorService
         }
     }
 
+    /**
+     * Returns the function registry.
+     */
     public function getRegistry(): AggregateFunctionRegistry
     {
         return $this->registry;
     }
 
+    /**
+     * Returns the expression parser.
+     */
     public function getParser(): AggregateExpressionParser
     {
         return $this->parser;
     }
 
+    /**
+     * Creates the default registry with all standard functions.
+     */
     private function createDefaultRegistry(): AggregateFunctionRegistry
     {
         $registry = new AggregateFunctionRegistry;

@@ -4,10 +4,20 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelCluster\SqlFunctions;
 
-use AndyDefer\LaravelCluster\Contracts\SqlFunctionInterface;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 
-final class MaxFunction implements SqlFunctionInterface
+/**
+ * Finds the maximum numeric value in a JSON array.
+ *
+ * @example
+ * $max = new MaxFunction();
+ * $max->execute([10, 30, 20]); // 30.0
+ * @example
+ * // SQL generation for different drivers
+ * $max->toSql('clusters', 'scores', DatabaseDriver::SQLITE);
+ * // MAX(CAST(json_extract(clusters, '$.scores') AS NUMERIC))
+ */
+final class MaxFunction extends AbstractSqlFunction
 {
     public function getName(): string
     {
@@ -49,30 +59,5 @@ final class MaxFunction implements SqlFunctionInterface
         $numbers = $this->extractNumbers($value);
 
         return ! empty($numbers) ? max($numbers) : 0;
-    }
-
-    private function extractNumbers(array $array): array
-    {
-        $numbers = [];
-
-        foreach ($array as $item) {
-            if (is_array($item)) {
-                $numbers = array_merge($numbers, $this->extractNumbers($item));
-            } elseif (is_numeric($item)) {
-                $numbers[] = (float) $item;
-            }
-        }
-
-        return $numbers;
-    }
-
-    public function validateArgs(array $args): bool
-    {
-        return count($args) === 1;
-    }
-
-    public function getDefaultValue(): mixed
-    {
-        return 0;
     }
 }

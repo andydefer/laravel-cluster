@@ -4,10 +4,21 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelCluster\SqlFunctions;
 
-use AndyDefer\LaravelCluster\Contracts\SqlFunctionInterface;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 
-final class LengthFunction implements SqlFunctionInterface
+/**
+ * Calculates the length of a string or the number of elements in an array.
+ *
+ * @example
+ * $length = new LengthFunction();
+ * $length->execute('hello'); // 5
+ * $length->execute(['a', 'b', 'c']); // 3
+ * @example
+ * // SQL generation for different drivers
+ * $length->toSql('clusters', 'name', DatabaseDriver::PGSQL);
+ * // LENGTH(clusters->>'name')
+ */
+final class LengthFunction extends AbstractSqlFunction
 {
     public function getName(): string
     {
@@ -50,16 +61,6 @@ final class LengthFunction implements SqlFunctionInterface
             return count($value);
         }
 
-        return 0;
-    }
-
-    public function validateArgs(array $args): bool
-    {
-        return count($args) === 1;
-    }
-
-    public function getDefaultValue(): mixed
-    {
         return 0;
     }
 }

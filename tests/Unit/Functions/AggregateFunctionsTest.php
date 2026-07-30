@@ -1,0 +1,659 @@
+<?php
+
+declare(strict_types=1);
+
+namespace AndyDefer\LaravelCluster\Tests\Unit\Functions;
+
+use AndyDefer\LaravelCluster\Functions\AllFunction;
+use AndyDefer\LaravelCluster\Functions\AvgFunction;
+use AndyDefer\LaravelCluster\Functions\CountFunction;
+use AndyDefer\LaravelCluster\Functions\ExistsFunction;
+use AndyDefer\LaravelCluster\Functions\HasFunction;
+use AndyDefer\LaravelCluster\Functions\IsEmptyFunction;
+use AndyDefer\LaravelCluster\Functions\LengthFunction;
+use AndyDefer\LaravelCluster\Functions\MaxFunction;
+use AndyDefer\LaravelCluster\Functions\MinFunction;
+use AndyDefer\LaravelCluster\Functions\SumFunction;
+use PHPUnit\Framework\TestCase;
+
+final class AggregateFunctionsTest extends TestCase
+{
+    // ==================== COUNT FUNCTION TESTS ====================
+
+    public function test_count_function_with_array(): void
+    {
+        $function = new CountFunction;
+
+        $data = ['items' => ['a', 'b', 'c']];
+
+        // Act
+        $result = $function->execute($data, ['items']);
+
+        // Assert
+        $this->assertSame(3, $result);
+    }
+
+    public function test_count_function_with_string(): void
+    {
+        $function = new CountFunction;
+
+        $data = ['name' => 'John Doe'];
+
+        $result = $function->execute($data, ['name']);
+
+        $this->assertSame(8, $result);
+    }
+
+    public function test_count_function_with_empty_array(): void
+    {
+        $function = new CountFunction;
+
+        $data = ['items' => []];
+
+        $result = $function->execute($data, ['items']);
+
+        $this->assertSame(0, $result);
+    }
+
+    public function test_count_function_with_null_value(): void
+    {
+        $function = new CountFunction;
+
+        $data = ['items' => null];
+
+        $result = $function->execute($data, ['items']);
+
+        $this->assertSame(0, $result);
+    }
+
+    public function test_count_function_with_nested_path(): void
+    {
+        $function = new CountFunction;
+
+        $data = ['user' => ['addresses' => ['a', 'b', 'c', 'd']]];
+
+        $result = $function->execute($data, ['user.addresses']);
+
+        $this->assertSame(4, $result);
+    }
+
+    // ==================== SUM FUNCTION TESTS ====================
+
+    public function test_sum_function_with_integers(): void
+    {
+        $function = new SumFunction;
+
+        $data = ['prices' => [100, 200, 300]];
+
+        $result = $function->execute($data, ['prices']);
+
+        $this->assertSame(600.0, $result);
+    }
+
+    public function test_sum_function_with_floats(): void
+    {
+        $function = new SumFunction;
+
+        $data = ['values' => [1.5, 2.5, 3.0]];
+
+        $result = $function->execute($data, ['values']);
+
+        $this->assertSame(7.0, $result);
+    }
+
+    public function test_sum_function_with_mixed_numeric_and_non_numeric(): void
+    {
+        $function = new SumFunction;
+
+        $data = ['items' => [10, '20', 30, 'not a number', 40]];
+
+        $result = $function->execute($data, ['items']);
+
+        $this->assertSame(100.0, $result);
+    }
+
+    public function test_sum_function_with_empty_array(): void
+    {
+        $function = new SumFunction;
+
+        $data = ['prices' => []];
+
+        $result = $function->execute($data, ['prices']);
+
+        $this->assertSame(0.0, $result);
+    }
+
+    public function test_sum_function_with_nested_array(): void
+    {
+        $function = new SumFunction;
+
+        $data = ['orders' => [['total' => 100], ['total' => 200], ['total' => 300]]];
+
+        $result = $function->execute($data, ['orders']);
+
+        $this->assertSame(600.0, $result);
+    }
+
+    // ==================== AVG FUNCTION TESTS ====================
+
+    public function test_avg_function_with_integers(): void
+    {
+        $function = new AvgFunction;
+
+        $data = ['scores' => [80, 90, 100]];
+
+        $result = $function->execute($data, ['scores']);
+
+        $this->assertSame(90.0, $result);
+    }
+
+    public function test_avg_function_with_floats(): void
+    {
+        $function = new AvgFunction;
+
+        $data = ['values' => [1.5, 2.5, 3.0]];
+
+        $result = $function->execute($data, ['values']);
+
+        $this->assertSame(2.3333333333333335, $result);
+    }
+
+    public function test_avg_function_with_mixed_numeric_and_non_numeric(): void
+    {
+        $function = new AvgFunction;
+
+        $data = ['items' => [10, '20', 30, 'not a number', 40]];
+
+        $result = $function->execute($data, ['items']);
+
+        $this->assertSame(25.0, $result);
+    }
+
+    public function test_avg_function_with_empty_array(): void
+    {
+        $function = new AvgFunction;
+
+        $data = ['scores' => []];
+
+        $result = $function->execute($data, ['scores']);
+
+        $this->assertSame(0.0, $result);
+    }
+
+    public function test_avg_function_with_single_item(): void
+    {
+        $function = new AvgFunction;
+
+        $data = ['scores' => [85]];
+
+        $result = $function->execute($data, ['scores']);
+
+        $this->assertSame(85.0, $result);
+    }
+
+    // ==================== MIN FUNCTION TESTS ====================
+
+    public function test_min_function_with_integers(): void
+    {
+        $function = new MinFunction;
+
+        $data = ['scores' => [80, 90, 70, 95]];
+
+        $result = $function->execute($data, ['scores']);
+
+        $this->assertEquals(70, $result);
+    }
+
+    public function test_min_function_with_floats(): void
+    {
+        $function = new MinFunction;
+
+        $data = ['values' => [1.5, 2.5, 0.5, 3.0]];
+
+        $result = $function->execute($data, ['values']);
+
+        $this->assertSame(0.5, $result);
+    }
+
+    public function test_min_function_with_mixed_numeric_and_non_numeric(): void
+    {
+        $function = new MinFunction;
+
+        $data = ['items' => [10, '20', 30, 'not a number', 5]];
+
+        $result = $function->execute($data, ['items']);
+
+        $this->assertSame(5.0, $result);
+    }
+
+    public function test_min_function_with_empty_array(): void
+    {
+        $function = new MinFunction;
+
+        $data = ['scores' => []];
+
+        $result = $function->execute($data, ['scores']);
+
+        $this->assertSame(0, $result);
+    }
+
+    // ==================== MAX FUNCTION TESTS ====================
+
+    public function test_max_function_with_integers(): void
+    {
+        $function = new MaxFunction;
+
+        $data = ['scores' => [80, 90, 70, 95]];
+
+        $result = $function->execute($data, ['scores']);
+
+        $this->assertEquals(95, $result);
+    }
+
+    public function test_max_function_with_floats(): void
+    {
+        $function = new MaxFunction;
+
+        $data = ['values' => [1.5, 2.5, 0.5, 3.0]];
+
+        $result = $function->execute($data, ['values']);
+
+        $this->assertSame(3.0, $result);
+    }
+
+    public function test_max_function_with_mixed_numeric_and_non_numeric(): void
+    {
+        $function = new MaxFunction;
+
+        $data = ['items' => [10, '20', 30, 'not a number', 5]];
+
+        $result = $function->execute($data, ['items']);
+
+        $this->assertSame(30.0, $result);
+    }
+
+    public function test_max_function_with_empty_array(): void
+    {
+        $function = new MaxFunction;
+
+        $data = ['scores' => []];
+
+        $result = $function->execute($data, ['scores']);
+
+        $this->assertSame(0, $result);
+    }
+
+    // ==================== LENGTH FUNCTION TESTS ====================
+
+    public function test_length_function_with_string(): void
+    {
+        $function = new LengthFunction;
+
+        $data = ['name' => 'John Doe'];
+
+        $result = $function->execute($data, ['name']);
+
+        $this->assertSame(8, $result);
+    }
+
+    public function test_length_function_with_array(): void
+    {
+        $function = new LengthFunction;
+
+        $data = ['tags' => ['php', 'js', 'css']];
+
+        $result = $function->execute($data, ['tags']);
+
+        $this->assertSame(3, $result);
+    }
+
+    public function test_length_function_with_empty_string(): void
+    {
+        $function = new LengthFunction;
+
+        $data = ['name' => ''];
+
+        $result = $function->execute($data, ['name']);
+
+        $this->assertSame(0, $result);
+    }
+
+    public function test_length_function_with_empty_array(): void
+    {
+        $function = new LengthFunction;
+
+        $data = ['tags' => []];
+
+        $result = $function->execute($data, ['tags']);
+
+        $this->assertSame(0, $result);
+    }
+
+    public function test_length_function_with_null_value(): void
+    {
+        $function = new LengthFunction;
+
+        $data = ['name' => null];
+
+        $result = $function->execute($data, ['name']);
+
+        $this->assertSame(0, $result);
+    }
+
+    // ==================== EXISTS FUNCTION TESTS ====================
+
+    public function test_exists_function_with_existing_value(): void
+    {
+        $function = new ExistsFunction;
+
+        $data = ['user' => ['name' => 'John']];
+
+        $result = $function->execute($data, ['user.name']);
+
+        $this->assertTrue($result);
+    }
+
+    public function test_exists_function_with_existing_empty_string(): void
+    {
+        $function = new ExistsFunction;
+
+        $data = ['user' => ['name' => '']];
+
+        $result = $function->execute($data, ['user.name']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_exists_function_with_existing_null(): void
+    {
+        $function = new ExistsFunction;
+
+        $data = ['user' => ['name' => null]];
+
+        $result = $function->execute($data, ['user.name']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_exists_function_with_path_not_existing(): void
+    {
+        $function = new ExistsFunction;
+
+        $data = ['user' => ['name' => 'John']];
+
+        $result = $function->execute($data, ['user.email']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_exists_function_with_nested_path(): void
+    {
+        $function = new ExistsFunction;
+
+        $data = ['user' => ['profile' => ['active' => 'true']]];
+
+        $result = $function->execute($data, ['user.profile.active']);
+
+        $this->assertTrue($result);
+    }
+
+    // ==================== HAS FUNCTION TESTS ====================
+
+    public function test_has_function_with_two_arguments_found(): void
+    {
+        $function = new HasFunction;
+
+        $data = ['tags' => ['php', 'js', 'css']];
+
+        $result = $function->execute($data, ['tags', 'php']);
+
+        $this->assertTrue($result);
+    }
+
+    public function test_has_function_with_two_arguments_not_found(): void
+    {
+        $function = new HasFunction;
+
+        $data = ['tags' => ['php', 'js', 'css']];
+
+        $result = $function->execute($data, ['tags', 'python']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_has_function_with_three_arguments_found(): void
+    {
+        $function = new HasFunction;
+
+        $data = ['addresses' => [['city' => 'Kinshasa'], ['city' => 'Paris']]];
+
+        $result = $function->execute($data, ['addresses', 'city', 'Kinshasa']);
+
+        $this->assertTrue($result);
+    }
+
+    public function test_has_function_with_three_arguments_not_found(): void
+    {
+        $function = new HasFunction;
+
+        $data = ['addresses' => [['city' => 'Kinshasa'], ['city' => 'Paris']]];
+
+        $result = $function->execute($data, ['addresses', 'city', 'London']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_has_function_with_empty_array(): void
+    {
+        $function = new HasFunction;
+
+        $data = ['tags' => []];
+
+        $result = $function->execute($data, ['tags', 'php']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_has_function_with_nested_path(): void
+    {
+        $function = new HasFunction;
+
+        $data = ['settings' => ['notifications' => [['type' => 'email'], ['type' => 'sms']]]];
+
+        $result = $function->execute($data, ['settings.notifications', 'type', 'email']);
+
+        $this->assertTrue($result);
+    }
+
+    // ==================== ALL FUNCTION TESTS ====================
+
+    public function test_all_function_all_items_match(): void
+    {
+        $function = new AllFunction;
+
+        $data = ['items' => [['status' => 'active'], ['status' => 'active']]];
+
+        $result = $function->execute($data, ['items', 'status', 'active']);
+
+        $this->assertTrue($result);
+    }
+
+    public function test_all_function_not_all_items_match(): void
+    {
+        $function = new AllFunction;
+
+        $data = ['items' => [['status' => 'active'], ['status' => 'inactive']]];
+
+        $result = $function->execute($data, ['items', 'status', 'active']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_all_function_with_empty_array(): void
+    {
+        $function = new AllFunction;
+
+        $data = ['items' => []];
+
+        $result = $function->execute($data, ['items', 'status', 'active']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_all_function_with_non_array(): void
+    {
+        $function = new AllFunction;
+
+        $data = ['items' => 'not an array'];
+
+        $result = $function->execute($data, ['items', 'status', 'active']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_all_function_with_missing_key_in_item(): void
+    {
+        $function = new AllFunction;
+
+        $data = ['items' => [['status' => 'active'], ['name' => 'John']]];
+
+        $result = $function->execute($data, ['items', 'status', 'active']);
+
+        $this->assertFalse($result);
+    }
+
+    // ==================== IS_EMPTY FUNCTION TESTS ====================
+
+    public function test_is_empty_function_with_empty_array(): void
+    {
+        $function = new IsEmptyFunction;
+
+        $data = ['tags' => []];
+
+        $result = $function->execute($data, ['tags']);
+
+        $this->assertTrue($result);
+    }
+
+    public function test_is_empty_function_with_non_empty_array(): void
+    {
+        $function = new IsEmptyFunction;
+
+        $data = ['tags' => ['php', 'js']];
+
+        $result = $function->execute($data, ['tags']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_is_empty_function_with_empty_string(): void
+    {
+        $function = new IsEmptyFunction;
+
+        $data = ['name' => ''];
+
+        $result = $function->execute($data, ['name']);
+
+        $this->assertTrue($result);
+    }
+
+    public function test_is_empty_function_with_non_empty_string(): void
+    {
+        $function = new IsEmptyFunction;
+
+        $data = ['name' => 'John'];
+
+        $result = $function->execute($data, ['name']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_is_empty_function_with_null_value(): void
+    {
+        $function = new IsEmptyFunction;
+
+        $data = ['name' => null];
+
+        $result = $function->execute($data, ['name']);
+
+        $this->assertTrue($result);
+    }
+
+    public function test_is_empty_function_with_zero_value(): void
+    {
+        $function = new IsEmptyFunction;
+
+        $data = ['score' => 0];
+
+        $result = $function->execute($data, ['score']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_is_empty_function_with_false_value(): void
+    {
+        $function = new IsEmptyFunction;
+
+        $data = ['active' => false];
+
+        $result = $function->execute($data, ['active']);
+
+        $this->assertFalse($result);
+    }
+
+    // ==================== VALIDATION TESTS ====================
+
+    public function test_count_function_validate_args(): void
+    {
+        $function = new CountFunction;
+
+        $this->assertTrue($function->validateArgs(['path']));
+        $this->assertFalse($function->validateArgs(['path', 'extra']));
+        $this->assertFalse($function->validateArgs([]));
+    }
+
+    public function test_has_function_validate_args(): void
+    {
+        $function = new HasFunction;
+
+        $this->assertTrue($function->validateArgs(['path', 'key']));
+        $this->assertTrue($function->validateArgs(['path', 'key', 'value']));
+        $this->assertFalse($function->validateArgs(['path']));
+        $this->assertFalse($function->validateArgs([]));
+    }
+
+    public function test_all_function_validate_args(): void
+    {
+        $function = new AllFunction;
+
+        $this->assertTrue($function->validateArgs(['path', 'key', 'value']));
+        $this->assertFalse($function->validateArgs(['path', 'key']));
+        $this->assertFalse($function->validateArgs([]));
+    }
+
+    // ==================== ABSTRACT FUNCTION TESTS ====================
+
+    public function test_function_returns_correct_metadata(): void
+    {
+        $functions = [
+            new CountFunction,
+            new SumFunction,
+            new AvgFunction,
+            new MinFunction,
+            new MaxFunction,
+            new LengthFunction,
+            new ExistsFunction,
+            new HasFunction,
+            new AllFunction,
+            new IsEmptyFunction,
+        ];
+
+        foreach ($functions as $function) {
+            $this->assertIsString($function->getName());
+            $this->assertIsString($function->getReturnType());
+            $this->assertIsBool($function->returnsBoolean());
+            $this->assertIsInt($function->getMinArgs());
+            $this->assertIsInt($function->getMaxArgs());
+        }
+    }
+}

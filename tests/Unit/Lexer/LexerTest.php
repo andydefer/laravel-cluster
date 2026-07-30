@@ -9,6 +9,22 @@ use AndyDefer\LaravelCluster\Enums\TokenType;
 use AndyDefer\LaravelCluster\Lexer;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * Unit tests for the Lexer class.
+ *
+ * Tests cover:
+ * - Simple equality operators (=, !=, ===, !==)
+ * - Comparison operators (>, <, >=, <=, <=>)
+ * - Logical operators (AND, OR, NOT)
+ * - Parentheses handling
+ * - Identifiers with special characters (underscore, hyphen, numbers)
+ * - Whitespace handling
+ * - Complex expressions
+ * - EXISTS (*) and NOT_EXISTS (#) operators
+ * - LIKE (=~) and NOT_LIKE (!~) operators
+ * - Sub-brackets (addresses[city=kinshasa])
+ * - Edge cases and error handling
+ */
 final class LexerTest extends TestCase
 {
     private Lexer $lexer;
@@ -284,10 +300,6 @@ final class LexerTest extends TestCase
     {
         $tokens = $this->lexer->tokenize('(status=active & !lang_fr) | (role=admin & age>=25)');
 
-        // Comptons : 2 parenthèses ouvertes + 2 fermées + identifiants + opérateurs
-        // (status=active & !lang_fr) | (role=admin & age>=25)
-        // Tokens: (, status, =, active, AND, !, lang_fr, ), OR, (, role, =, admin, AND, age, >=, 25, ), END
-        // Total: 19 tokens
         $this->assertCount(19, $tokens);
 
         $operators = [];
@@ -434,7 +446,6 @@ final class LexerTest extends TestCase
     {
         $tokens = $this->lexer->tokenize('!lang_fr & !lang_en');
 
-        // Tokens: NOT, lang_fr, AND, NOT, lang_en, END
         $this->assertEquals('NOT', $tokens->toArray()[0]->value);
         $this->assertEquals('AND', $tokens->toArray()[2]->value);
         $this->assertEquals('NOT', $tokens->toArray()[3]->value);

@@ -17,6 +17,18 @@ use AndyDefer\LaravelCluster\Tests\IntegrationTestCase;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
+/**
+ * Integration tests for the ClusterQuery service.
+ *
+ * Tests cover:
+ * - Parsing queries into AST
+ * - Filtering collections in memory
+ * - Applying queries to Eloquent builders
+ * - Matches on single clusters
+ * - SQL generation for different drivers
+ * - Sub-conditions and aggregate functions
+ * - Edge cases and performance
+ */
 final class ClusterQueryTest extends IntegrationTestCase
 {
     use RefreshDatabase;
@@ -32,7 +44,6 @@ final class ClusterQueryTest extends IntegrationTestCase
 
         $this->clusterQuery = new ClusterQuery;
 
-        // ✅ Données avec addresses en tableau d'objets et scores en tableau
         TestCluster::create([
             'clusters' => [
                 'status' => 'active',
@@ -120,7 +131,6 @@ final class ClusterQueryTest extends IntegrationTestCase
             ],
         ]);
 
-        // Collection en mémoire
         $this->collection = new ClusterVOCollection;
         $this->collection->add(new ClusterVO([
             'status' => 'active',
@@ -195,6 +205,7 @@ final class ClusterQueryTest extends IntegrationTestCase
             ],
         ]));
     }
+
     // ==================== PARSE TESTS ====================
 
     public function test_parse_returns_node(): void
@@ -364,7 +375,6 @@ final class ClusterQueryTest extends IntegrationTestCase
 
     public function test_filter_subcondition_simple(): void
     {
-
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
             'name' => 'John',
@@ -644,10 +654,8 @@ final class ClusterQueryTest extends IntegrationTestCase
 
     public function test_apply_to_eloquent_subcondition_simple(): void
     {
-
         $query = TestCluster::query();
 
-        // John a Kinshasa, Bob a Kinshasa, Charlie a Kinshasa
         $this->clusterQuery->applyToEloquent(
             $query,
             'clusters',
@@ -656,14 +664,13 @@ final class ClusterQueryTest extends IntegrationTestCase
         );
 
         $results = $query->get();
-        $this->assertCount(3, $results); // John, Bob, Charlie
+        $this->assertCount(3, $results);
     }
 
     public function test_apply_to_eloquent_subcondition_with_and(): void
     {
         $query = TestCluster::query();
 
-        // ✅ Utiliser city et street qui existent dans les données
         $this->clusterQuery->applyToEloquent(
             $query,
             'clusters',
@@ -673,7 +680,6 @@ final class ClusterQueryTest extends IntegrationTestCase
 
         $results = $query->get();
 
-        // John (Kinshasa + Avenue de la Paix) et Charlie (Kinshasa + Avenue de la Paix)
         $this->assertCount(2, $results);
         $names = $results->pluck('clusters')->pluck('name')->toArray();
         $this->assertContains('john_doe', $names);
@@ -692,7 +698,6 @@ final class ClusterQueryTest extends IntegrationTestCase
         );
 
         $results = $query->get();
-        // John (Kinshasa + Paris), Jane (Paris), Bob (Kinshasa + Paris), Charlie (Kinshasa + Paris)
         $this->assertCount(4, $results);
     }
 
@@ -713,7 +718,6 @@ final class ClusterQueryTest extends IntegrationTestCase
 
     public function test_apply_to_eloquent_subcondition_with_nested_path(): void
     {
-        // Créer des données spécifiques avec notifications en tableau
         TestCluster::create([
             'clusters' => [
                 'name' => 'John',
@@ -757,7 +761,7 @@ final class ClusterQueryTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        $this->assertCount(2, $results); // John et Bob (email=true)
+        $this->assertCount(2, $results);
     }
 
     public function test_apply_to_eloquent_subcondition_with_exists(): void
@@ -772,7 +776,7 @@ final class ClusterQueryTest extends IntegrationTestCase
         );
 
         $results = $query->get();
-        $this->assertCount(4, $results); // Tous sauf Alice
+        $this->assertCount(4, $results);
 
         $names = $results->pluck('clusters')->pluck('name')->toArray();
         $this->assertContains('john_doe', $names);
@@ -784,7 +788,6 @@ final class ClusterQueryTest extends IntegrationTestCase
 
     public function test_apply_to_eloquent_subcondition_combined_with_condition(): void
     {
-
         $query = TestCluster::query();
 
         $this->clusterQuery->applyToEloquent(
@@ -795,7 +798,7 @@ final class ClusterQueryTest extends IntegrationTestCase
         );
 
         $results = $query->get();
-        $this->assertCount(3, $results); // john_doe, bob_johnson, charlie_doe
+        $this->assertCount(3, $results);
 
         $names = $results->pluck('clusters')->pluck('name')->toArray();
         $this->assertContains('john_doe', $names);
@@ -804,6 +807,7 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->assertNotContains('jane_smith', $names);
         $this->assertNotContains('alice_johanson', $names);
     }
+
     // ==================== FILTER TESTS (ELOQUENT) ====================
 
     public function test_apply_to_eloquent_simple(): void
@@ -1615,7 +1619,6 @@ final class ClusterQueryTest extends IntegrationTestCase
             'addresses' => [],
         ]));
 
-        // COUNT(addresses) sans opérateur → COUNT > 0
         $result = $this->clusterQuery->filter($collection, 'COUNT(addresses)');
 
         $this->assertCount(1, $result);
@@ -1654,7 +1657,6 @@ final class ClusterQueryTest extends IntegrationTestCase
         );
 
         $results = $query->get();
-        // Bob a 3 adresses (dans les données existantes)
         $this->assertCount(1, $results);
         $this->assertEquals('bob_johnson', $results->first()->clusters['name']);
     }
@@ -1693,7 +1695,6 @@ final class ClusterQueryTest extends IntegrationTestCase
 
     public function test_apply_to_eloquent_sum_function(): void
     {
-        // Créer des données avec des prix
         TestCluster::create([
             'clusters' => [
                 'name' => 'test1',
@@ -1723,7 +1724,6 @@ final class ClusterQueryTest extends IntegrationTestCase
 
     public function test_apply_to_eloquent_avg_function(): void
     {
-        // ✅ Vider la base pour ce test
         TestCluster::truncate();
 
         TestCluster::create([
@@ -1760,12 +1760,12 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->clusterQuery->applyToEloquent(
             $query,
             'clusters',
-            'LENGTH(name) >= 8', // ✅ >= 8
+            'LENGTH(name) >= 8',
             DatabaseDriver::SQLITE
         );
 
         $results = $query->get();
-        $this->assertCount(5, $results); // Tous les noms (8, 10, 11, 14, 11)
+        $this->assertCount(5, $results);
     }
 
     public function test_apply_to_eloquent_complex_with_functions(): void
@@ -1781,9 +1781,6 @@ final class ClusterQueryTest extends IntegrationTestCase
 
         $results = $query->get();
 
-        // john_doe (active, 2 addresses, AVG=85.66) → ✅
-        // bob_johnson (active, 3 addresses, AVG=78) → ❌ (AVG < 80)
-        // charlie_doe (active, 2 addresses, AVG=95) → ✅
         $this->assertCount(2, $results);
 
         $names = $results->pluck('clusters')->pluck('name')->toArray();

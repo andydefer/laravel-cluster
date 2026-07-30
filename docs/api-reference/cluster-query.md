@@ -1,156 +1,138 @@
-# ClusterQuery - Référence Technique
+# ClusterQuery - Technical Reference
 
 ## Description
 
-Moteur de requêtes pour les clusters qui orchestre l'analyse syntaxique, l'évaluation et la génération de requêtes SQL. Il sert de pont entre les expressions de requête textuelles et les opérations sur les données.
+Le moteur central d'analyse et d'évaluation des requêtes Cluster. Il orchestre l'ensemble du système en assurant le parsing, le filtrage, l'évaluation, la génération SQL et l'application aux requêtes Eloquent.
 
 ## Hiérarchie
 
 ```
 ClusterQuery
+    └── Utilise ParserInterface
 ```
-
-**Interfaces :** Aucune (classe finale)
 
 ## Rôle principal
 
-`ClusterQuery` est le moteur central du package. Il coordonne toutes les opérations liées aux requêtes :
-
-- **Parsing** : Transformation d'une expression textuelle en arbre syntaxique
-- **Filtrage mémoire** : Évaluation des conditions sur des collections de clusters
-- **Validation individuelle** : Test d'un cluster unique contre une requête
-- **Génération SQL** : Production de fragments SQL pour différents moteurs de bases de données
-- **Intégration Eloquent** : Application des conditions à des requêtes de base de données
-
-Le moteur est conçu pour être flexible et extensible, avec un mécanisme de parsing pluggable.
+Point d'entrée unique pour toutes les opérations sur les requêtes Cluster. Il coordonne :
+- Le parsing des requêtes en AST
+- Le filtrage des collections de clusters
+- L'évaluation de clusters individuels
+- La génération de SQL adaptée aux drivers
+- L'application des requêtes aux builders Eloquent
 
 ---
 
-## API / Méthodes publiques
+## API
 
 ### `__construct(?ParserInterface $parser = null)`
 
-Initialise le moteur de requêtes avec un parseur optionnel.
+Initialise le moteur avec un parseur optionnel.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$parser` | `ParserInterface` | Parseur personnalisé (par défaut : `Parser`) |
+| `$parser` | `ParserInterface|null` | Instance du parseur (créé par défaut si null) |
 
 **Exemple :**
 ```php
-// Avec parseur par défaut
-$engine = new ClusterQuery();
+// Parseur par défaut
+$clusterQuery = new ClusterQuery();
 
-// Avec parseur personnalisé
-$engine = new ClusterQuery(new CustomParser());
+// Parseur personnalisé
+$clusterQuery = new ClusterQuery(new CustomParser());
 ```
 
 ---
 
 ### `parse(string $query): NodeInterface`
 
-Analyse une expression de requête et retourne l'arbre syntaxique correspondant.
+Parse une chaîne de requête en un Arbre Syntaxique Abstrait (AST).
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$query` | `string` | Expression de requête à analyser |
+| `$query` | `string` | La requête à parser |
 
-**Retourne :** `NodeInterface` - Racine de l'arbre syntaxique
-
-**Exceptions :** `InvalidArgumentException` - Si la syntaxe est invalide
+**Retourne :** `NodeInterface` - Le nœud racine de l'AST
 
 **Exemple :**
 ```php
-$ast = $engine->parse('age > 18 AND status = "active"');
-// Retourne un GroupNode(AND) avec deux ConditionNode
+$ast = $clusterQuery->parse('status=active & role=admin');
+// GroupNode contenant deux ConditionNode
 ```
 
 ---
 
 ### `filter(ClusterVOCollection $clusters, string $query): ClusterVOCollection`
 
-Filtre une collection de clusters en mémoire selon l'expression de requête.
+Filtre une collection de clusters avec une expression de requête.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$clusters` | `ClusterVOCollection` | Collection de clusters à filtrer |
-| `$query` | `string` | Expression de requête |
+| `$clusters` | `ClusterVOCollection` | La collection à filtrer |
+| `$query` | `string` | L'expression de filtrage |
 
-**Retourne :** `ClusterVOCollection` - Nouvelle collection contenant uniquement les clusters correspondants
+**Retourne :** `ClusterVOCollection` - La collection filtrée
 
 **Exemple :**
 ```php
-$filtered = $engine->filter($clusters, 'status = "active" AND age > 18');
-echo "Résultats : " . $filtered->count();
+$filtered = $clusterQuery->filter($clusters, 'status=active & role=admin');
 ```
 
 ---
 
 ### `matches(ClusterVO $cluster, string $query): bool`
 
-Teste si un cluster individuel correspond à l'expression de requête.
+Détermine si un cluster individuel correspond à une requête.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$cluster` | `ClusterVO` | Cluster à tester |
-| `$query` | `string` | Expression de requête |
+| `$cluster` | `ClusterVO` | Le cluster à évaluer |
+| `$query` | `string` | L'expression de requête |
 
-**Retourne :** `bool` - `true` si le cluster correspond, `false` sinon
+**Retourne :** `bool` - `true` si le cluster correspond
 
 **Exemple :**
 ```php
-$cluster = new ClusterVO(['age' => 25, 'status' => 'active']);
-if ($engine->matches($cluster, 'age > 18 AND status = "active"')) {
-    echo "Le cluster correspond";
-}
+$matches = $clusterQuery->matches($cluster, 'score > 80');
+// true si le score est supérieur à 80
 ```
 
 ---
 
 ### `toSql(string $column, string $query, DatabaseDriver $driver = DatabaseDriver::MYSQL): string`
 
-Génère une requête SQL à partir de l'expression de requête.
+Convertit une requête en clause SQL WHERE.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$column` | `string` | Nom de la colonne JSON à interroger |
-| `$query` | `string` | Expression de requête |
-| `$driver` | `DatabaseDriver` | Moteur de base de données (MySQL par défaut) |
+| `$column` | `string` | Le nom de la colonne JSON en base de données |
+| `$query` | `string` | L'expression de requête |
+| `$driver` | `DatabaseDriver` | Le driver de base de données cible |
 
-**Retourne :** `string` - Fragment SQL représentant la condition
+**Retourne :** `string` - La clause SQL générée
 
 **Exemple :**
 ```php
-$sql = $engine->toSql(
-    'metadata',
-    'age > 18 AND status = "active"',
-    DatabaseDriver::MYSQL
-);
-// Résultat : "(JSON_EXTRACT(metadata, '$."age"') > '18' AND JSON_EXTRACT(metadata, '$."status"') = 'active')"
+$sql = $clusterQuery->toSql('clusters', 'status=active', DatabaseDriver::SQLITE);
+// json_extract(clusters, '$.status') IS NOT NULL ...
 ```
 
 ---
 
 ### `applyToEloquent(Builder $query, string $column, string $clusterQuery, DatabaseDriver $driver = DatabaseDriver::MYSQL): void`
 
-Applique l'expression de requête à un constructeur Eloquent.
+Applique une requête à un builder Eloquent.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$query` | `Builder` | Instance du constructeur de requête Eloquent |
-| `$column` | `string` | Nom de la colonne JSON |
-| `$clusterQuery` | `string` | Expression de requête |
-| `$driver` | `DatabaseDriver` | Moteur de base de données (MySQL par défaut) |
+| `$query` | `Builder` | Le builder Eloquent à modifier |
+| `$column` | `string` | Le nom de la colonne JSON |
+| `$clusterQuery` | `string` | L'expression de requête |
+| `$driver` | `DatabaseDriver` | Le driver de base de données cible |
 
 **Exemple :**
 ```php
 $query = User::query();
-$engine->applyToEloquent(
-    $query,
-    'settings',
-    'preferences.theme = "dark" AND notifications.enabled = "true"',
-    DatabaseDriver::MYSQL
-);
+$clusterQuery->applyToEloquent($query, 'clusters', 'status=active', DatabaseDriver::SQLITE);
 $users = $query->get();
 ```
 
@@ -158,9 +140,7 @@ $users = $query->get();
 
 ## Cas d'utilisation
 
-### Cas 1 : Filtrage de données en mémoire
-
-Filtrer une collection de résultats avant export.
+### Cas 1 : Filtrage de collection en mémoire
 
 ```php
 <?php
@@ -169,205 +149,95 @@ use AndyDefer\LaravelCluster\ClusterQuery;
 use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
-$engine = new ClusterQuery();
+$clusterQuery = new ClusterQuery();
 
-// Préparation des données
-$clusters = new ClusterVOCollection();
-$clusters->add(new ClusterVO(['id' => 1, 'name' => 'John', 'age' => 25, 'status' => 'active']));
-$clusters->add(new ClusterVO(['id' => 2, 'name' => 'Jane', 'age' => 17, 'status' => 'inactive']));
-$clusters->add(new ClusterVO(['id' => 3, 'name' => 'Bob', 'age' => 30, 'status' => 'active']));
+$collection = new ClusterVOCollection();
+$collection->add(new ClusterVO(['status' => 'active', 'role' => 'admin']));
+$collection->add(new ClusterVO(['status' => 'active', 'role' => 'doctor']));
+$collection->add(new ClusterVO(['status' => 'inactive', 'role' => 'admin']));
 
-// Filtrage
-$filtered = $engine->filter(
-    $clusters,
-    'age >= 18 AND status = "active"'
-);
+// Filtrage simple
+$filtered = $clusterQuery->filter($collection, 'status=active');
+// 2 clusters
 
-// Export CSV
-foreach ($filtered as $cluster) {
-    echo $cluster->get('name') . ',' . $cluster->get('age') . PHP_EOL;
-}
-// Résultat : John,25 / Bob,30
+// Filtrage avec AND
+$filtered = $clusterQuery->filter($collection, 'status=active & role=admin');
+// 1 cluster (admin actif)
+
+// Filtrage avec OR
+$filtered = $clusterQuery->filter($collection, 'status=active | role=admin');
+// 3 clusters (tous)
 ```
 
----
-
-### Cas 2 : Validation individuelle
-
-Vérifier si un cluster spécifique correspond à des critères métier.
+### Cas 2 : Évaluation de cluster individuel
 
 ```php
-<?php
-
-use AndyDefer\LaravelCluster\ClusterQuery;
-use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
-
-$engine = new ClusterQuery();
-
-$order = new ClusterVO([
-    'amount' => 150.00,
-    'status' => 'paid',
-    'customer' => [
-        'vip' => true,
-        'country' => 'FR'
-    ]
+$cluster = new ClusterVO([
+    'status' => 'active',
+    'role' => 'admin',
+    'age' => 30,
 ]);
 
-$query = 'amount > 100 AND status = "paid" AND customer.vip = "true"';
+$result = $clusterQuery->matches($cluster, 'status=active & role=admin');
+// true
 
-if ($engine->matches($order, $query)) {
-    echo "La commande est éligible pour la livraison express";
-}
+$result = $clusterQuery->matches($cluster, 'age>35');
+// false
 ```
 
----
-
-### Cas 3 : Génération de requêtes SQL
-
-Générer des requêtes pour différents moteurs de bases de données.
+### Cas 3 : Génération SQL
 
 ```php
-<?php
+// SQLite
+$sql = $clusterQuery->toSql('clusters', 'status=active', DatabaseDriver::SQLITE);
+// LOWER(json_extract(clusters, '$.status')) = LOWER('active')
 
-use AndyDefer\LaravelCluster\ClusterQuery;
-use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
+// MySQL
+$sql = $clusterQuery->toSql('clusters', 'status=active', DatabaseDriver::MYSQL);
+// LOWER(JSON_EXTRACT(clusters, '$."status"')) = LOWER('active')
 
-$engine = new ClusterQuery();
-$query = 'age > 18 AND status = "active" AND tags_php = "true"';
+// PostgreSQL
+$sql = $clusterQuery->toSql('clusters', 'status=active', DatabaseDriver::PGSQL);
+// LOWER(clusters->>'status') = LOWER('active')
 
-// Pour MySQL
-$sql = $engine->toSql('data', $query, DatabaseDriver::MYSQL);
-echo "MySQL : " . $sql . PHP_EOL;
-
-// Pour PostgreSQL
-$sql = $engine->toSql('data', $query, DatabaseDriver::PGSQL);
-echo "PostgreSQL : " . $sql . PHP_EOL;
-
-// Pour SQLite
-$sql = $engine->toSql('data', $query, DatabaseDriver::SQLITE);
-echo "SQLite : " . $sql . PHP_EOL;
+// Avec fonction SQL
+$sql = $clusterQuery->toSql('clusters', 'COUNT(addresses) > 2', DatabaseDriver::SQLITE);
+// json_array_length(clusters, '$.addresses') > 2
 ```
 
----
-
-### Cas 4 : Intégration avec Laravel Eloquent
-
-Filtrer des modèles Eloquent avec des expressions complexes.
+### Cas 4 : Application à Eloquent
 
 ```php
-<?php
-
-use AndyDefer\LaravelCluster\ClusterQuery;
-use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 use App\Models\User;
 
-class UserRepository
-{
-    public function __construct(
-        private readonly ClusterQuery $engine
-    ) {}
+$query = User::query();
 
-    public function findUsers(array $filters): array
-    {
-        $query = User::query();
+// Condition simple
+$clusterQuery->applyToEloquent($query, 'clusters', 'status=active', DatabaseDriver::SQLITE);
 
-        // Construction de la requête à partir des filtres
-        $conditions = [];
-        foreach ($filters as $key => $value) {
-            $conditions[] = "{$key} = \"{$value}\"";
-        }
-        $clusterQuery = implode(' AND ', $conditions);
+// Conditions multiples
+$clusterQuery->applyToEloquent($query, 'clusters', 'status=active & role=admin', DatabaseDriver::SQLITE);
 
-        $this->engine->applyToEloquent(
-            $query,
-            'metadata', // colonne JSON
-            $clusterQuery,
-            DatabaseDriver::MYSQL
-        );
+// Sous-condition
+$clusterQuery->applyToEloquent($query, 'clusters', 'addresses[city=Kinshasa]', DatabaseDriver::SQLITE);
 
-        return $query->get()->toArray();
-    }
-}
+// Fonction SQL
+$clusterQuery->applyToEloquent($query, 'clusters', 'COUNT(addresses) > 2', DatabaseDriver::SQLITE);
 
-// Utilisation
-$repository = new UserRepository(new ClusterQuery());
-$users = $repository->findUsers([
-    'status' => 'active',
-    'role' => 'admin'
-]);
+$users = $query->get();
 ```
 
----
-
-### Cas 5 : API REST dynamique
-
-Exposer une API avec filtrage dynamique.
+### Cas 5 : Chaînage de conditions
 
 ```php
-<?php
+$query = User::query();
 
-use AndyDefer\LaravelCluster\ClusterQuery;
-use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
-use App\Models\Product;
+$clusterQuery->applyToEloquent($query, 'clusters', 'status=active', DatabaseDriver::SQLITE);
+$clusterQuery->applyToEloquent($query, 'clusters', 'role=admin', DatabaseDriver::SQLITE);
+$clusterQuery->applyToEloquent($query, 'clusters', 'age>25', DatabaseDriver::SQLITE);
 
-class ProductController
-{
-    public function __construct(
-        private readonly ClusterQuery $engine
-    ) {}
-
-    public function index(Request $request)
-    {
-        $filter = $request->get('filter', '');
-        $orderBy = $request->get('order_by', 'id');
-        $direction = $request->get('direction', 'asc');
-
-        $query = Product::query();
-
-        if (!empty($filter)) {
-            $this->engine->applyToEloquent(
-                $query,
-                'attributes',
-                $filter,
-                DatabaseDriver::MYSQL
-            );
-        }
-
-        return $query->orderBy($orderBy, $direction)->paginate(20);
-    }
-}
-
-// Requête : /api/products?filter=category="electronics" AND price > 100&order_by=price&direction=desc
-```
-
----
-
-### Cas 6 : Cache des arbres syntaxiques
-
-Optimiser les performances en mettant en cache les expressions analysées.
-
-```php
-<?php
-
-use AndyDefer\LaravelCluster\ClusterQuery;
-use Illuminate\Support\Facades\Cache;
-
-class CachedClusterQuery extends ClusterQuery
-{
-    public function parse(string $query): NodeInterface
-    {
-        $key = 'ast_' . md5($query);
-
-        return Cache::remember($key, 3600, function () use ($query) {
-            return parent::parse($query);
-        });
-    }
-}
-
-// Utilisation
-$engine = new CachedClusterQuery();
-$ast = $engine->parse('age > 18 AND status = "active"'); // Pas de cache
-$ast = $engine->parse('age > 18 AND status = "active"'); // Cache hit
+$users = $query->get();
+// Utilisateurs actifs, admins, de plus de 25 ans
 ```
 
 ---
@@ -376,99 +246,18 @@ $ast = $engine->parse('age > 18 AND status = "active"'); // Cache hit
 
 | Situation | Exception | Message |
 |-----------|-----------|---------|
-| Syntaxe de requête invalide | `InvalidArgumentException` | Message décrivant l'erreur de parsing |
-| Token inconnu | `InvalidArgumentException` | `Unexpected token "{token}" at position {position}` |
-| Parenthèses non équilibrées | `InvalidArgumentException` | `Unbalanced parentheses` |
-| Opérateur manquant | `InvalidArgumentException` | `Expected operator between expressions` |
-| Valeur manquante | `InvalidArgumentException` | `Expected value after operator` |
-| Type de valeur invalide | `InvalidArgumentException` | Message décrivant le type attendu |
-
-### Bonnes pratiques
-
-```php
-use AndyDefer\LaravelCluster\ClusterQuery;
-
-$engine = new ClusterQuery();
-
-try {
-    $filtered = $engine->filter($clusters, $userInput);
-} catch (InvalidArgumentException $e) {
-    // Journalisation
-    Log::warning('Invalid filter syntax', [
-        'query' => $userInput,
-        'error' => $e->getMessage()
-    ]);
-
-    // Réponse utilisateur
-    return response()->json([
-        'error' => 'Invalid filter syntax',
-        'message' => $e->getMessage()
-    ], 400);
-}
-```
-
----
-
-## Intégration
-
-`ClusterQuery` s'intègre avec :
-
-- **`ParserInterface`** : Interface du parseur (pluggable)
-- **`Parser`** : Parseur par défaut
-- **`NodeInterface`** : Interface des nœuds syntaxiques
-- **`ClusterVOCollection`** : Collection de clusters
-- **`ClusterVO`** : Objet de données
-- **`DatabaseDriver`** : Énumération des moteurs de bases de données
-- **Eloquent `Builder`** : Construction de requêtes
-
-### Extension
-
-Le parseur peut être remplacé par une implémentation personnalisée :
-
-```php
-interface ParserInterface
-{
-    public function parse(string $query): NodeInterface;
-}
-
-class CustomParser implements ParserInterface
-{
-    public function parse(string $query): NodeInterface
-    {
-        // Logique de parsing personnalisée
-    }
-}
-
-$engine = new ClusterQuery(new CustomParser());
-```
+| Requête invalide | `RuntimeException` | Message personnalisé selon l'erreur de parsing |
+| Fonction inconnue | `RuntimeException` | `Unknown function "{name}"` |
+| Opérateur invalide | `RuntimeException` | `Invalid operator "{op}". Allowed: ...` |
 
 ---
 
 ## Performance
 
-### Complexité algorithmique
-
-| Opération | Complexité | Notes |
-|-----------|------------|-------|
-| `parse()` | O(n) | n = longueur de la requête |
-| `filter()` | O(n * m) | n = clusters, m = nœuds de l'AST |
-| `matches()` | O(m) | m = nœuds de l'AST |
-| `toSql()` | O(m) | m = nœuds de l'AST |
-| `applyToEloquent()` | O(m) | m = nœuds de l'AST |
-
-### Optimisations
-
-- L'AST est calculé une seule fois lors du parsing
-- Court-circuit pour les opérateurs logiques (`AND`, `OR`)
-- Utilisation de paramètres liés pour les requêtes Eloquent
-- Parsing sans allocations mémoire superflues
-
-### Recommandations
-
-Pour de grandes collections (> 10 000 éléments) :
-1. Utilisez `applyToEloquent()` pour un filtrage au niveau de la base de données
-2. Mettez en cache les expressions fréquemment utilisées
-3. Évitez le filtrage mémoire pour de très gros volumes
+- **Parsing :** Les AST sont mis en cache par requête via le parseur
+- **Filter :** O(n) où n est le nombre de clusters
+- **SQL :** Génération à la volée, pas de cache
+- **Évaluation :** L'AST est réutilisé pour plusieurs clusters
 
 ---
 
@@ -478,24 +267,12 @@ Pour de grandes collections (> 10 000 éléments) :
 |-------------|---------|
 | PHP 8.1+ | ✅ Complet |
 | PHP 8.0 | ✅ Complet |
-| PHP 7.4 | ❌ Non supporté (nécessite PHP 8.0+) |
 
-**Dépendances Laravel :**
-
-| Version Laravel | Support |
-|-----------------|---------|
-| Laravel 11.x | ✅ Complet |
-| Laravel 10.x | ✅ Complet |
-| Laravel 9.x | ✅ Complet |
-| Laravel 8.x | ✅ Complet |
-
-**Moteurs de bases de données supportés :**
-
-| Base de données | Support SQL | Support Eloquent |
-|-----------------|-------------|------------------|
-| MySQL | ✅ Complet | ✅ Complet |
-| PostgreSQL | ✅ Complet | ✅ Complet |
-| SQLite | ✅ Complet | ✅ Complet |
+| Version Database | Support |
+|------------------|---------|
+| SQLite 3.9+ | ✅ Complet |
+| MySQL 5.7+ | ✅ Complet |
+| PostgreSQL 9.4+ | ✅ Complet |
 
 ---
 
@@ -508,148 +285,109 @@ declare(strict_types=1);
 
 use AndyDefer\LaravelCluster\ClusterQuery;
 use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
-use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use App\Models\User;
 
-// 1. Instanciation
-$engine = new ClusterQuery();
+// ==================== INSTANCIATION ====================
 
-// 2. Parsing d'une requête
-$ast = $engine->parse('age > 18 AND (status = "active" OR role = "admin")');
-echo "AST parsé avec succès" . PHP_EOL;
+$clusterQuery = new ClusterQuery();
 
-// 3. Création des données de test
-$clusters = new ClusterVOCollection();
-$clusters->add(new ClusterVO([
-    'id' => 1,
+// ==================== COLLECTION EN MÉMOIRE ====================
+
+$collection = new ClusterVOCollection();
+$collection->add(new ClusterVO([
     'name' => 'John Doe',
-    'age' => 25,
     'status' => 'active',
-    'role' => 'user'
-]));
-$clusters->add(new ClusterVO([
-    'id' => 2,
-    'name' => 'Jane Smith',
-    'age' => 17,
-    'status' => 'inactive',
-    'role' => 'user'
-]));
-$clusters->add(new ClusterVO([
-    'id' => 3,
-    'name' => 'Bob Johnson',
+    'role' => 'admin',
     'age' => 30,
+    'addresses' => [
+        ['city' => 'Kinshasa'],
+        ['city' => 'Paris'],
+    ],
+    'scores' => [80, 90, 85],
+]));
+
+$collection->add(new ClusterVO([
+    'name' => 'Jane Smith',
+    'status' => 'inactive',
+    'role' => 'doctor',
+    'age' => 25,
+    'addresses' => [
+        ['city' => 'Paris'],
+    ],
+    'scores' => [70, 75, 80],
+]));
+
+$collection->add(new ClusterVO([
+    'name' => 'Bob Johnson',
     'status' => 'active',
-    'role' => 'admin'
+    'role' => 'doctor',
+    'age' => 35,
+    'addresses' => [
+        ['city' => 'Kinshasa'],
+        ['city' => 'London'],
+        ['city' => 'Paris'],
+    ],
+    'scores' => [95, 98, 92],
 ]));
-$clusters->add(new ClusterVO([
-    'id' => 4,
-    'name' => 'Alice Brown',
-    'age' => 22,
-    'status' => 'pending',
-    'role' => 'guest'
-]));
 
-// 4. Filtrage en mémoire
-$filtered = $engine->filter(
-    $clusters,
-    'age >= 18 AND (status = "active" OR role = "admin")'
+// ==================== FILTRAGE ====================
+
+// Simple
+$active = $clusterQuery->filter($collection, 'status=active');
+echo "Active: " . $active->count() . "\n"; // 2
+
+// Avec AND
+$activeAdmins = $clusterQuery->filter($collection, 'status=active & role=admin');
+echo "Active admins: " . $activeAdmins->count() . "\n"; // 1
+
+// Avec sous-condition
+$kinshasa = $clusterQuery->filter($collection, 'addresses[city=Kinshasa]');
+echo "In Kinshasa: " . $kinshasa->count() . "\n"; // 2
+
+// Avec fonction SQL
+$moreThan2 = $clusterQuery->filter($collection, 'COUNT(addresses) > 2');
+echo "More than 2 addresses: " . $moreThan2->count() . "\n"; // 1
+
+// Complexe
+$complex = $clusterQuery->filter(
+    $collection,
+    'status=active & COUNT(addresses) > 1 & AVG(scores) >= 85'
 );
+echo "Complex filter: " . $complex->count() . "\n"; // 1 (Bob)
 
-echo "Clusters filtrés : " . $filtered->count() . PHP_EOL;
-// Résultat : 2 (John Doe, Bob Johnson)
+// ==================== ÉVALUATION INDIVIDUELLE ====================
 
-foreach ($filtered as $cluster) {
-    echo "- " . $cluster->get('name') . " (âge: " . $cluster->get('age') . ")\n";
-}
+$cluster = $collection->first();
+$matches = $clusterQuery->matches($cluster, 'status=active & role=admin');
+var_dump($matches); // true
 
-// 5. Test d'un cluster individuel
-$testCluster = new ClusterVO(['age' => 25, 'status' => 'active']);
-$matches = $engine->matches($testCluster, 'age >= 18 AND status = "active"');
-echo $matches ? "\nLe cluster correspond" : "\nLe cluster ne correspond pas";
-echo PHP_EOL;
+// ==================== GÉNÉRATION SQL ====================
 
-// 6. Génération de SQL MySQL
-$sql = $engine->toSql(
-    'data',
-    'age > 18 AND status = "active"',
-    DatabaseDriver::MYSQL
-);
-echo "\nSQL MySQL généré :\n" . $sql . PHP_EOL;
+$sql = $clusterQuery->toSql('clusters', 'status=active & role=admin', DatabaseDriver::SQLITE);
+echo "SQL: $sql\n";
 
-// 7. Génération de SQL PostgreSQL
-$sql = $engine->toSql(
-    'data',
-    'age > 18 AND status = "active"',
-    DatabaseDriver::PGSQL
-);
-echo "\nSQL PostgreSQL généré :\n" . $sql . PHP_EOL;
+// ==================== APPLICATION ELOQUENT ====================
 
-// 8. Génération de SQL SQLite
-$sql = $engine->toSql(
-    'data',
-    'age > 18 AND status = "active"',
+$query = User::query();
+
+$clusterQuery->applyToEloquent(
+    $query,
+    'clusters',
+    'status=active & role=admin & age>=25',
     DatabaseDriver::SQLITE
 );
-echo "\nSQL SQLite généré :\n" . $sql . PHP_EOL;
 
-// 9. Application à Eloquent
-$query = User::query();
-$engine->applyToEloquent(
-    $query,
-    'metadata',
-    'preferences.theme = "dark" AND notifications.enabled = "true"',
-    DatabaseDriver::MYSQL
-);
-
-// 10. Requête complexe avec groupes imbriqués
-$complexQuery = '(role = "admin" OR role = "manager") AND (status = "active" OR verified = "true")';
-$complexSql = $engine->toSql('data', $complexQuery, DatabaseDriver::MYSQL);
-echo "\nRequête complexe :\n" . $complexSql . PHP_EOL;
-
-// 11. Gestion des erreurs
-try {
-    $engine->parse('age > INVALID');
-} catch (InvalidArgumentException $e) {
-    echo "\nErreur de parsing : " . $e->getMessage() . PHP_EOL;
-}
-
-// 12. Intégration dans un service
-class UserSearchService
-{
-    public function __construct(
-        private readonly ClusterQuery $engine
-    ) {}
-
-    public function search(string $filter): array
-    {
-        $query = User::query();
-        $this->engine->applyToEloquent(
-            $query,
-            'user_data',
-            $filter,
-            DatabaseDriver::MYSQL
-        );
-        return $query->get()->toArray();
-    }
-}
-
-// Utilisation du service
-$searchService = new UserSearchService($engine);
-$users = $searchService->search('role = "admin" AND active = "true"');
-echo "\nUtilisateurs trouvés : " . count($users) . PHP_EOL;
+$users = $query->get();
 ```
 
 ---
 
 ## Voir aussi
 
-- `Parser` - Parseur par défaut des expressions
-- `ParserInterface` - Interface du parseur
-- `NodeInterface` - Interface des nœuds syntaxiques
-- `ConditionNode` - Nœud conditionnel atomique
-- `GroupNode` - Nœud logique composite
-- `ClusterVO` - Objet de données
+- `Parser` - Analyseur de requêtes
+- `NodeInterface` - Interface des nœuds de l'AST
+- `DatabaseDriver` - Énumération des drivers supportés
 - `ClusterVOCollection` - Collection de clusters
-- `DatabaseDriver` - Énumération des moteurs de bases de données
-- `ClusterService` - Service façade
+- `ClusterVO` - Value Object représentant un cluster

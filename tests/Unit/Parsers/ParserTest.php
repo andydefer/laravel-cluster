@@ -11,6 +11,21 @@ use AndyDefer\LaravelCluster\Parser;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * Unit tests for the Parser class.
+ *
+ * Tests cover:
+ * - Simple equality and comparison operators (=, !=, >, <, >=, <=, ===, !==, <=>)
+ * - Presence/absence operators (!key)
+ * - Logical operators (AND, OR)
+ * - Parentheses and nested expressions
+ * - EXISTS (*) and NOT_EXISTS (#) operators
+ * - LIKE (=~) and NOT_LIKE (!~) operators
+ * - Sub-conditions (addresses[city=kinshasa])
+ * - SQL functions (COUNT, SUM, AVG, MIN, MAX, LENGTH, JSON_LENGTH)
+ * - Parser cache
+ * - Error handling and edge cases
+ */
 final class ParserTest extends TestCase
 {
     private Parser $parser;
@@ -141,7 +156,6 @@ final class ParserTest extends TestCase
 
     public function test_parse_presence(): void
     {
-        // "lang_fr" est converti en "lang_fr=true"
         $ast = $this->parser->parse('lang_fr');
 
         $this->assertInstanceOf(ConditionNode::class, $ast);
@@ -155,7 +169,6 @@ final class ParserTest extends TestCase
 
     public function test_parse_absence(): void
     {
-        // "!lang_fr" est converti en "lang_fr=false"
         $ast = $this->parser->parse('!lang_fr');
 
         $this->assertInstanceOf(ConditionNode::class, $ast);
@@ -281,7 +294,6 @@ final class ParserTest extends TestCase
 
     public function test_parse_not_equal(): void
     {
-        // "status!=active" est un ConditionNode avec NOT_EQUAL
         $ast = $this->parser->parse('status!=active');
 
         $this->assertInstanceOf(ConditionNode::class, $ast);
@@ -297,7 +309,6 @@ final class ParserTest extends TestCase
 
     public function test_parse_combined_and_or_not(): void
     {
-        // "!lang_fr" est converti en "lang_fr=false"
         $ast = $this->parser->parse('status=active & !lang_fr & (role=admin | role=doctor)');
 
         $this->assertInstanceOf(GroupNode::class, $ast);
@@ -314,7 +325,6 @@ final class ParserTest extends TestCase
 
     public function test_parse_complex_expression(): void
     {
-        // "lang_fr" et "!lang_en" sont convertis en "lang_fr=true" et "lang_en=false"
         $ast = $this->parser->parse('(status=active | status=pending) & lang_fr & !lang_en & age>=25');
 
         $this->assertInstanceOf(GroupNode::class, $ast);
@@ -421,7 +431,6 @@ final class ParserTest extends TestCase
 
     public function test_parse_exists_operator(): void
     {
-        // "*name" vérifie l'existence de la clé
         $ast = $this->parser->parse('*name');
 
         $this->assertInstanceOf(ConditionNode::class, $ast);
@@ -435,7 +444,6 @@ final class ParserTest extends TestCase
 
     public function test_parse_not_exists_operator(): void
     {
-        // "#profile" vérifie l'absence de la clé
         $ast = $this->parser->parse('#profile');
 
         $this->assertInstanceOf(ConditionNode::class, $ast);
@@ -575,13 +583,12 @@ final class ParserTest extends TestCase
         $this->assertFalse($ast->evaluate($cluster2));
     }
 
-    // ==================== SUBCONDITION TESTS (NO ERREUR) ====================
+    // ==================== SUBCONDITION TESTS ====================
 
     public function test_parse_subcondition_does_not_throw_error(): void
     {
         $this->expectNotToPerformAssertions();
 
-        // Aucune de ces syntaxes ne doit provoquer d'erreur
         $this->parser->parse('addresses[city=kinshasa]');
     }
 
@@ -965,7 +972,6 @@ final class ParserTest extends TestCase
 
     public function test_parse_function_with_missing_operator(): void
     {
-        // Sans opérateur, la condition est COUNT(addresses) > 0 par défaut
         $ast = $this->parser->parse('COUNT(addresses)');
 
         $this->assertInstanceOf(FunctionNode::class, $ast);

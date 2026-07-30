@@ -4,10 +4,21 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelCluster\SqlFunctions;
 
-use AndyDefer\LaravelCluster\Contracts\SqlFunctionInterface;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 
-final class CountFunction implements SqlFunctionInterface
+/**
+ * Counts elements in a JSON array or characters in a string.
+ *
+ * @example
+ * $count = new CountFunction();
+ * $count->execute(['a', 'b', 'c']); // 3
+ * $count->execute('hello'); // 5
+ * @example
+ * // SQL generation for different drivers
+ * $count->toSql('clusters', 'addresses', DatabaseDriver::SQLITE);
+ * // json_array_length(clusters, '$.addresses')
+ */
+final class CountFunction extends AbstractSqlFunction
 {
     public function getName(): string
     {
@@ -50,16 +61,6 @@ final class CountFunction implements SqlFunctionInterface
             return strlen($value);
         }
 
-        return 0;
-    }
-
-    public function validateArgs(array $args): bool
-    {
-        return count($args) === 1;
-    }
-
-    public function getDefaultValue(): mixed
-    {
         return 0;
     }
 }

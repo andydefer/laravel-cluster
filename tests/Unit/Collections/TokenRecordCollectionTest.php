@@ -9,6 +9,17 @@ use AndyDefer\LaravelCluster\Enums\TokenType;
 use AndyDefer\LaravelCluster\Records\TokenRecord;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * Unit tests for TokenRecordCollection.
+ *
+ * Tests cover:
+ * - Filtering tokens by type (identifiers, operators, parentheses)
+ * - Filtering by value (single or multiple values)
+ * - Position-based operations (atPosition, fromPosition)
+ * - Sub-bracket handling (SUB_OPEN, SUB_CLOSE)
+ * - Chainable filter methods
+ * - Edge cases (empty collections, not found values)
+ */
 final class TokenRecordCollectionTest extends TestCase
 {
     private TokenRecordCollection $collection;
@@ -135,12 +146,6 @@ final class TokenRecordCollectionTest extends TestCase
     {
         $result = $this->collection->fromPosition(35);
 
-        // Tokens à partir de la position 35:
-        // Index 0: role (position 35)
-        // Index 1: = (position 40)
-        // Index 2: doctor (position 42) ← 3ème token
-        // Index 3: ) (position 48)
-        // Index 4: END (position 49)
         $this->assertCount(5, $result);
         $this->assertEquals('role', $result->first()?->value);
 
@@ -283,7 +288,6 @@ final class TokenRecordCollectionTest extends TestCase
 
     public function test_sub_opens(): void
     {
-        // Créer une collection avec des tokens de sub_open
         $collection = new TokenRecordCollection;
         $collection->add(new TokenRecord(TokenType::SUB_OPEN, '[', 50));
         $collection->add(new TokenRecord(TokenType::SUB_OPEN, '[', 70));
@@ -347,8 +351,6 @@ final class TokenRecordCollectionTest extends TestCase
         $this->assertCount(1, $result);
         $this->assertEquals(TokenType::SUB_OPEN, $result->first()?->type);
     }
-
-    // ==================== SUB BRACKET TESTS MANQUANTS ====================
 
     public function test_sub_closes_returns_empty_for_no_brackets(): void
     {

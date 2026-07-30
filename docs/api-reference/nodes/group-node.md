@@ -1,106 +1,85 @@
-# GroupNode - Référence Technique
+# GroupNode - Technical Reference
 
 ## Description
 
-Groupe plusieurs nœuds de condition avec un opérateur logique (AND, OR, NOT) pour former des expressions complexes.
+Regroupe plusieurs nœuds de condition avec un opérateur logique. Il supporte les opérations binaires (AND, OR) avec plusieurs enfants et les opérations unaires (NOT) avec un seul enfant.
 
-## Hiérarchie / Implémentations
+## Hiérarchie
 
 ```
-Node (abstract)
+Node
     └── GroupNode
 ```
 
-**Interfaces implémentées :**
-- `NodeInterface`
-
 ## Rôle principal
 
-`GroupNode` permet de combiner des conditions individuelles (`ConditionNode`, `SubConditionNode`, ou d'autres `GroupNode`) en utilisant des opérateurs logiques. Il constitue l'élément fondamental pour construire des arbres syntaxiques de requêtes complexes, supportant des opérations binaires (AND, OR) avec plusieurs enfants et des opérations unaires (NOT) avec un seul enfant.
+Permet la construction d'expressions logiques complexes en combinant des conditions simples avec des opérateurs AND, OR et NOT. Assure la bonne évaluation et la génération SQL avec la priorité des opérateurs respectée.
 
 ---
 
-## API / Méthodes publiques
+## API
 
 ### `__construct(LogicalOperator $operator, NodeInterface ...$children)`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$operator` | `LogicalOperator` | Opérateur logique (AND, OR, NOT) |
-| `$children` | `NodeInterface...` | Nœuds enfants à grouper (un pour NOT, plusieurs pour AND/OR) |
-
-**Retourne :** `void`
-
-**Exceptions :** Aucune
+| `$operator` | `LogicalOperator` | L'opérateur logique (AND, OR, NOT) |
+| `...$children` | `NodeInterface` | Les nœuds enfants à grouper |
 
 **Exemple :**
 ```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\LaravelCluster\Nodes\GroupNode;
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\LogicalOperator;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-
-// Groupe AND avec deux conditions
+// AND - deux conditions
 $group = new GroupNode(
     LogicalOperator::AND,
     new ConditionNode('status', ComparisonOperator::EQUAL, 'active'),
     new ConditionNode('role', ComparisonOperator::EQUAL, 'admin')
 );
 
-// Groupe NOT avec une condition
-$notGroup = new GroupNode(
+// OR - trois conditions
+$group = new GroupNode(
+    LogicalOperator::OR,
+    new ConditionNode('status', ComparisonOperator::EQUAL, 'active'),
+    new ConditionNode('status', ComparisonOperator::EQUAL, 'pending'),
+    new ConditionNode('status', ComparisonOperator::EQUAL, 'inactive')
+);
+
+// NOT - une condition
+$group = new GroupNode(
     LogicalOperator::NOT,
-    new ConditionNode('age', ComparisonOperator::LESS_THAN, '18')
+    new ConditionNode('status', ComparisonOperator::EQUAL, 'inactive')
 );
 ```
 
 ---
 
+### `getOperator(): LogicalOperator`
+
+Retourne l'opérateur logique du groupe.
+
+**Retourne :** `LogicalOperator` - L'opérateur
+
+---
+
 ### `evaluate(ClusterVO $data): bool`
 
-Évalue le groupe de conditions contre les données d'un cluster.
+Évalue le groupe contre un cluster.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$data` | `ClusterVO` | Données du cluster à évaluer |
+| `$data` | `ClusterVO` | Le cluster à évaluer |
 
-**Retourne :** `bool` - `true` si le groupe est satisfait, `false` sinon
+**Retourne :** `bool` - `true` si la condition est satisfaite
 
-**Comportement spécifique :**
-- **AND** : Tous les enfants doivent être `true`
-- **OR** : Au moins un enfant doit être `true`
-- **NOT** : L'enfant doit être `false`
-- **Groupe vide** : `true` pour AND, `false` pour OR/NOT
-
-**Exceptions :** Aucune
+| Groupe vide | Résultat |
+|-------------|----------|
+| AND | `true` |
+| OR | `false` |
+| NOT | `false` |
 
 **Exemple :**
 ```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
-use AndyDefer\LaravelCluster\Nodes\GroupNode;
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\LogicalOperator;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-
-$group = new GroupNode(
-    LogicalOperator::AND,
-    new ConditionNode('status', ComparisonOperator::EQUAL, 'active'),
-    new ConditionNode('role', ComparisonOperator::EQUAL, 'admin')
-);
-
-$cluster = new ClusterVO([
-    'status' => 'active',
-    'role' => 'admin'
-]);
-
+$cluster = new ClusterVO(['status' => 'active', 'role' => 'admin']);
+$group = new GroupNode(LogicalOperator::AND, $statusNode, $roleNode);
 $result = $group->evaluate($cluster); // true
 ```
 
@@ -108,88 +87,38 @@ $result = $group->evaluate($cluster); // true
 
 ### `toSql(string $column, DatabaseDriver $driver = DatabaseDriver::MYSQL): string`
 
-Génère une expression SQL pour le groupe de conditions.
+Génère l'expression SQL pour le groupe.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$column` | `string` | Nom de la colonne JSON |
-| `$driver` | `DatabaseDriver` | Driver de base de données (MYSQL, PGSQL, SQLITE) |
+| `$column` | `string` | La colonne JSON en base de données |
+| `$driver` | `DatabaseDriver` | Le driver de base de données |
 
-**Retourne :** `string` - Expression SQL pour la condition
-
-**Comportement spécifique :**
-- **Groupe vide** : Retourne `'1=1'` pour AND, `'1=0'` pour OR/NOT
-- **NOT** : Retourne `'NOT (condition)'`
-- **AND/OR** : Combine les enfants avec `' AND '` ou `' OR '` et parenthèses
-
-**Exceptions :** Aucune
+**Retourne :** `string` - L'expression SQL
 
 **Exemple :**
 ```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\LaravelCluster\Nodes\GroupNode;
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\LogicalOperator;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
-
-$group = new GroupNode(
-    LogicalOperator::AND,
-    new ConditionNode('status', ComparisonOperator::EQUAL, 'active'),
-    new ConditionNode('role', ComparisonOperator::EQUAL, 'admin')
-);
-
-$sql = $group->toSql('clusters', DatabaseDriver::MYSQL);
-// Résultat : "(LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active') AND LOWER(JSON_EXTRACT(clusters, '$.\"role\"')) = LOWER('admin'))"
+$sql = $group->toSql('clusters', DatabaseDriver::SQLITE);
+// (LOWER(json_extract(clusters, '$.status')) = LOWER('active') AND LOWER(json_extract(clusters, '$.role')) = LOWER('admin'))
 ```
 
 ---
 
 ### `toEloquent(Builder $query, string $column, DatabaseDriver $driver): void`
 
-Applique le groupe de conditions à un constructeur de requête Eloquent.
+Applique le groupe à un builder Eloquent.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$query` | `Builder` | Constructeur de requête Eloquent |
-| `$column` | `string` | Nom de la colonne JSON |
-| `$driver` | `DatabaseDriver` | Driver de base de données |
-
-**Retourne :** `void` (modifie `$query` par référence)
-
-**Comportement :**
-- **NOT** : Utilise `whereNot()` avec sous-requête
-- **AND** : Ajoute des `where()` imbriqués
-- **OR** : Utilise `orWhere()` avec sous-requête pour maintenir la priorité
-
-**Exceptions :** Aucune
+| `$query` | `Builder` | Le builder Eloquent |
+| `$column` | `string` | La colonne JSON |
+| `$driver` | `DatabaseDriver` | Le driver de base de données |
 
 **Exemple :**
 ```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\LaravelCluster\Nodes\GroupNode;
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\LogicalOperator;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
-use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
-
-$group = new GroupNode(
-    LogicalOperator::OR,
-    new ConditionNode('status', ComparisonOperator::EQUAL, 'active'),
-    new ConditionNode('role', ComparisonOperator::EQUAL, 'admin')
-);
-
-$query = TestCluster::query();
-$group->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
-
-$results = $query->get(); // Tous les clusters actifs OU admins
+$query = User::query();
+$group->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+$users = $query->get();
 ```
 
 ---
@@ -198,266 +127,181 @@ $results = $query->get(); // Tous les clusters actifs OU admins
 
 Retourne les nœuds enfants du groupe.
 
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| Aucun | - | - |
+**Retourne :** `array<int, NodeInterface>` - Les enfants
 
-**Retourne :** `array<int, NodeInterface>` - Tableau des nœuds enfants
+---
 
-**Exceptions :** Aucune
+## Comportement par opérateur
+
+### AND
+
+| Enfants | Évaluation | SQL |
+|---------|------------|-----|
+| 2+ | Tous doivent être `true` | `(cond1 AND cond2 AND ...)` |
+| 1 | Idem que l'enfant | `cond1` |
+| 0 | `true` | `1=1` |
 
 **Exemple :**
 ```php
-<?php
-
-declare(strict_types=1);
-
 $group = new GroupNode(
     LogicalOperator::AND,
-    $condition1,
-    $condition2,
-    $condition3
+    $cond1,
+    $cond2,
+    $cond3
 );
+// Équivalent: $cond1 && $cond2 && $cond3
+// SQL: (cond1 AND cond2 AND cond3)
+```
 
-$children = $group->getChildren();
-// [ConditionNode, ConditionNode, ConditionNode]
+### OR
+
+| Enfants | Évaluation | SQL |
+|---------|------------|-----|
+| 2+ | Au moins un `true` | `(cond1 OR cond2 OR ...)` |
+| 1 | Idem que l'enfant | `cond1` |
+| 0 | `false` | `1=0` |
+
+**Exemple :**
+```php
+$group = new GroupNode(
+    LogicalOperator::OR,
+    $cond1,
+    $cond2,
+    $cond3
+);
+// Équivalent: $cond1 || $cond2 || $cond3
+// SQL: (cond1 OR cond2 OR cond3)
+```
+
+### NOT
+
+| Enfants | Évaluation | SQL |
+|---------|------------|-----|
+| 1 | Négation de l'enfant | `NOT (cond)` |
+| 0 | `false` | `1=0` |
+| >1 | Seul le premier est utilisé | - |
+
+**Exemple :**
+```php
+$group = new GroupNode(
+    LogicalOperator::NOT,
+    $cond
+);
+// Équivalent: !$cond
+// SQL: NOT (cond)
 ```
 
 ---
 
 ## Cas d'utilisation
 
-### Cas 1 : Filtrage avancé avec conditions multiples
-
-Rechercher des clusters qui sont actifs ET administrateurs.
+### Cas 1 : AND avec deux conditions
 
 ```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\LaravelCluster\Nodes\GroupNode;
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\LogicalOperator;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-use AndyDefer\LaravelCluster\ClusterQuery;
-
-// Construire la requête : (status = 'active' AND role = 'admin')
 $group = new GroupNode(
     LogicalOperator::AND,
     new ConditionNode('status', ComparisonOperator::EQUAL, 'active'),
     new ConditionNode('role', ComparisonOperator::EQUAL, 'admin')
 );
 
-$query = new ClusterQuery();
-$collection = new ClusterVOCollection(/* ... */);
+$cluster = new ClusterVO(['status' => 'active', 'role' => 'admin']);
+$result = $group->evaluate($cluster); // true
 
-// Filtrer directement via l'évaluation
-$filtered = $collection->filter(
-    fn (ClusterVO $cluster) => $group->evaluate($cluster)
-);
+$sql = $group->toSql('clusters', DatabaseDriver::SQLITE);
+// (LOWER(json_extract(clusters, '$.status')) = LOWER('active') AND LOWER(json_extract(clusters, '$.role')) = LOWER('admin'))
 ```
 
-### Cas 2 : Requêtes combinées avec NOT et OR
-
-Trouver les clusters qui ne sont pas mineurs OU qui sont administrateurs.
+### Cas 2 : OR avec trois conditions
 
 ```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\LaravelCluster\Nodes\GroupNode;
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\LogicalOperator;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
-use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
-
-// NOT (age < 18) OR role = 'admin'
-$notMinor = new GroupNode(
-    LogicalOperator::NOT,
-    new ConditionNode('age', ComparisonOperator::LESS_THAN, '18')
-);
-
-$admin = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
-
 $group = new GroupNode(
     LogicalOperator::OR,
-    $notMinor,
-    $admin
+    new ConditionNode('status', ComparisonOperator::EQUAL, 'active'),
+    new ConditionNode('status', ComparisonOperator::EQUAL, 'pending'),
+    new ConditionNode('status', ComparisonOperator::EQUAL, 'inactive')
 );
-
-$query = TestCluster::query();
-$group->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
-
-$results = $query->get(); // Clusters non mineurs OU admins
+// Vérifie si le statut est actif, en attente ou inactif
 ```
 
-### Cas 3 : Conditions imbriquées complexes
-
-Combinaison de conditions avec plusieurs niveaux de priorité.
+### Cas 3 : NOT
 
 ```php
-<?php
+$group = new GroupNode(
+    LogicalOperator::NOT,
+    new ConditionNode('status', ComparisonOperator::EQUAL, 'inactive')
+);
+// Vérifie que le statut n'est pas inactif
+```
 
-declare(strict_types=1);
+### Cas 4 : Groupes imbriqués
 
-use AndyDefer\LaravelCluster\Nodes\GroupNode;
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\LogicalOperator;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-
-// (status = 'active' OR role = 'admin') AND verified = 'true'
+```php
 $innerGroup = new GroupNode(
     LogicalOperator::OR,
-    new ConditionNode('status', ComparisonOperator::EQUAL, 'active'),
-    new ConditionNode('role', ComparisonOperator::EQUAL, 'admin')
+    new ConditionNode('role', ComparisonOperator::EQUAL, 'admin'),
+    new ConditionNode('role', ComparisonOperator::EQUAL, 'doctor')
 );
 
 $outerGroup = new GroupNode(
     LogicalOperator::AND,
-    $innerGroup,
-    new ConditionNode('verified', ComparisonOperator::EQUAL, 'true')
+    new ConditionNode('status', ComparisonOperator::EQUAL, 'active'),
+    $innerGroup
 );
-
-// Exécution : les conditions OR sont évaluées d'abord (priorité naturelle)
-$cluster = new ClusterVO([
-    'status' => 'inactive',
-    'role' => 'admin',
-    'verified' => 'true'
-]);
-
-$result = $outerGroup->evaluate($cluster); // true
+// (status=active AND (role=admin OR role=doctor))
 ```
 
-### Cas 4 : Interrogation Eloquent avec groupement OR
-
-Utiliser `toEloquent()` pour filtrer une base de données avec des conditions OR.
+### Cas 5 : Application Eloquent
 
 ```php
-<?php
+$query = User::query();
 
-declare(strict_types=1);
-
-use AndyDefer\LaravelCluster\Nodes\GroupNode;
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\LogicalOperator;
-use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
-use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
-
-// Chercher les clusters où status = 'active' OU lang_fr = 'true'
+// Groupe AND
 $group = new GroupNode(
-    LogicalOperator::OR,
+    LogicalOperator::AND,
     new ConditionNode('status', ComparisonOperator::EQUAL, 'active'),
-    new ConditionNode('lang_fr', ComparisonOperator::EQUAL, 'true')
+    new ConditionNode('role', ComparisonOperator::EQUAL, 'admin')
 );
+$group->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
-$query = TestCluster::query()
-    ->where('id', '>', 0)
-    ->where('created_at', '>=', '2024-01-01');
+// Groupe OR
+$orGroup = new GroupNode(
+    LogicalOperator::OR,
+    new ConditionNode('lang_fr', ComparisonOperator::EQUAL, 'true'),
+    new ConditionNode('lang_en', ComparisonOperator::EQUAL, 'true')
+);
+$orGroup->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
-$group->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
-
-$results = $query->get();
-// WHERE id > 0 
-// AND created_at >= '2024-01-01' 
-// AND (JSON_EXTRACT(...) = 'active' OR JSON_EXTRACT(...) = 'true')
+$users = $query->get();
+// status=active AND role=admin AND (lang_fr=true OR lang_en=true)
 ```
 
 ---
 
 ## Gestion des erreurs
 
-Le `GroupNode` ne lève pas d'exceptions directement. Les erreurs peuvent survenir lors de l'utilisation des méthodes `toSql()` ou `toEloquent()` si les nœuds enfants lèvent des exceptions.
-
-| Situation | Exception | Message |
-|-----------|-----------|---------|
-| Groupe vide avec NOT | Aucune (évalue à false) | - |
-| Groupe vide avec AND | Aucune (évalue à true) | - |
-| Groupe vide en SQL | Aucune (`'1=1'` pour AND) | - |
-| Opérateur non reconnu | Aucune (`default` non atteignable) | - |
-
-**Note :** Les exceptions sont gérées par les nœuds enfants (`ConditionNode`, `SubConditionNode`) et remontées si nécessaire.
-
----
-
-## Intégration
-
-### Avec `ClusterQuery`
-```php
-<?php
-
-use AndyDefer\LaravelCluster\ClusterQuery;
-use AndyDefer\LaravelCluster\Nodes\GroupNode;
-
-$clusterQuery = new ClusterQuery();
-$ast = $clusterQuery->parse('(status=active AND role=admin)');
-// $ast est un GroupNode
-
-$result = $clusterQuery->filter($collection, '(status=active AND role=admin)');
-// Le parser génère un GroupNode qui évalue la collection
-```
-
-### Avec `ConditionNode`
-```php
-<?php
-
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Nodes\GroupNode;
-
-// Les ConditionNode sont les feuilles de l'arbre
-$condition = new ConditionNode('age', ComparisonOperator::GREATER_THAN, '18');
-$group = new GroupNode(LogicalOperator::AND, $condition);
-```
-
-### Avec `SubConditionNode`
-```php
-<?php
-
-use AndyDefer\LaravelCluster\Nodes\SubConditionNode;
-use AndyDefer\LaravelCluster\Nodes\GroupNode;
-
-// Les SubConditionNode peuvent être enfants de GroupNode
-$sub = new SubConditionNode(
-    'addresses',
-    new ConditionNode('city', ComparisonOperator::EQUAL, 'kinshasa')
-);
-$group = new GroupNode(LogicalOperator::AND, $sub);
-```
+| Situation | Comportement |
+|-----------|--------------|
+| Groupe AND vide | Évalue à `true`, SQL `1=1` |
+| Groupe OR vide | Évalue à `false`, SQL `1=0` |
+| Groupe NOT vide | Évalue à `false`, SQL `1=0` |
+| Groupe NOT avec >1 enfant | Seul le premier enfant est utilisé |
 
 ---
 
 ## Performance
 
-| Opération | Complexité | Détails |
-|-----------|------------|---------|
-| `evaluate()` | **O(n)** | Parcourt les enfants séquentiellement, s'arrête tôt avec AND/OR (court-circuit) |
-| `toSql()` | **O(n)** | Génère une string SQL en parcourant tous les enfants |
-| `toEloquent()` | **O(n)** | Applique les conditions via le Query Builder, optimisé par MySQL/PostgreSQL |
-| Mémoire | **O(n)** | Stocke les références des nœuds enfants |
-
-**Optimisations :**
-- **Court-circuit** : Les opérateurs AND/OR arrêtent l'évaluation dès que le résultat est déterminé
-- **Pas de cache** : Chaque appel `evaluate()` recalcule tout (les données changent)
-- **Construction flexible** : L'utilisation de variadiques `...$children` permet des groupements dynamiques
+- **Évaluation :** O(n) où n est le nombre d'enfants
+- **SQL :** Génération à la volée, pas de cache
+- **Eloquent :** Utilisation de sous-requêtes pour maintenir la priorité des opérateurs
 
 ---
 
 ## Compatibilité
 
-| Version | Support |
-|---------|---------|
-| PHP 8.1+ | ✅ Complet (types, énumérations) |
+| Version PHP | Support |
+|-------------|---------|
+| PHP 8.1+ | ✅ Complet |
 | PHP 8.0 | ✅ Complet |
-| PHP 7.4 | ❌ Non supporté (utilise PHP 8+ uniquement) |
-
-| Base de données | Support |
-|-----------------|---------|
-| MySQL 5.7+ | ✅ Complet |
-| PostgreSQL 10+ | ✅ Complet |
-| SQLite 3.10+ | ✅ Complet (avec `json_extract` et `json_each`) |
 
 ---
 
@@ -470,84 +314,94 @@ declare(strict_types=1);
 
 use AndyDefer\LaravelCluster\Nodes\GroupNode;
 use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Enums\LogicalOperator;
+use AndyDefer\LaravelCluster\Nodes\FunctionNode;
 use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
+use AndyDefer\LaravelCluster\Enums\LogicalOperator;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
-use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
-use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
 
-// 1. Construction d'une condition complexe
-// (status = 'active' OR role = 'admin') AND (age >= 18 AND verified = 'true')
-$innerOr = new GroupNode(
-    LogicalOperator::OR,
+// ==================== CRÉATION ====================
+
+// Groupe AND simple
+$andGroup = new GroupNode(
+    LogicalOperator::AND,
     new ConditionNode('status', ComparisonOperator::EQUAL, 'active'),
     new ConditionNode('role', ComparisonOperator::EQUAL, 'admin')
 );
 
-$innerAnd = new GroupNode(
-    LogicalOperator::AND,
-    new ConditionNode('age', ComparisonOperator::GREATER_THAN_OR_EQUAL, '18'),
-    new ConditionNode('verified', ComparisonOperator::EQUAL, 'true')
+// Groupe OR
+$orGroup = new GroupNode(
+    LogicalOperator::OR,
+    new ConditionNode('role', ComparisonOperator::EQUAL, 'admin'),
+    new ConditionNode('role', ComparisonOperator::EQUAL, 'doctor'),
+    new ConditionNode('role', ComparisonOperator::EQUAL, 'guest')
 );
 
-$finalGroup = new GroupNode(
-    LogicalOperator::AND,
-    $innerOr,
-    $innerAnd
+// Groupe NOT
+$notGroup = new GroupNode(
+    LogicalOperator::NOT,
+    new ConditionNode('status', ComparisonOperator::EQUAL, 'inactive')
 );
 
-// 2. Évaluation sur une collection
-$collection = new ClusterVOCollection([
-    new ClusterVO([
-        'status' => 'inactive',
-        'role' => 'admin',
-        'age' => '25',
-        'verified' => 'true'
-    ]), // true (admin + age >= 18 + verified)
-    new ClusterVO([
-        'status' => 'active',
-        'role' => 'guest',
-        'age' => '17',
-        'verified' => 'true'
-    ]), // false (age < 18)
-    new ClusterVO([
-        'status' => 'active',
-        'role' => 'guest',
-        'age' => '25',
-        'verified' => 'false'
-    ]), // false (verified = false)
+// Groupe imbriqué
+$nestedGroup = new GroupNode(
+    LogicalOperator::AND,
+    new ConditionNode('status', ComparisonOperator::EQUAL, 'active'),
+    new GroupNode(
+        LogicalOperator::OR,
+        new ConditionNode('role', ComparisonOperator::EQUAL, 'admin'),
+        new ConditionNode('role', ComparisonOperator::EQUAL, 'doctor')
+    ),
+    new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2')
+);
+
+// ==================== ÉVALUATION ====================
+
+$cluster = new ClusterVO([
+    'status' => 'active',
+    'role' => 'admin',
+    'addresses' => ['a', 'b', 'c'],
 ]);
 
-$filtered = $collection->filter(
-    fn (ClusterVO $cluster) => $finalGroup->evaluate($cluster)
-);
+var_dump($andGroup->evaluate($cluster)); // true
+var_dump($orGroup->evaluate($cluster)); // true
+var_dump($notGroup->evaluate($cluster)); // true
+var_dump($nestedGroup->evaluate($cluster)); // true
 
-// Résultat : 1 cluster
+// ==================== GÉNÉRATION SQL ====================
 
-// 3. Génération SQL
-$sql = $finalGroup->toSql('clusters', DatabaseDriver::MYSQL);
-echo $sql;
-// ( (LOWER(JSON_EXTRACT(clusters, '$."status"')) = LOWER('active') 
-//    OR LOWER(JSON_EXTRACT(clusters, '$."role"')) = LOWER('admin') ) 
-//   AND 
-//   ( CAST(JSON_EXTRACT(clusters, '$."age"') AS SIGNED) >= 18 
-//     AND LOWER(JSON_EXTRACT(clusters, '$."verified"')) = LOWER('true') ) )
+$column = 'clusters';
 
-// 4. Application à Eloquent
-$query = TestCluster::query();
-$finalGroup->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+echo "AND Group:\n";
+echo $andGroup->toSql($column, DatabaseDriver::SQLITE) . "\n";
+// (LOWER(json_extract(clusters, '$.status')) = LOWER('active') AND LOWER(json_extract(clusters, '$.role')) = LOWER('admin'))
 
-$results = $query->get();
-echo "Nombre de résultats : " . $results->count();
+echo "\nOR Group:\n";
+echo $orGroup->toSql($column, DatabaseDriver::SQLITE) . "\n";
+// (LOWER(json_extract(clusters, '$.role')) = LOWER('admin') OR LOWER(json_extract(clusters, '$.role')) = LOWER('doctor') OR LOWER(json_extract(clusters, '$.role')) = LOWER('guest'))
+
+echo "\nNOT Group:\n";
+echo $notGroup->toSql($column, DatabaseDriver::SQLITE) . "\n";
+// NOT (LOWER(json_extract(clusters, '$.status')) = LOWER('inactive'))
+
+echo "\nNested Group:\n";
+echo $nestedGroup->toSql($column, DatabaseDriver::SQLITE) . "\n";
+// (LOWER(json_extract(clusters, '$.status')) = LOWER('active') AND (LOWER(json_extract(clusters, '$.role')) = LOWER('admin') OR LOWER(json_extract(clusters, '$.role')) = LOWER('doctor')) AND json_array_length(clusters, '$.addresses') > 2)
+
+// ==================== APPLICATION ELOQUENT ====================
+
+$query = User::query();
+$nestedGroup->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+$users = $query->get();
+// Utilisateurs actifs, admins ou docteurs, avec plus de 2 adresses
 ```
 
 ---
 
 ## Voir aussi
 
-- `ConditionNode` - Nœud de comparaison simple (feuille de l'arbre)
-- `SubConditionNode` - Nœud de condition sur sous-objets (tableaux)
-- `ClusterQuery` - Service principal pour l'évaluation des requêtes
-- `LogicalOperator` - Énumération des opérateurs logiques (AND, OR, NOT)
-- `NodeInterface` - Interface commune à tous les nœuds de l'AST
+- `LogicalOperator` - Énumération des opérateurs logiques
+- `ConditionNode` - Condition simple
+- `FunctionNode` - Fonction SQL
+- `Node` - Interface des nœuds
+- `DatabaseDriver` - Énumération des drivers

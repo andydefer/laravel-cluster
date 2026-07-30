@@ -8,6 +8,19 @@ use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * Unit tests for ClusterVOCollection.
+ *
+ * Tests cover:
+ * - Basic filtering methods (where, whereNot, whereTrue, whereFalse)
+ * - Logical operators (AND, OR, group conditions)
+ * - Comparison operators (>, >=, <, <=, between, in)
+ * - Array operations (contains, containsAny, containsAll, empty, size)
+ * - String operations (like, starts, ends, contains)
+ * - Aggregate functions (COUNT, SUM, AVG, MIN, MAX, LENGTH, EXISTS, HAS, ALL)
+ * - Query parsing with whereQuery
+ * - Edge cases and error handling
+ */
 final class ClusterVOCollectionTest extends TestCase
 {
     private ClusterVOCollection $collection;
@@ -18,7 +31,6 @@ final class ClusterVOCollectionTest extends TestCase
 
         $this->collection = new ClusterVOCollection;
 
-        // John Doe avec adresses et scores
         $this->collection->add(new ClusterVO([
             'id' => 1,
             'name' => 'John Doe',
@@ -32,7 +44,7 @@ final class ClusterVOCollectionTest extends TestCase
                 ['city' => 'Kinshasa', 'street' => 'Avenue de la Paix', 'country' => 'RDC'],
                 ['city' => 'Lubumbashi', 'street' => 'Avenue Lumumba', 'country' => 'RDC'],
             ],
-            'scores' => [80, 90, 85], // ✅ Ajout des scores
+            'scores' => [80, 90, 85],
             'tags' => ['php', 'js', 'docker'],
             'settings' => [
                 'notifications' => [
@@ -42,7 +54,6 @@ final class ClusterVOCollectionTest extends TestCase
             ],
         ]));
 
-        // Jane Smith avec adresses et scores
         $this->collection->add(new ClusterVO([
             'id' => 2,
             'name' => 'Jane Smith',
@@ -55,7 +66,7 @@ final class ClusterVOCollectionTest extends TestCase
             'addresses' => [
                 ['city' => 'Paris', 'street' => 'Rue de Rivoli', 'country' => 'France'],
             ],
-            'scores' => [70, 75, 80], // ✅ Ajout des scores
+            'scores' => [70, 75, 80],
             'tags' => ['python', 'react'],
             'settings' => [
                 'notifications' => [
@@ -65,7 +76,6 @@ final class ClusterVOCollectionTest extends TestCase
             ],
         ]));
 
-        // Bob Johnson avec adresses et scores
         $this->collection->add(new ClusterVO([
             'id' => 3,
             'name' => 'Bob Johnson',
@@ -80,7 +90,7 @@ final class ClusterVOCollectionTest extends TestCase
                 ['city' => 'Paris', 'street' => 'Avenue des Champs-Élysées', 'country' => 'France'],
                 ['city' => 'London', 'street' => 'Oxford Street', 'country' => 'UK'],
             ],
-            'scores' => [95, 98, 92], // ✅ Ajout des scores
+            'scores' => [95, 98, 92],
             'tags' => ['php', 'laravel', 'vuejs'],
             'settings' => [
                 'notifications' => [
@@ -90,7 +100,6 @@ final class ClusterVOCollectionTest extends TestCase
             ],
         ]));
 
-        // Alice Wonder sans adresses mais avec scores
         $this->collection->add(new ClusterVO([
             'id' => 4,
             'name' => 'Alice Wonder',
@@ -101,7 +110,7 @@ final class ClusterVOCollectionTest extends TestCase
             'lang_fr' => 'false',
             'lang_en' => 'true',
             'addresses' => [],
-            'scores' => [85, 90, 88], // ✅ Ajout des scores
+            'scores' => [85, 90, 88],
             'tags' => ['go', 'rust'],
             'settings' => [
                 'notifications' => [
@@ -116,7 +125,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->where('status', 'active');
 
-        $this->assertCount(2, $result); // John Doe et Bob Johnson
+        $this->assertCount(2, $result);
         $this->assertEquals('active', $result->first()?->get('status'));
     }
 
@@ -126,7 +135,7 @@ final class ClusterVOCollectionTest extends TestCase
             ->andWhere('status', 'active')
             ->andWhere('role', 'admin');
 
-        $this->assertCount(1, $result); // John Doe
+        $this->assertCount(1, $result);
         $this->assertEquals('admin', $result->first()?->get('role'));
     }
 
@@ -134,7 +143,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereNot('status', 'inactive');
 
-        $this->assertCount(3, $result); // John, Bob, Alice
+        $this->assertCount(3, $result);
         $this->assertNotEquals('inactive', $result->first()?->get('status'));
     }
 
@@ -142,7 +151,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereTrue('verified');
 
-        $this->assertCount(3, $result); // John, Jane, Bob
+        $this->assertCount(3, $result);
         $this->assertEquals('true', $result->first()?->get('verified'));
     }
 
@@ -150,7 +159,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereFalse('verified');
 
-        $this->assertCount(1, $result); // Alice
+        $this->assertCount(1, $result);
         $this->assertEquals('false', $result->first()?->get('verified'));
     }
 
@@ -160,17 +169,16 @@ final class ClusterVOCollectionTest extends TestCase
             ->where('status', 'active')
             ->orWhere('status', 'pending');
 
-        $this->assertCount(3, $result); // John, Bob, Alice
+        $this->assertCount(3, $result);
         $this->assertContains($result->first()?->get('status'), ['active', 'pending']);
     }
 
     public function test_where_group_applies_conditions_as_a_group(): void
     {
-
         $result = $this->collection
             ->whereQuery('status=active | status=pending');
 
-        $this->assertCount(3, $result); // John, Bob, Alice
+        $this->assertCount(3, $result);
     }
 
     public function test_where_group_with_and_condition_combines_group_with_outer_condition(): void
@@ -192,8 +200,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_or_where_group_without_prior_filter_applies_or_group_to_full_collection(): void
     {
-        // Avant: orWhereGroup seul
-        // Équivalent: role=admin & verified=true
         $result = $this->collection
             ->whereQuery('role=admin & verified=true');
 
@@ -202,8 +208,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_or_where_group_with_prior_filter_combines_filters_with_or(): void
     {
-        // Avant: where + orWhereGroup
-        // Équivalent: status=active | (role=admin & verified=true)
         $result = $this->collection
             ->whereQuery('status=active | (role=admin & verified=true)');
 
@@ -212,8 +216,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_chain_with_or_where_after_group_combines_group_and_single_condition(): void
     {
-        // Avant: whereGroup + orWhere
-        // Équivalent: (status=active & role=admin) | status=pending
         $result = $this->collection
             ->whereQuery('(status=active & role=admin) | status=pending');
 
@@ -222,8 +224,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_or_where_group_with_multiple_conditions_combines_multiple_or_groups(): void
     {
-        // Avant: whereGroup + orWhereGroup
-        // Équivalent: status=active | (role=admin & verified=true)
         $result = $this->collection
             ->whereQuery('status=active | (role=admin & verified=true)');
 
@@ -232,8 +232,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_nested_groups_support_deep_nesting_of_conditions(): void
     {
-        // Avant: whereGroup imbriqué + andWhere
-        // Équivalent: ((status=active & role=admin) | (status=active & role=doctor)) & verified=true
         $result = $this->collection
             ->whereQuery('((status=active & role=admin) | (status=active & role=doctor)) & verified=true');
 
@@ -242,8 +240,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_complex_chaining_with_groups_supports_multiple_group_operations(): void
     {
-        // Avant: whereGroup + andWhere + whereTrue + whereGreaterThanOrEqual
-        // Équivalent: (status=active | status=pending) & role=admin & verified=true & age>=25
         $result = $this->collection
             ->whereQuery('(status=active | status=pending) & role=admin & verified=true & age>=25');
 
@@ -252,8 +248,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_complex_chaining_with_or_groups_supports_or_groups_in_chain(): void
     {
-        // Avant: where + orWhereGroup + andWhere
-        // Équivalent: status=active | (status=pending & role=guest) & verified=true
         $result = $this->collection
             ->whereQuery('(status=active | (status=pending & role=guest)) & verified=true');
 
@@ -264,7 +258,6 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereHas('lang_fr');
 
-        // Tous les 4 clusters ont la clé 'lang_fr'
         $this->assertCount(4, $result);
         $this->assertTrue($result->first()?->has('lang_fr'));
     }
@@ -281,7 +274,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereIn('role', ['admin', 'doctor']);
 
-        $this->assertCount(3, $result); // John (admin), Jane (doctor), Bob (doctor)
+        $this->assertCount(3, $result);
         $this->assertContains($result->first()?->get('role'), ['admin', 'doctor']);
     }
 
@@ -289,7 +282,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereNotIn('status', ['active', 'pending']);
 
-        $this->assertCount(1, $result); // Jane (inactive)
+        $this->assertCount(1, $result);
         $this->assertEquals('inactive', $result->first()?->get('status'));
     }
 
@@ -297,7 +290,6 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereGreaterThan('age', 25);
 
-        // John (30), Bob (35), Alice (28) → 3
         $this->assertCount(3, $result);
         $this->assertGreaterThan(25, $result->first()?->get('age'));
     }
@@ -306,7 +298,6 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereGreaterThanOrEqual('age', 25);
 
-        // Tous les 4 clusters ont un âge >= 25
         $this->assertCount(4, $result);
         $this->assertGreaterThanOrEqual(25, $result->first()?->get('age'));
     }
@@ -322,7 +313,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereLessThanOrEqual('age', 25);
 
-        $this->assertCount(1, $result); // Jane (25)
+        $this->assertCount(1, $result);
         $this->assertLessThanOrEqual(25, $result->first()?->get('age'));
     }
 
@@ -330,7 +321,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereBetween('age', 28, 30);
 
-        $this->assertCount(2, $result); // Jane (25), John (30)
+        $this->assertCount(2, $result);
         $this->assertTrue($result->first()?->get('age') >= 28 && $result->first()?->get('age') <= 30);
     }
 
@@ -362,7 +353,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereContains('name', 'Bob');
 
-        $this->assertCount(1, $result); // Bob Johnson
+        $this->assertCount(1, $result);
         $name = $result->first()?->get('name');
         $this->assertIsString($name);
         $this->assertStringContainsString('Bob', (string) $name);
@@ -372,7 +363,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereStartsWith('name', 'J');
 
-        $this->assertCount(2, $result); // John Doe, Jane Smith
+        $this->assertCount(2, $result);
         $name = $result->first()?->get('name');
         $this->assertIsString($name);
         $this->assertStringStartsWith('J', (string) $name);
@@ -382,8 +373,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereEndsWith('name', 'n');
 
-        // John Doe (e), Jane Smith (h), Bob Johnson (n), Alice Wonder (r)
-        $this->assertCount(1, $result); // Bob Johnson
+        $this->assertCount(1, $result);
         $name = $result->first()?->get('name');
         $this->assertIsString($name);
         $this->assertStringEndsWith('n', (string) $name);
@@ -395,7 +385,7 @@ final class ClusterVOCollectionTest extends TestCase
             fn (ClusterVO $cluster) => $cluster->get('age') > 25 && $cluster->get('role') === 'admin'
         );
 
-        $this->assertCount(1, $result); // John Doe
+        $this->assertCount(1, $result);
         $this->assertEquals('John Doe', $result->first()?->get('name'));
     }
 
@@ -405,7 +395,7 @@ final class ClusterVOCollectionTest extends TestCase
             fn (ClusterVO $cluster) => $cluster->get('role') === 'admin'
         );
 
-        $this->assertCount(1, $result); // John Doe
+        $this->assertCount(1, $result);
         $this->assertEquals('admin', $result->first()?->get('role'));
     }
 
@@ -417,7 +407,7 @@ final class ClusterVOCollectionTest extends TestCase
                 fn (ClusterVO $cluster) => $cluster->get('role') === 'admin'
             );
 
-        $this->assertCount(2, $result); // John (active+admin), Bob (active)
+        $this->assertCount(2, $result);
     }
 
     public function test_where_closure_with_group_combines_closure_with_other_conditions(): void
@@ -428,7 +418,7 @@ final class ClusterVOCollectionTest extends TestCase
                 fn (ClusterVO $cluster) => $cluster->get('age') >= 25 && $cluster->get('verified') === 'true'
             );
 
-        $this->assertCount(2, $result); // John, Bob
+        $this->assertCount(2, $result);
     }
 
     public function test_first_where_returns_first_matching_item(): void
@@ -501,7 +491,7 @@ final class ClusterVOCollectionTest extends TestCase
             ->whereTrue('verified')
             ->whereFalse('lang_en');
 
-        $this->assertCount(2, $result); // John, Bob
+        $this->assertCount(2, $result);
         $this->assertEquals('true', $result->first()?->get('verified'));
         $this->assertEquals('false', $result->first()?->get('lang_en'));
     }
@@ -532,7 +522,7 @@ final class ClusterVOCollectionTest extends TestCase
         $result = $this->collection
             ->whereQuery('(status=active | status=pending) & role!=guest');
 
-        $this->assertCount(2, $result); // John, Bob
+        $this->assertCount(2, $result);
     }
 
     public function test_where_like_with_non_string_value_returns_empty_result(): void
@@ -568,7 +558,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereLike('name', 'John');
 
-        $this->assertCount(2, $result); // John Doe, Bob Johnson (contient John)
+        $this->assertCount(2, $result);
         $this->assertStringContainsString('John', (string) $result->first()?->get('name'));
     }
 
@@ -588,7 +578,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereLike('name', 'john');
 
-        $this->assertCount(2, $result); // John Doe, Bob Johnson
+        $this->assertCount(2, $result);
         $this->assertStringContainsString('John', (string) $result->first()?->get('name'));
     }
 
@@ -596,7 +586,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereStarts('name', 'J');
 
-        $this->assertCount(2, $result); // John Doe, Jane Smith
+        $this->assertCount(2, $result);
         $this->assertStringStartsWith('J', (string) $result->first()?->get('name'));
     }
 
@@ -604,7 +594,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereStarts('name', 'j');
 
-        $this->assertCount(2, $result); // John Doe, Jane Smith
+        $this->assertCount(2, $result);
         $this->assertStringStartsWith('J', (string) $result->first()?->get('name'));
     }
 
@@ -612,7 +602,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereEnds('name', 'e');
 
-        $this->assertCount(1, $result); // John Doe
+        $this->assertCount(1, $result);
         $this->assertEquals('John Doe', $result->first()?->get('name'));
     }
 
@@ -620,7 +610,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereEnds('name', 'E');
 
-        $this->assertCount(1, $result); // John Doe
+        $this->assertCount(1, $result);
         $this->assertEquals('John Doe', $result->first()?->get('name'));
     }
 
@@ -628,7 +618,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereNotLike('name', 'John');
 
-        $this->assertCount(2, $result); // Jane Smith, Alice Wonder
+        $this->assertCount(2, $result);
         $this->assertStringNotContainsString('John', (string) $result->first()?->get('name'));
     }
 
@@ -636,7 +626,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereNotStarts('name', 'J');
 
-        $this->assertCount(2, $result); // Bob Johnson, Alice Wonder
+        $this->assertCount(2, $result);
         $name = $result->first()?->get('name');
         $this->assertIsString($name);
         $this->assertStringStartsWith('B', (string) $name);
@@ -646,7 +636,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereNotEnds('name', 'e');
 
-        $this->assertCount(3, $result); // Jane Smith, Bob Johnson, Alice Wonder
+        $this->assertCount(3, $result);
         $name = $result->first()?->get('name');
         $this->assertIsString($name);
         $this->assertFalse(str_ends_with(strtolower((string) $name), 'e'));
@@ -1236,15 +1226,6 @@ final class ClusterVOCollectionTest extends TestCase
             'languages' => ['fr', 'es'],
         ]));
 
-        // Avant:
-        // ->whereGroup(fn($q) => $q->where('status', 'active')->orWhere('status', 'pending'))
-        // ->whereArrayContainsAny('tags', ['php', 'python'])
-        // ->whereArraySizeGreaterThan('languages', 1)
-
-        // Équivalent: (status=active | status=pending) & (tags_php=true | tags_python=true) & (languages_fr=true | languages_en=true) & (languages size > 1)
-        // Mais pour whereArrayContainsAny et whereArraySizeGreaterThan, on doit les garder en méthodes chainées
-        // car whereQuery ne peut pas exprimer ces conditions directement
-
         $result = $collection
             ->whereQuery('(status=active | status=pending)')
             ->whereArrayContainsAny('tags', ['php', 'python'])
@@ -1332,7 +1313,6 @@ final class ClusterVOCollectionTest extends TestCase
 
         $result = $collection->whereLikePattern('name', '%j%h%n');
 
-        // johanson et johnson contiennent j, h, n dans l'ordre
         $this->assertCount(2, $result);
     }
 
@@ -1344,8 +1324,6 @@ final class ClusterVOCollectionTest extends TestCase
 
         $result = $collection->whereLikePattern('name', 'j%n');
 
-        // johanson commence par j et finit par n
-        // johnson commence par j et finit par n
         $this->assertCount(2, $result);
     }
 
@@ -1366,8 +1344,6 @@ final class ClusterVOCollectionTest extends TestCase
         $collection->add(new ClusterVO(['name' => 'johanson']));
         $collection->add(new ClusterVO(['name' => 'johnson']));
 
-        // johanson: j -> h -> n dans l'ordre ✅
-        // johnson: j -> h -> n dans l'ordre ✅
         $result = $collection->whereLikePattern('name', '%j%h%n');
 
         $this->assertCount(2, $result);
@@ -1379,8 +1355,6 @@ final class ClusterVOCollectionTest extends TestCase
         $collection->add(new ClusterVO(['name' => 'johanson']));
         $collection->add(new ClusterVO(['name' => 'johnson']));
 
-        // johanson: j -> n -> h dans l'ordre ❌
-        // johnson: j -> n -> h dans l'ordre ❌
         $result = $collection->whereLikePattern('name', '%j%n%h');
 
         $this->assertCount(0, $result);
@@ -1450,7 +1424,6 @@ final class ClusterVOCollectionTest extends TestCase
 
         $result = $collection->whereLikePattern('name', '%_doe');
 
-        // _ correspond à un seul caractère, donc john_doe et jane_doe
         $this->assertCount(2, $result);
     }
 
@@ -1505,9 +1478,6 @@ final class ClusterVOCollectionTest extends TestCase
             ->where('status', 'active')
             ->orWhereLikePattern('name', '%johnson%');
 
-        // active: john_doe, jane_smith → 2
-        // ou johnson: bob_johnson → 1 (mais pas active)
-        // total: 3
         $this->assertCount(3, $result);
     }
 
@@ -1520,7 +1490,6 @@ final class ClusterVOCollectionTest extends TestCase
 
         $result = $collection->orWhereNotLikePattern('name', '%john%');
 
-        // jane_smith ne contient pas john → 1
         $this->assertCount(1, $result);
         $this->assertEquals('jane_smith', $result->first()?->get('name'));
     }
@@ -1554,14 +1523,13 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(4, $result);
     }
 
-    // ==================== WHERE QUERY TESTS (SOUS-CONDITIONS) ====================
+    // ==================== WHERE QUERY TESTS (SUB-CONDITIONS) ====================
 
     public function test_where_query_simple_subcondition(): void
     {
-        // addresses[city=kinshasa]
         $result = $this->collection->whereQuery('addresses[city=kinshasa]');
 
-        $this->assertCount(2, $result); // John et Bob
+        $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
         $this->assertContains('Bob Johnson', $names);
@@ -1571,10 +1539,9 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_subcondition_with_and(): void
     {
-        // addresses[city=kinshasa & country=rdc]
         $result = $this->collection->whereQuery('addresses[city=kinshasa & country=rdc]');
 
-        $this->assertCount(2, $result); // John et Bob
+        $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
         $this->assertContains('Bob Johnson', $names);
@@ -1582,10 +1549,9 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_subcondition_with_or(): void
     {
-        // addresses[city=kinshasa | city=paris]
         $result = $this->collection->whereQuery('addresses[city=kinshasa | city=paris]');
 
-        $this->assertCount(3, $result); // John, Jane, Bob
+        $this->assertCount(3, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
         $this->assertContains('Jane Smith', $names);
@@ -1595,10 +1561,9 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_subcondition_with_like(): void
     {
-        // addresses[city=~kin%]
         $result = $this->collection->whereQuery('addresses[city=~kin%]');
 
-        $this->assertCount(2, $result); // John et Bob
+        $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
         $this->assertContains('Bob Johnson', $names);
@@ -1607,11 +1572,8 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_subcondition_with_not_like(): void
     {
-        // addresses[city!~kin%]
-        // Retourne les clusters qui ont au moins une adresse dont la ville ne commence PAS par 'kin'
         $result = $this->collection->whereQuery('addresses[city!~kin%]');
 
-        // John (a Lubumbashi), Jane (Paris), Bob (Paris/London) → 3
         $this->assertCount(3, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
@@ -1622,10 +1584,9 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_subcondition_with_nested_path(): void
     {
-        // settings.notifications[email=true]
         $result = $this->collection->whereQuery('settings.notifications[email=true]');
 
-        $this->assertCount(2, $result); // John et Bob
+        $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
         $this->assertContains('Bob Johnson', $names);
@@ -1635,10 +1596,9 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_subcondition_with_exists(): void
     {
-        // addresses[*] ou addresses[]
         $result = $this->collection->whereQuery('addresses[]');
 
-        $this->assertCount(3, $result); // John, Jane, Bob (ont des adresses)
+        $this->assertCount(3, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
         $this->assertContains('Jane Smith', $names);
@@ -1648,19 +1608,17 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_subcondition_with_not_exists(): void
     {
-        // addresses[#city]
         $result = $this->collection->whereQuery('addresses[#city]');
 
-        $this->assertCount(1, $result); // Alice
+        $this->assertCount(1, $result);
         $this->assertEquals('Alice Wonder', $result->first()?->get('name'));
     }
 
     public function test_where_query_combined_with_condition(): void
     {
-        // status=active & addresses[city=kinshasa]
         $result = $this->collection->whereQuery('status=active & addresses[city=kinshasa]');
 
-        $this->assertCount(2, $result); // John et Bob
+        $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
         $this->assertContains('Bob Johnson', $names);
@@ -1670,11 +1628,8 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_with_or_and_parentheses(): void
     {
-
-        // (status=active | status=pending) & addresses[city=kinshasa | city=paris]
         $result = $this->collection->whereQuery('(status=active | status=pending) & addresses[city=kinshasa | city=paris]');
 
-        // John (active + Kinshasa) et Bob (active + Kinshasa/Paris) → 2
         $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
@@ -1685,10 +1640,9 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_complex_subcondition(): void
     {
-        // addresses[(city=kinshasa & country=rdc) | (city=paris & country=france)]
         $result = $this->collection->whereQuery('addresses[(city=kinshasa & country=rdc) | (city=paris & country=france)]');
 
-        $this->assertCount(3, $result); // John, Jane, Bob
+        $this->assertCount(3, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
         $this->assertContains('Jane Smith', $names);
@@ -1698,10 +1652,9 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_subcondition_with_multiple_array_conditions(): void
     {
-        // addresses[city=kinshasa] & tags_php=true
         $result = $this->collection->whereQuery('addresses[city=kinshasa] & tags_php=true');
 
-        $this->assertCount(2, $result); // John et Bob
+        $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
         $this->assertContains('Bob Johnson', $names);
@@ -1709,13 +1662,12 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_with_chaining_collection_methods(): void
     {
-        // Mélanger whereQuery avec les méthodes de collection
         $result = $this->collection
             ->whereQuery('addresses[city=kinshasa]')
             ->where('status', 'active')
             ->whereGreaterThan('age', 30);
 
-        $this->assertCount(1, $result); // Bob
+        $this->assertCount(1, $result);
         $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
     }
 
@@ -1725,7 +1677,7 @@ final class ClusterVOCollectionTest extends TestCase
         $result = $this->collection->whereQuery('addresses[city=kinshasa]');
 
         $this->assertCount(2, $result);
-        $this->assertCount($originalCount, $this->collection); // Original inchangé
+        $this->assertCount($originalCount, $this->collection);
         $this->assertNotSame($this->collection, $result);
     }
 
@@ -1748,10 +1700,9 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_with_simple_condition(): void
     {
-        // Vérifier que whereQuery fonctionne aussi avec des conditions simples
         $result = $this->collection->whereQuery('status=active');
 
-        $this->assertCount(2, $result); // John et Bob
+        $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
         $this->assertContains('Bob Johnson', $names);
@@ -1761,27 +1712,24 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_with_age_comparison(): void
     {
-        // age>30
         $result = $this->collection->whereQuery('age>30');
 
-        $this->assertCount(1, $result); // Bob
+        $this->assertCount(1, $result);
         $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
     }
 
     public function test_where_query_with_presence(): void
     {
-        // lang_fr (présence de la clé)
         $result = $this->collection->whereQuery('lang_fr');
 
-        $this->assertCount(2, $result); // John et Bob
+        $this->assertCount(2, $result);
     }
 
     public function test_where_query_with_addresses_path_and_country(): void
     {
-        // addresses[country=rdc]
         $result = $this->collection->whereQuery('addresses[country=rdc]');
 
-        $this->assertCount(2, $result); // John et Bob
+        $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
         $this->assertContains('Bob Johnson', $names);
@@ -1793,8 +1741,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_aggregate_count_with_comparison(): void
     {
-        // ✅ CORRECTION : COUNT(addresses) >= 2 (ou > 1)
-        // John (2) et Bob (3) → 2
         $result = $this->collection->whereAggregate('{COUNT(addresses) >= 2}');
 
         $this->assertCount(2, $result);
@@ -1807,20 +1753,16 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_aggregate_count_equals(): void
     {
-        // COUNT(addresses) = 2
         $result = $this->collection->whereAggregate('{COUNT(addresses) = 2}');
 
-        // John (2) et Bob (3) → 1
         $this->assertCount(1, $result);
         $this->assertEquals('John Doe', $result->first()?->get('name'));
     }
 
     public function test_where_aggregate_count_less_than(): void
     {
-        // COUNT(addresses) < 2
         $result = $this->collection->whereAggregate('{COUNT(addresses) < 2}');
 
-        // Jane (1) et Alice (0) → 2
         $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('Jane Smith', $names);
@@ -1831,7 +1773,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_aggregate_sum(): void
     {
-        // SUM(prices) > 1000
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
             'name' => 'John',
@@ -1854,7 +1795,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_aggregate_avg(): void
     {
-        // AVG(scores) >= 85
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
             'name' => 'John',
@@ -1927,27 +1867,22 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_aggregate_length(): void
     {
-        // LENGTH(name) > 5
         $result = $this->collection->whereAggregate('{LENGTH(name) > 5}');
 
-        // John Doe (8), Jane Smith (10), Bob Johnson (11), Alice Wonder (12) → 4
         $this->assertCount(4, $result);
     }
 
     public function test_where_aggregate_with_nested_path(): void
     {
-        // COUNT(settings.notifications) > 1
         $result = $this->collection->whereAggregate('{COUNT(settings.notifications) > 1}');
 
-        $this->assertCount(0, $result); // Tous ont 1 notification
+        $this->assertCount(0, $result);
     }
 
     public function test_where_aggregate_direct_count(): void
     {
-        // COUNT(addresses) > 0 automatique
         $result = $this->collection->whereAggregateDirect('COUNT', ['addresses']);
 
-        // John, Jane, Bob ont des adresses → 3
         $this->assertCount(3, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
@@ -1963,7 +1898,6 @@ final class ClusterVOCollectionTest extends TestCase
         $collection->add(new ClusterVO(['name' => 'Jane', 'prices' => []]));
         $collection->add(new ClusterVO(['name' => 'Bob', 'prices' => [500, 600, 700]]));
 
-        // SUM(prices) > 0 automatique
         $result = $collection->whereAggregateDirect('SUM', ['prices']);
 
         $this->assertCount(2, $result);
@@ -1975,10 +1909,8 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_aggregate_direct_exists(): void
     {
-        // EXISTS(addresses) retourne booléen
         $result = $this->collection->whereAggregateDirect('EXISTS', ['addresses']);
 
-        // John, Jane, Bob ont des adresses → 3
         $this->assertCount(3, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
@@ -1989,10 +1921,8 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_aggregate_direct_has(): void
     {
-        // HAS(addresses, city, "Kinshasa")
         $result = $this->collection->whereAggregateDirect('HAS', ['addresses', 'city', 'Kinshasa']);
 
-        // John et Bob ont Kinshasa → 2
         $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
@@ -2003,20 +1933,16 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_aggregate_direct_all(): void
     {
-        // ALL(addresses, country, "RDC") - tous les pays sont RDC
         $result = $this->collection->whereAggregateDirect('ALL', ['addresses', 'country', 'RDC']);
 
-        // John a 2 adresses RDC ✅, Bob a RDC, France, UK ❌
         $this->assertCount(1, $result);
         $this->assertEquals('John Doe', $result->first()?->get('name'));
     }
 
     public function test_where_aggregate_direct_is_empty(): void
     {
-        // IS_EMPTY(addresses)
         $result = $this->collection->whereAggregateDirect('IS_EMPTY', ['addresses']);
 
-        // Alice n'a pas d'adresses → 1
         $this->assertCount(1, $result);
         $this->assertEquals('Alice Wonder', $result->first()?->get('name'));
     }
@@ -2079,7 +2005,6 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $cluster = $this->collection->find(fn ($c) => $c->get('name') === 'John Doe');
 
-        // John a 2 adresses en RDC
         $result = $this->collection->matchesAggregate($cluster, '{ALL(addresses, country, "RDC")}');
 
         $this->assertTrue($result);
@@ -2089,7 +2014,6 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $cluster = $this->collection->find(fn ($c) => $c->get('name') === 'Bob Johnson');
 
-        // Bob a RDC, France, UK → pas tous RDC
         $result = $this->collection->matchesAggregate($cluster, '{ALL(addresses, country, "RDC")}');
 
         $this->assertFalse($result);
@@ -2101,7 +2025,7 @@ final class ClusterVOCollectionTest extends TestCase
 
         $result = $this->collection->matchesAggregateDirect($cluster, 'COUNT', ['addresses']);
 
-        $this->assertTrue($result); // 2 > 0
+        $this->assertTrue($result);
     }
 
     public function test_matches_aggregate_direct_count_false(): void
@@ -2110,7 +2034,7 @@ final class ClusterVOCollectionTest extends TestCase
 
         $result = $this->collection->matchesAggregateDirect($cluster, 'COUNT', ['addresses']);
 
-        $this->assertFalse($result); // 0 > 0 = false
+        $this->assertFalse($result);
     }
 
     public function test_matches_aggregate_direct_exists(): void
@@ -2211,7 +2135,7 @@ final class ClusterVOCollectionTest extends TestCase
 
         $result = $this->collection->getAggregateValue($cluster, 'LENGTH', ['name']);
 
-        $this->assertEquals(8, $result); // "John Doe" = 8 caractères
+        $this->assertEquals(8, $result);
     }
 
     public function test_get_aggregate_value_exists(): void
@@ -2269,8 +2193,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_aggregate_complex_with_and(): void
     {
-        // COUNT(addresses) > 1 ET AVG(scores) >= 85
-        // John (2, 85) et Bob (3, 95) → 2
         $result = $this->collection->whereAggregate('{COUNT(addresses) > 1} & {AVG(scores) >= 85}');
 
         $this->assertCount(2, $result);
@@ -2283,8 +2205,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_aggregate_complex_with_or(): void
     {
-        // COUNT(addresses) > 1 OU AVG(scores) >= 95
-        // John (2 > 1) et Bob (3 > 1) → 2
         $result = $this->collection->whereAggregate('{COUNT(addresses) > 1} | {AVG(scores) >= 95}');
 
         $this->assertCount(2, $result);
@@ -2297,10 +2217,8 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_aggregate_complex_with_boolean_and_numeric(): void
     {
-        // EXISTS(addresses) ET COUNT(addresses) > 1
         $result = $this->collection->whereAggregate('{EXISTS(addresses)} & {COUNT(addresses) > 1}');
 
-        // John (2) et Bob (3) → 2
         $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
@@ -2311,10 +2229,8 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_aggregate_complex_with_has(): void
     {
-        // HAS(addresses, city, "Kinshasa") ET COUNT(addresses) > 1
         $result = $this->collection->whereAggregate('{HAS(addresses, city, "Kinshasa")} & {COUNT(addresses) > 1}');
 
-        // John (2, Kinshasa) et Bob (3, Kinshasa) → 2
         $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
@@ -2323,20 +2239,16 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_aggregate_complex_with_all(): void
     {
-        // ALL(addresses, country, "RDC") ET COUNT(addresses) > 1
         $result = $this->collection->whereAggregate('{ALL(addresses, country, "RDC")} & {COUNT(addresses) > 1}');
 
-        // John a 2 adresses RDC → 1
         $this->assertCount(1, $result);
         $this->assertEquals('John Doe', $result->first()?->get('name'));
     }
 
     public function test_where_aggregate_complex_with_is_empty(): void
     {
-        // IS_EMPTY(addresses) OR COUNT(addresses) > 2
         $result = $this->collection->whereAggregate('{IS_EMPTY(addresses)} | {COUNT(addresses) > 2}');
 
-        // Alice (vide) et Bob (3) → 2
         $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('Alice Wonder', $names);
@@ -2345,7 +2257,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_detects_aggregate(): void
     {
-        // whereQuery détecte automatiquement les agrégations
         $result = $this->collection->whereQuery('{COUNT(addresses) > 2}');
 
         $this->assertCount(1, $result);
@@ -2354,7 +2265,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_mixed_aggregate_and_normal(): void
     {
-        // Mélange d'agrégation et condition normale
         $result = $this->collection->whereQuery('{COUNT(addresses) > 2} & status=active');
 
         $this->assertCount(1, $result);
@@ -2363,7 +2273,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_boolean_aggregate(): void
     {
-        // whereQuery avec fonction booléenne
         $result = $this->collection->whereQuery('{EXISTS(addresses)}');
 
         $this->assertCount(3, $result);
@@ -2376,12 +2285,10 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_complex_with_aggregate_and_normal(): void
     {
-        // whereQuery avec agrégation + condition normale + fonction booléenne
         $result = $this->collection->whereQuery(
             '{COUNT(addresses) > 1} & status=active & {EXISTS(addresses)}'
         );
 
-        // John (active, 2 adresses) et Bob (active, 3 adresses) → 2
         $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
@@ -2402,7 +2309,7 @@ final class ClusterVOCollectionTest extends TestCase
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
             'name' => 'John',
-            'scores' => ['80', '90', '85'], // Strings numériques
+            'scores' => ['80', '90', '85'],
         ]));
 
         $result = $collection->whereAggregate('{AVG(scores) > 80}');
@@ -2413,11 +2320,8 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_aggregate_with_nested_path_complex(): void
     {
-        // Vérifier que les notifications avec email=true existent
-        // Utiliser HAS pour vérifier la présence d'un élément avec email=true
         $result = $this->collection->whereAggregate('{HAS(settings.notifications, email, true)}');
 
-        // John (email=true) et Bob (email=true) → 2
         $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
@@ -2445,12 +2349,11 @@ final class ClusterVOCollectionTest extends TestCase
         $collection = new ClusterVOCollection;
         $collection->add(new ClusterVO([
             'name' => 'John',
-            'scores' => 'not_an_array', // String au lieu d'un tableau
+            'scores' => 'not_an_array',
         ]));
 
         $result = $collection->whereAggregate('{COUNT(scores) > 0}');
 
-        // COUNT sur une string retourne sa longueur
         $this->assertCount(1, $result);
     }
 
@@ -2458,7 +2361,7 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection
             ->where('status', 'active')
-            ->whereAggregate('{COUNT(addresses) > 2}')  // ✅ > 2 au lieu de > 1
+            ->whereAggregate('{COUNT(addresses) > 2}')
             ->whereAggregate('{AVG(scores) >= 85}');
 
         $this->assertCount(1, $result);
@@ -2469,10 +2372,8 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_with_count_function(): void
     {
-        // ✅ COUNT(addresses) > 2 sans accolades
         $result = $this->collection->whereQuery('COUNT(addresses) > 2');
 
-        // Bob a 3 adresses → 1
         $this->assertCount(1, $result);
         $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
     }
@@ -2481,7 +2382,6 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereQuery('COUNT(addresses) = 2');
 
-        // John a 2 adresses → 1
         $this->assertCount(1, $result);
         $this->assertEquals('John Doe', $result->first()?->get('name'));
     }
@@ -2490,7 +2390,6 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereQuery('COUNT(addresses) >= 2');
 
-        // John (2) et Bob (3) → 2
         $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
@@ -2573,8 +2472,6 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereQuery('LENGTH(name) > 8');
 
-        // John Doe (8), Jane Smith (10), Bob Johnson (11), Alice Wonder (12) → 4
-        // John Doe a exactement 8 caractères, donc > 8 exclut John
         $this->assertCount(3, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('Jane Smith', $names);
@@ -2587,7 +2484,6 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereQuery('status=active & COUNT(addresses) > 2');
 
-        // Bob (active, 3 adresses) → 1
         $this->assertCount(1, $result);
         $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
     }
@@ -2596,9 +2492,6 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereQuery('COUNT(addresses) > 1 & LENGTH(name) > 8');
 
-        // John (2 adresses, 8 caractères), Bob (3 adresses, 11 caractères) → 1
-        // John a 8 caractères, pas > 8
-        // Bob a 11 caractères, > 8
         $this->assertCount(1, $result);
         $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
     }
@@ -2607,7 +2500,6 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereQuery('COUNT(addresses) > 2 | status=pending');
 
-        // Bob (3 adresses) ou Alice (pending) → 2
         $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('Bob Johnson', $names);
@@ -2618,19 +2510,14 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereQuery('(COUNT(addresses) > 2 | LENGTH(name) > 10) & status=active');
 
-        // Bob (3 adresses, 11 caractères) et John (2 adresses, 8 caractères) → 1
-        // Bob: COUNT > 2 OK et status=active OK
-        // John: COUNT > 2 non, LENGTH > 10 non → exclu
         $this->assertCount(1, $result);
         $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
     }
 
     public function test_where_query_with_function_no_operator(): void
     {
-        // COUNT(addresses) sans opérateur → COUNT > 0
         $result = $this->collection->whereQuery('COUNT(addresses)');
 
-        // John, Jane, Bob ont des adresses → 3
         $this->assertCount(3, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
@@ -2643,7 +2530,6 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereQuery('JSON_LENGTH(addresses) > 2');
 
-        // Bob a 3 adresses → 1
         $this->assertCount(1, $result);
         $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
     }
@@ -2652,7 +2538,6 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereQuery('COUNT(settings.notifications) > 1');
 
-        // Tous ont 1 notification → 0
         $this->assertCount(0, $result);
     }
 
@@ -2662,8 +2547,6 @@ final class ClusterVOCollectionTest extends TestCase
             '(status=active | status=pending) & COUNT(addresses) > 1 & LENGTH(name) > 8'
         );
 
-        // John (active, 2 adresses, 8 caractères) et Bob (active, 3 adresses, 11 caractères) → 1
-        // John a 8 caractères (pas > 8), Bob a 11 caractères (> 8)
         $this->assertCount(1, $result);
         $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
     }
@@ -2674,9 +2557,6 @@ final class ClusterVOCollectionTest extends TestCase
             '(COUNT(addresses) > 1 & status=active) | (LENGTH(name) > 10 & status=pending)'
         );
 
-        // John (active, 2 adresses) et Bob (active, 3 adresses) → 2
-        // Alice (pending, 12 caractères) → 1
-        // Total → 3
         $this->assertCount(3, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
@@ -2688,10 +2568,7 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_count_function_vs_aggregate_count(): void
     {
-        // ✅ Native COUNT (sans accolades)
         $nativeResult = $this->collection->whereQuery('COUNT(addresses) > 2');
-
-        // ✅ Aggregate COUNT (avec accolades)
         $aggregateResult = $this->collection->whereAggregate('{COUNT(addresses) > 2}');
 
         $this->assertEquals(
@@ -2759,13 +2636,11 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_function_chaining_native_and_aggregate(): void
     {
-        // Mélange de native et aggregate
         $result = $this->collection
-            ->whereQuery('COUNT(addresses) > 1')        // Native
-            ->whereAggregate('{AVG(scores) >= 85}')      // Aggregate
-            ->where('status', 'active');                  // Simple
+            ->whereQuery('COUNT(addresses) > 1')
+            ->whereAggregate('{AVG(scores) >= 85}')
+            ->where('status', 'active');
 
-        // John (2 adresses, AVG 85, active) et Bob (3 adresses, AVG 95, active) → 2
         $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
@@ -2785,7 +2660,6 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereQuery('COUNT(addresses) > 0');
 
-        // John, Jane, Bob ont des adresses → 3
         $this->assertCount(3, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
@@ -2798,8 +2672,6 @@ final class ClusterVOCollectionTest extends TestCase
     {
         $result = $this->collection->whereQuery('LENGTH(name) > 10');
 
-        // Jane Smith (10), Bob Johnson (11), Alice Wonder (12) → 2
-        // John Doe (8) exclu, Jane Smith (10) exclu (pas > 10)
         $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('Bob Johnson', $names);
@@ -2810,12 +2682,10 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_with_function_and_aggregate_combined(): void
     {
-        // ✅ Native COUNT + Aggregate HAS
         $result = $this->collection
             ->whereQuery('COUNT(addresses) > 1')
             ->whereAggregate('{HAS(addresses, city, "Kinshasa")}');
 
-        // John (2 adresses, Kinshasa) et Bob (3 adresses, Kinshasa) → 2
         $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
         $this->assertContains('John Doe', $names);
@@ -2826,8 +2696,6 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_with_unknown_function_throws_exception(): void
     {
-        // Une fonction inconnue doit lever une exception ou retourner vide
-        // Selon l'implémentation, cela peut lever une RuntimeException
         $this->expectException(\RuntimeException::class);
         $this->collection->whereQuery('UNKNOWN(addresses) > 2');
     }

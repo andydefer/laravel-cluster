@@ -7,6 +7,20 @@ namespace AndyDefer\LaravelCluster\Tests\Unit\Services;
 use AndyDefer\LaravelCluster\Services\FlatArrayService;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * Unit tests for FlatArrayService.
+ *
+ * Tests cover:
+ * - Flattening simple associative arrays
+ * - Expanding indexed arrays to true keys
+ * - Flattening nested arrays with dot notation
+ * - Handling empty arrays as null
+ * - JSON encoding of nested indexed arrays
+ * - Boolean conversion to strings
+ * - Unflattening dot notation back to nested structures
+ * - Roundtrip tests (flatten + unflatten)
+ * - Edge cases (mixed types, null values, complex nested structures)
+ */
 final class FlatArrayServiceTest extends TestCase
 {
     private FlatArrayService $service;
@@ -494,7 +508,7 @@ final class FlatArrayServiceTest extends TestCase
         $this->assertEquals('true', $result['values_null']);
     }
 
-    // ==================== TESTS POUR convertBooleansToStrings ====================
+    // ==================== BOOLEAN CONVERSION TESTS ====================
 
     public function test_flatten_converts_simple_boolean_to_string(): void
     {
@@ -566,13 +580,11 @@ final class FlatArrayServiceTest extends TestCase
 
         $result = $this->service->flatten($data);
 
-        // Les tableaux indexés avec des tableaux imbriqués sont JSON encodés
         $this->assertArrayHasKey('addresses', $result);
 
         $decoded = json_decode($result['addresses'], true);
         $this->assertIsArray($decoded);
 
-        // Vérifier que les booléens dans le JSON sont convertis en strings
         $this->assertSame('true', $decoded[0]['is_primary']);
         $this->assertSame('false', $decoded[0]['active']);
         $this->assertSame('false', $decoded[1]['is_primary']);
@@ -601,14 +613,12 @@ final class FlatArrayServiceTest extends TestCase
 
         $result = $this->service->flatten($data);
 
-        // Vérifier que settings.notifications est JSON encodé
         $this->assertArrayHasKey('settings.notifications', $result);
         $this->assertArrayHasKey('settings.theme', $result);
 
         $decoded = json_decode($result['settings.notifications'], true);
         $this->assertIsArray($decoded);
 
-        // Vérifier que les booléens sont convertis en strings
         $this->assertSame('true', $decoded[0]['email']);
         $this->assertSame('false', $decoded[0]['sms']);
         $this->assertSame('true', $decoded[0]['push']);
@@ -646,7 +656,6 @@ final class FlatArrayServiceTest extends TestCase
 
         $result = $this->service->flatten($data);
 
-        // Vérifier les scalaires
         $this->assertSame('John Doe', $result['user.name']);
         $this->assertSame('true', $result['user.active']);
         $this->assertSame(30, $result['user.age']);
@@ -654,12 +663,10 @@ final class FlatArrayServiceTest extends TestCase
         $this->assertSame('dark', $result['user.preferences.theme']);
         $this->assertSame('fr', $result['user.preferences.language']);
 
-        // Vérifier que les tags sont expansés (tableau indexé → clés séparées)
         $this->assertSame('true', $result['user.tags_php']);
         $this->assertSame('true', $result['user.tags_js']);
         $this->assertSame('true', $result['user.tags_docker']);
 
-        // Vérifier que 'user.addresses' est JSON encodé (tableau indexé avec des tableaux imbriqués)
         $this->assertArrayHasKey('user.addresses', $result);
         $this->assertIsString($result['user.addresses']);
         $addressesDecoded = json_decode($result['user.addresses'], true);
@@ -743,7 +750,6 @@ final class FlatArrayServiceTest extends TestCase
 
         $result = $this->service->unflatten($data);
 
-        // Le service convertit 'true'/'false' en vrais booléens via normalizer_chain()
         $this->assertTrue($result['user']['active']);
         $this->assertFalse($result['user']['verified']);
         $this->assertSame('John', $result['user']['name']);
@@ -771,30 +777,24 @@ final class FlatArrayServiceTest extends TestCase
         $flattened = $this->service->flatten($original);
         $unflattened = $this->service->unflatten($flattened);
 
-        // Les booléens deviennent des strings dans les données aplaties
         $this->assertSame('true', $flattened['active']);
         $this->assertSame('true', $flattened['preferences.notifications']);
         $this->assertSame('false', $flattened['preferences.email']);
 
-        // Les tags sont expansés en clés séparées
         $this->assertSame('true', $flattened['tags_php']);
         $this->assertSame('true', $flattened['tags_js']);
 
-        // Les adresses sont JSON encodées (tableau indexé avec tableaux imbriqués)
         $this->assertArrayHasKey('addresses', $flattened);
         $this->assertIsString($flattened['addresses']);
         $addressesDecoded = json_decode($flattened['addresses'], true);
         $this->assertSame('true', $addressesDecoded[0]['is_primary']);
 
-        // Dans le unflatten, les booléens redeviennent des vrais booléens
         $this->assertTrue($unflattened['active']);
         $this->assertTrue($unflattened['preferences']['notifications']);
         $this->assertFalse($unflattened['preferences']['email']);
 
-        // Les tags expansés redeviennent un tableau
         $this->assertSame(['php', 'js'], $unflattened['tags']);
 
-        // Les adresses redeviennent un tableau
         $this->assertSame('Kinshasa', $unflattened['addresses'][0]['city']);
         $this->assertTrue((bool) $unflattened['addresses'][0]['is_primary']);
     }
@@ -825,7 +825,6 @@ final class FlatArrayServiceTest extends TestCase
         $this->assertSame('true', $result['level1.level2.level3.settings.notifications']);
         $this->assertSame('light', $result['level1.level2.level3.settings.theme']);
 
-        // Vérifier que les tableaux imbriqués sont JSON encodés avec les booléens convertis
         $this->assertArrayHasKey('level1.level2.level3.items', $result);
         $decoded = json_decode($result['level1.level2.level3.items'], true);
         $this->assertSame('true', $decoded[0]['enabled']);
@@ -859,7 +858,6 @@ final class FlatArrayServiceTest extends TestCase
 
         $result = $this->service->flatten($data);
 
-        // Le tableau 'items' est JSON encodé car c'est un tableau indexé avec des tableaux imbriqués
         $this->assertArrayHasKey('items', $result);
         $decoded = json_decode($result['items'], true);
 

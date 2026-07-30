@@ -4,10 +4,20 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelCluster\SqlFunctions;
 
-use AndyDefer\LaravelCluster\Contracts\SqlFunctionInterface;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 
-final class MinFunction implements SqlFunctionInterface
+/**
+ * Finds the minimum numeric value in a JSON array.
+ *
+ * @example
+ * $min = new MinFunction();
+ * $min->execute([10, 30, 20]); // 10.0
+ * @example
+ * // SQL generation for different drivers
+ * $min->toSql('clusters', 'scores', DatabaseDriver::MYSQL);
+ * // MIN(CAST(JSON_EXTRACT(clusters, '$.scores') AS DECIMAL(10,2)))
+ */
+final class MinFunction extends AbstractSqlFunction
 {
     public function getName(): string
     {
@@ -49,30 +59,5 @@ final class MinFunction implements SqlFunctionInterface
         $numbers = $this->extractNumbers($value);
 
         return ! empty($numbers) ? min($numbers) : 0;
-    }
-
-    private function extractNumbers(array $array): array
-    {
-        $numbers = [];
-
-        foreach ($array as $item) {
-            if (is_array($item)) {
-                $numbers = array_merge($numbers, $this->extractNumbers($item));
-            } elseif (is_numeric($item)) {
-                $numbers[] = (float) $item;
-            }
-        }
-
-        return $numbers;
-    }
-
-    public function validateArgs(array $args): bool
-    {
-        return count($args) === 1;
-    }
-
-    public function getDefaultValue(): mixed
-    {
-        return 0;
     }
 }

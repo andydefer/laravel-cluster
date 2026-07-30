@@ -12,6 +12,11 @@ use AndyDefer\LaravelCluster\Tests\IntegrationTestCase;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
 /**
+ * Benchmark tests for ClusterVOCollection performance.
+ *
+ * This test suite measures execution time for various operations on
+ * different dataset sizes to identify performance bottlenecks.
+ *
  * @group benchmark
  */
 final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
@@ -47,15 +52,21 @@ final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
         }
     }
 
+    /**
+     * Determines if the current test requires database access.
+     */
     private function isDatabaseTest(): bool
     {
         $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
         $testName = $trace[1]['function'] ?? '';
 
         return str_contains($testName, 'eloquent') ||
-               str_contains($testName, 'apply_to_eloquent');
+            str_contains($testName, 'apply_to_eloquent');
     }
 
+    /**
+     * Initializes all datasets for benchmarking.
+     */
     private function initializeDatasets(): void
     {
         echo "\n🔧 Initialisation des datasets...\n";
@@ -72,6 +83,9 @@ final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
         echo sprintf("✅ Datasets générés en %.2f ms\n", $time);
     }
 
+    /**
+     * Initializes the database with test data.
+     */
     private function initializeDatabase(): void
     {
         echo "🔧 Initialisation de la base de données...\n";
@@ -91,6 +105,12 @@ final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
         echo sprintf("✅ %d clusters insérés en %.2f ms\n", $count, $time);
     }
 
+    /**
+     * Generates a collection of clusters.
+     *
+     * @param  int  $size  The number of clusters to generate
+     * @return ClusterVOCollection The generated collection
+     */
     private function generateCollection(int $size): ClusterVOCollection
     {
         $collection = new ClusterVOCollection;
@@ -102,6 +122,12 @@ final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
         return $collection;
     }
 
+    /**
+     * Generates a single cluster with realistic test data.
+     *
+     * @param  int  $index  The index to seed the data
+     * @return ClusterVO The generated cluster
+     */
     private function generateCluster(int $index): ClusterVO
     {
         $statuses = ['active', 'inactive', 'pending'];
@@ -141,6 +167,12 @@ final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
         ]);
     }
 
+    /**
+     * Measures the execution time of a callback over multiple iterations.
+     *
+     * @param  callable  $callback  The callback to measure
+     * @return float The average execution time in seconds
+     */
     private function measureExecutionTime(callable $callback): float
     {
         $start = microtime(true);
@@ -155,11 +187,11 @@ final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
     }
 
     /**
-     * Affiche les résultats du benchmark
+     * Prints benchmark results in a formatted table.
      *
-     * @param  string  $testName  Le nom du test
-     * @param  array  $results  Les résultats [size => time]
-     * @param  string|null  $customSize  Pour les tests qui n'utilisent pas les datasets standards
+     * @param  string  $testName  The name of the test
+     * @param  array<string, float>  $results  The results [size => time]
+     * @param  string|null  $customSize  Custom size label for non-dataset tests
      */
     private function printResults(string $testName, array $results, ?string $customSize = null): void
     {
@@ -171,11 +203,9 @@ final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
         foreach ($results as $size => $time) {
             $sizeLabel = ucfirst($size);
 
-            // ✅ Vérifier si la clé existe dans self::$datasets
             if (isset(self::$datasets[$size])) {
                 $items = self::$datasets[$size]->count();
             } else {
-                // Pour les cas comme 'single', on utilise la valeur passée ou 1
                 $items = $customSize ?? 1;
             }
 
@@ -194,6 +224,8 @@ final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
     // ==================== BENCHMARK TESTS ====================
 
     /**
+     * Benchmarks simple where filter operations.
+     *
      * @test
      *
      * @group benchmark
@@ -215,6 +247,8 @@ final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
     }
 
     /**
+     * Benchmarks chained where filter operations.
+     *
      * @test
      *
      * @group benchmark
@@ -242,6 +276,8 @@ final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
     }
 
     /**
+     * Benchmarks query parser operations.
+     *
      * @test
      *
      * @group benchmark
@@ -268,6 +304,8 @@ final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
     }
 
     /**
+     * Benchmarks aggregate COUNT filter operations.
+     *
      * @test
      *
      * @group benchmark
@@ -289,6 +327,8 @@ final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
     }
 
     /**
+     * Benchmarks complex aggregate expressions.
+     *
      * @test
      *
      * @group benchmark
@@ -311,6 +351,8 @@ final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
     }
 
     /**
+     * Benchmarks Eloquent query application.
+     *
      * @test
      *
      * @group benchmark
@@ -345,6 +387,8 @@ final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
     }
 
     /**
+     * Benchmarks Eloquent query application with subconditions.
+     *
      * @test
      *
      * @group benchmark
@@ -379,6 +423,8 @@ final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
     }
 
     /**
+     * Benchmarks matches operation on a single cluster.
+     *
      * @test
      *
      * @group benchmark
@@ -393,16 +439,14 @@ final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
             fn () => $clusterQuery->matches($cluster, $query)
         );
 
-        // ✅ Correction: utiliser une clé qui existe dans self::$datasets
-        // ou passer un paramètre customSize
-        $results = ['small' => $time]; // ← Utiliser 'small' au lieu de 'single'
-
-        // Alternative: passer le nombre d'items directement
+        $results = ['small' => $time];
         $this->printResults('Matches on Single Cluster', $results, '1');
         $this->assertTrue(true);
     }
 
     /**
+     * Benchmarks complex chaining of all features.
+     *
      * @test
      *
      * @group benchmark

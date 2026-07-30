@@ -14,13 +14,32 @@ use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
 use AndyDefer\LaravelCluster\Tests\IntegrationTestCase;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
+/**
+ * Integration tests for SubConditionNode.
+ *
+ * Tests cover:
+ * - In-memory evaluation of sub-conditions
+ * - SQL generation for SQLite
+ * - Eloquent query application
+ * - Complex nested paths
+ * - EXISTS and NOT_EXISTS operators
+ * - Combined conditions with AND/OR
+ */
 final class SubConditionNodeTest extends IntegrationTestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Cluster 1: John avec 2 adresses
+        $this->createTestData();
+    }
+
+    /**
+     * Creates test data with various address and settings configurations.
+     */
+    private function createTestData(): void
+    {
+        // John Doe avec 2 adresses
         TestCluster::create([
             'clusters' => [
                 'name' => 'John Doe',
@@ -45,16 +64,14 @@ final class SubConditionNodeTest extends IntegrationTestCase
                 'tags' => ['php', 'js', 'docker'],
                 'settings' => [
                     'notifications' => [
-                        'email' => 'true',
-                        'sms' => 'false',
-                        'push' => 'true',
+                        ['email' => 'true', 'sms' => 'false', 'push' => 'true'],
                     ],
                     'theme' => 'dark',
                 ],
             ],
         ]);
 
-        // Cluster 2: Jane avec 1 adresse
+        // Jane Smith avec 1 adresse
         TestCluster::create([
             'clusters' => [
                 'name' => 'Jane Smith',
@@ -72,16 +89,14 @@ final class SubConditionNodeTest extends IntegrationTestCase
                 'tags' => ['python', 'react'],
                 'settings' => [
                     'notifications' => [
-                        'email' => 'false',
-                        'sms' => 'true',
-                        'push' => 'false',
+                        ['email' => 'false', 'sms' => 'true', 'push' => 'false'],
                     ],
                     'theme' => 'light',
                 ],
             ],
         ]);
 
-        // Cluster 3: Bob avec 3 adresses
+        // Bob Johnson avec 3 adresses
         TestCluster::create([
             'clusters' => [
                 'name' => 'Bob Johnson',
@@ -113,16 +128,14 @@ final class SubConditionNodeTest extends IntegrationTestCase
                 'tags' => ['php', 'laravel', 'vuejs'],
                 'settings' => [
                     'notifications' => [
-                        'email' => 'true',
-                        'sms' => 'true',
-                        'push' => 'true',
+                        ['email' => 'true', 'sms' => 'true', 'push' => 'true'],
                     ],
                     'theme' => 'dark',
                 ],
             ],
         ]);
 
-        // Cluster 4: Alice sans adresses
+        // Alice Wonder sans adresses
         TestCluster::create([
             'clusters' => [
                 'name' => 'Alice Wonder',
@@ -132,9 +145,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
                 'tags' => ['go', 'rust'],
                 'settings' => [
                     'notifications' => [
-                        'email' => 'false',
-                        'sms' => 'false',
-                        'push' => 'false',
+                        ['email' => 'false', 'sms' => 'false', 'push' => 'false'],
                     ],
                     'theme' => 'light',
                 ],
@@ -409,7 +420,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        $this->assertCount(2, $results); // John et Bob
+        $this->assertCount(2, $results);
     }
 
     public function test_to_eloquent_sqlite_subcondition_with_and(): void
@@ -423,7 +434,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        $this->assertCount(2, $results); // John et Bob
+        $this->assertCount(2, $results);
     }
 
     public function test_to_eloquent_sqlite_subcondition_with_or(): void
@@ -437,7 +448,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        $this->assertCount(3, $results); // John, Jane, Bob
+        $this->assertCount(3, $results);
     }
 
     public function test_to_eloquent_sqlite_subcondition_with_like(): void
@@ -449,48 +460,11 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        $this->assertCount(2, $results); // John et Bob
+        $this->assertCount(2, $results);
     }
 
     public function test_to_eloquent_sqlite_subcondition_with_nested_path(): void
     {
-        // Créer des données avec notifications en tableau
-        TestCluster::create([
-            'clusters' => [
-                'name' => 'John',
-                'settings' => [
-                    'notifications' => [
-                        ['email' => 'true', 'sms' => 'false', 'push' => 'true'],
-                    ],
-                    'theme' => 'dark',
-                ],
-            ],
-        ]);
-
-        TestCluster::create([
-            'clusters' => [
-                'name' => 'Jane',
-                'settings' => [
-                    'notifications' => [
-                        ['email' => 'false', 'sms' => 'true', 'push' => 'false'],
-                    ],
-                    'theme' => 'light',
-                ],
-            ],
-        ]);
-
-        TestCluster::create([
-            'clusters' => [
-                'name' => 'Bob',
-                'settings' => [
-                    'notifications' => [
-                        ['email' => 'true', 'sms' => 'true', 'push' => 'true'],
-                    ],
-                    'theme' => 'dark',
-                ],
-            ],
-        ]);
-
         $condition = new ConditionNode('email', ComparisonOperator::EQUAL, 'true');
         $node = new SubConditionNode('settings.notifications', $condition);
 
@@ -498,7 +472,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        $this->assertCount(2, $results); // John et Bob (email=true)
+        $this->assertCount(2, $results);
     }
 
     public function test_to_eloquent_sqlite_subcondition_with_exists(): void
@@ -510,7 +484,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        $this->assertCount(3, $results); // John, Jane, Bob
+        $this->assertCount(3, $results);
     }
 
     public function test_to_eloquent_sqlite_subcondition_with_not_exists(): void
@@ -522,7 +496,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        $this->assertCount(1, $results); // Alice
+        $this->assertCount(1, $results);
     }
 
     public function test_full_query_with_subcondition_and_status(): void
@@ -536,7 +510,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $andNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        $this->assertCount(2, $results); // John et Bob
+        $this->assertCount(2, $results);
     }
 
     public function test_full_query_with_subcondition_or_status(): void
@@ -550,7 +524,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $orNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        $this->assertCount(3, $results); // John, Jane, Bob
+        $this->assertCount(3, $results);
     }
 
     public function test_full_query_with_complex_subcondition(): void
@@ -570,7 +544,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $subNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        $this->assertCount(3, $results); // John, Jane, Bob
+        $this->assertCount(3, $results);
     }
 
     public function test_to_eloquent_sqlite_subcondition_combined_with_condition(): void
@@ -584,7 +558,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $subNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
-        $this->assertCount(2, $results); // John et Bob
+        $this->assertCount(2, $results);
     }
 
     // ==================== GET CHILDREN TESTS ====================

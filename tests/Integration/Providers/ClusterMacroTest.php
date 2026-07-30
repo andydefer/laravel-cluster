@@ -8,6 +8,16 @@ use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
 use AndyDefer\LaravelCluster\Tests\IntegrationTestCase;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Integration tests for the Builder whereCluster macro.
+ *
+ * Tests cover:
+ * - Simple and complex conditions on Eloquent Builder
+ * - Chaining with other Eloquent conditions
+ * - Model static method usage
+ * - Automatic database driver detection
+ * - Edge cases (empty results, non-existent keys)
+ */
 final class ClusterMacroTest extends IntegrationTestCase
 {
     private string $column = 'clusters';
@@ -21,6 +31,9 @@ final class ClusterMacroTest extends IntegrationTestCase
         $this->createTestData();
     }
 
+    /**
+     * Creates test data with various cluster configurations.
+     */
     private function createTestData(): void
     {
         $data = [
@@ -89,7 +102,7 @@ final class ClusterMacroTest extends IntegrationTestCase
         }
     }
 
-    // ==================== TESTS SUR BUILDER ====================
+    // ==================== BUILDER TESTS ====================
 
     public function test_where_cluster_on_builder_simple_condition(): void
     {
@@ -114,7 +127,6 @@ final class ClusterMacroTest extends IntegrationTestCase
 
     public function test_where_cluster_on_builder_with_multiple_conditions(): void
     {
-        // ✅ Chaîner les conditions (AND par défaut)
         $result = TestCluster::query()
             ->whereCluster($this->column, 'status=active')
             ->whereCluster($this->column, 'role=admin')
@@ -175,7 +187,6 @@ final class ClusterMacroTest extends IntegrationTestCase
             )
             ->get();
 
-        // ✅ John Doe et Bob Johnson → 2
         $this->assertCount(2, $result);
     }
 
@@ -192,7 +203,6 @@ final class ClusterMacroTest extends IntegrationTestCase
 
     public function test_where_cluster_on_builder_with_array_exists(): void
     {
-        // ✅ Utiliser addresses[] pour vérifier que le tableau n'est pas vide
         $result = TestCluster::query()
             ->whereCluster($this->column, 'addresses[]')
             ->get();
@@ -217,7 +227,7 @@ final class ClusterMacroTest extends IntegrationTestCase
         $this->assertEquals('John Doe', $result->first()->name);
     }
 
-    // ==================== TESTS SUR MODEL ====================
+    // ==================== MODEL TESTS ====================
 
     public function test_where_cluster_on_model_simple_condition(): void
     {
@@ -259,11 +269,10 @@ final class ClusterMacroTest extends IntegrationTestCase
         $this->assertEquals('John Doe', $result->first()->name);
     }
 
-    // ==================== TESTS DE DRIVER ====================
+    // ==================== DRIVER TESTS ====================
 
     public function test_where_cluster_detects_driver_automatically(): void
     {
-
         $driverName = DB::connection()->getDriverName();
 
         $this->assertContains($driverName, ['sqlite', 'mysql', 'pgsql']);
@@ -273,7 +282,7 @@ final class ClusterMacroTest extends IntegrationTestCase
         $this->assertCount(2, $result);
     }
 
-    // ==================== TESTS D'AGRÉGATIONS ====================
+    // ==================== AGGREGATION TESTS ====================
 
     public function test_where_cluster_throws_exception_for_aggregations(): void
     {
@@ -294,12 +303,12 @@ final class ClusterMacroTest extends IntegrationTestCase
 
     public function test_where_cluster_with_non_existent_json_key(): void
     {
-        // ✅ La colonne 'clusters' existe, mais la clé 'non_existent' n'existe pas dans le JSON
         $result = TestCluster::whereCluster($this->column, 'non_existent=active')->get();
 
         $this->assertCount(0, $result);
     }
-    // ==================== TEST DE PERFORMANCE ====================
+
+    // ==================== PERFORMANCE TESTS ====================
 
     public function test_where_cluster_generates_valid_sql(): void
     {

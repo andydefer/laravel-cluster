@@ -85,16 +85,12 @@ final class FlatArrayService
         $expandedArrays = [];
         $processedKeys = [];
 
-        // Première passe : identifier les patterns de tableaux expansés
         foreach ($flat as $key => $value) {
             if (str_contains($key, '_')) {
                 $parts = explode('_', $key);
                 $baseKey = $parts[0];
 
-                // Vérifier si c'est un pattern de tableau expansé
-                // Condition : au moins 2 éléments avec le même préfixe ET valeur true/'true'
                 if (count($parts) === 2 && ! isset($flat[$baseKey])) {
-                    // Compter combien d'éléments ont ce préfixe
                     $pattern = '/^'.preg_quote($baseKey, '/').'_/';
                     $count = 0;
                     $suffixes = [];
@@ -107,7 +103,6 @@ final class FlatArrayService
                         }
                     }
 
-                    // Si au moins 2 éléments et que la valeur est true, on regroupe
                     if ($count >= 2) {
                         if (! isset($expandedArrays[$baseKey])) {
                             $expandedArrays[$baseKey] = [];
@@ -119,9 +114,7 @@ final class FlatArrayService
             }
         }
 
-        // Deuxième passe : traiter les clés normales (ignorer celles déjà traitées)
         foreach ($flat as $key => $value) {
-            // Vérifier si cette clé fait partie d'un tableau expansé déjà traité
             $isExpanded = false;
             foreach ($expandedArrays as $baseKey => $values) {
                 if (str_starts_with($key, $baseKey.'_')) {
@@ -135,9 +128,7 @@ final class FlatArrayService
             }
         }
 
-        // Troisième passe : ajouter les tableaux reconstruits
         foreach ($expandedArrays as $baseKey => $values) {
-            // Éliminer les doublons et réindexer
             $uniqueValues = array_values(array_unique($values));
             $this->setNestedValue($result, $baseKey, $uniqueValues);
         }
@@ -189,20 +180,16 @@ final class FlatArrayService
      */
     private function flattenArrayValue(array $value, string $newKey): array
     {
-        // Si c'est un tableau associatif, on le flatten normalement
         if ($this->isAssociativeArray($value)) {
             return $this->flatten($value, $newKey);
         }
 
-        // Si c'est un tableau indexé avec des tableaux imbriqués, on le JSON encode
         if ($this->hasNestedArrays($value)) {
-            // Convertir les booléens en strings avant l'encodage JSON
             $converted = $this->convertBooleansToStrings($value);
 
             return [$newKey => json_encode($converted)];
         }
 
-        // Sinon, on l'expand normalement
         return $this->expandIndexedArray($value, $newKey);
     }
 
@@ -220,7 +207,6 @@ final class FlatArrayService
         }
 
         if (is_array($value)) {
-            // Convertir les booléens en strings avant l'encodage JSON
             $converted = $this->convertBooleansToStrings($value);
 
             return json_encode($converted);
@@ -230,7 +216,6 @@ final class FlatArrayService
             return $value;
         }
 
-        // Fallback: convertir en JSON pour tout autre type
         return json_encode($value);
     }
 
@@ -250,7 +235,6 @@ final class FlatArrayService
             $isLastPart = $index === count($parts) - 1;
 
             if ($isLastPart) {
-                // Si la valeur est un JSON string, on la décode
                 if (is_string($value) && $this->isJson($value)) {
                     $decoded = json_decode($value, true);
                     if (json_last_error() === JSON_ERROR_NONE) {
@@ -289,10 +273,8 @@ final class FlatArrayService
 
         foreach ($array as $value) {
             if (is_array($value)) {
-                // Si un tableau imbriqué est trouvé, on le JSON encode
                 $keySuffix = $this->normalizeValueForKey($value);
                 $newKey = $baseKey.'_'.$keySuffix;
-                // Convertir les booléens en strings avant l'encodage JSON
                 $converted = $this->convertBooleansToStrings($value);
                 $result[$newKey] = json_encode($converted);
 
@@ -377,10 +359,10 @@ final class FlatArrayService
     }
 
     /**
-     * Convertit récursivement tous les booléens en strings 'true' ou 'false'.
+     * Recursively converts all booleans to strings 'true' or 'false'.
      *
-     * @param  mixed  $value  La valeur à convertir
-     * @return mixed La valeur avec les booléens convertis en strings
+     * @param  mixed  $value  The value to convert
+     * @return mixed The value with booleans converted to strings
      */
     private function convertBooleansToStrings(mixed $value): mixed
     {
