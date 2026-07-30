@@ -6,56 +6,28 @@ namespace AndyDefer\LaravelCluster\Collections;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractTypedCollection;
 use AndyDefer\LaravelCluster\ClusterQuery;
+use AndyDefer\LaravelCluster\Services\AggregateEvaluatorService;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use Closure;
 use Generator;
 
-/**
- * A specialized collection for managing ClusterVO objects with advanced filtering capabilities.
- *
- * This collection extends the base typed collection to provide a fluent, chainable API
- * for querying and filtering clusters. It maintains the original dataset internally
- * to support complex queries with OR conditions and grouped logic.
- *
- * @method ClusterVO|null first()
- * @method ClusterVO|null last()
- *
- * @example
- * $collection = new ClusterVOCollection();
- * $collection->add($cluster1)->add($cluster2);
- *
- * $filtered = $collection
- *     ->where('status', 'active')
- *     ->orWhere('priority', 'high')
- *     ->whereHas('metadata')
- *     ->get();
- */
 final class ClusterVOCollection extends AbstractTypedCollection
 {
-    /**
-     * The original items before any filters were applied.
-     *
-     * Used as the source for OR queries and to determine if filtering has occurred.
-     *
-     * @var array<ClusterVO>
-     */
     private array $originalItems = [];
 
     private ClusterQuery $query;
+
+    private AggregateEvaluatorService $aggregateEvaluator;
 
     public function __construct()
     {
         parent::__construct(ClusterVO::class);
         $this->query = new ClusterQuery;
+        $this->aggregateEvaluator = new AggregateEvaluatorService;
     }
 
-    /**
-     * Core filtering logic using yield for memory efficiency.
-     * Processes items one by one without loading all results in memory.
-     *
-     * @param  callable  $callback  The filter function that returns bool
-     * @return Generator<ClusterVO>
-     */
+    // ==================== MÉTHODES EXISTANTES ====================
+
     private function filterWithYield(callable $callback): Generator
     {
         foreach ($this->items as $cluster) {
@@ -65,11 +37,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         }
     }
 
-    /**
-     * Creates a new collection from a generator without loading all items in memory.
-     *
-     * @param  Generator<ClusterVO>  $generator
-     */
     private function createFromGenerator(Generator $generator): self
     {
         $result = new self;
@@ -83,16 +50,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $result;
     }
 
-    /**
-     * Filters clusters where the specified key equals the given value.
-     *
-     * This is the primary filter method that all other where methods build upon.
-     * The result is a new collection instance preserving the original dataset.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  mixed  $value  The value to match against
-     * @return self A new collection with only matching clusters
-     */
     public function where(string $key, mixed $value): self
     {
         $generator = $this->filterWithYield(
@@ -102,25 +59,11 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Alias for where() to provide syntactic sugar for chained conditions.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  mixed  $value  The value to match against
-     * @return self A new collection with only matching clusters
-     */
     public function andWhere(string $key, mixed $value): self
     {
         return $this->where($key, $value);
     }
 
-    /**
-     * Filters clusters where the specified key does NOT equal the given value.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  mixed  $value  The value to exclude
-     * @return self A new collection with only non-matching clusters
-     */
     public function whereNot(string $key, mixed $value): self
     {
         $generator = $this->filterWithYield(
@@ -130,12 +73,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the specified key equals the string 'true'.
-     *
-     * @param  string  $key  The attribute key to check
-     * @return self A new collection with only clusters where the key is 'true'
-     */
     public function whereTrue(string $key): self
     {
         $generator = $this->filterWithYield(
@@ -145,12 +82,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the specified key equals the string 'false'.
-     *
-     * @param  string  $key  The attribute key to check
-     * @return self A new collection with only clusters where the key is 'false'
-     */
     public function whereFalse(string $key): self
     {
         $generator = $this->filterWithYield(
@@ -160,16 +91,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Adds an OR condition to the current filter.
-     *
-     * Includes clusters that either match the current filter criteria OR
-     * match the new condition. The original dataset is always used as the source.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  mixed  $value  The value to match against
-     * @return self A new collection with combined filter results
-     */
     public function orWhere(string $key, mixed $value): self
     {
         $filtered = [];
@@ -179,6 +100,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
         if ($this->hasPriorFilter()) {
             foreach ($this->items as $cluster) {
                 $identifier = $this->getClusterIdentifier($cluster);
+
                 if (! in_array($identifier, $addedIdentifiers, true)) {
                     $filtered[] = $cluster;
                     $addedIdentifiers[] = $identifier;
@@ -188,6 +110,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
 
         foreach ($originalItems as $cluster) {
             $identifier = $this->getClusterIdentifier($cluster);
+
             if ($cluster->get($key) === $value && ! in_array($identifier, $addedIdentifiers, true)) {
                 $filtered[] = $cluster;
                 $addedIdentifiers[] = $identifier;
@@ -197,15 +120,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFilteredResult($filtered);
     }
 
-    /**
-     * Applies a group of filter conditions using a callback.
-     *
-     * The callback receives a new collection instance and returns a filtered collection.
-     * Only clusters that pass ALL conditions in the callback are included.
-     *
-     * @param  Closure(ClusterVOCollection): ClusterVOCollection  $callback
-     * @return self A new collection with clusters that passed all group conditions
-     */
     public function whereGroup(Closure $callback): self
     {
         $filtered = [];
@@ -226,15 +140,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFilteredResult($filtered);
     }
 
-    /**
-     * Applies a group of OR conditions using a callback.
-     *
-     * The callback receives a new collection instance and returns a filtered collection.
-     * Clusters from the original dataset that pass ANY condition in the callback are included.
-     *
-     * @param  Closure(ClusterVOCollection): ClusterVOCollection  $callback
-     * @return self A new collection with clusters that passed any group condition
-     */
     public function orWhereGroup(Closure $callback): self
     {
         $filtered = [];
@@ -244,6 +149,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
         if ($this->hasPriorFilter()) {
             foreach ($this->items as $cluster) {
                 $identifier = $this->getClusterIdentifier($cluster);
+
                 if (! in_array($identifier, $addedIdentifiers, true)) {
                     $filtered[] = $cluster;
                     $addedIdentifiers[] = $identifier;
@@ -253,6 +159,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
 
         foreach ($originalItems as $cluster) {
             $identifier = $this->getClusterIdentifier($cluster);
+
             if (! in_array($identifier, $addedIdentifiers, true)) {
                 $tempCollection = new self;
                 $tempCollection->add($cluster);
@@ -270,12 +177,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFilteredResult($filtered);
     }
 
-    /**
-     * Filters clusters that have the specified key.
-     *
-     * @param  string  $key  The attribute key to check for existence
-     * @return self A new collection with only clusters that have the key
-     */
     public function whereHas(string $key): self
     {
         $generator = $this->filterWithYield(
@@ -285,12 +186,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters that do NOT have the specified key.
-     *
-     * @param  string  $key  The attribute key to check for absence
-     * @return self A new collection with only clusters that do not have the key
-     */
     public function whereMissing(string $key): self
     {
         $generator = $this->filterWithYield(
@@ -300,13 +195,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the key's value is in the given array.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  array<mixed>  $values  The array of acceptable values
-     * @return self A new collection with clusters whose values are in the array
-     */
     public function whereIn(string $key, array $values): self
     {
         $generator = $this->filterWithYield(
@@ -316,13 +204,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the key's value is NOT in the given array.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  array<mixed>  $values  The array of excluded values
-     * @return self A new collection with clusters whose values are not in the array
-     */
     public function whereNotIn(string $key, array $values): self
     {
         $generator = $this->filterWithYield(
@@ -332,24 +213,17 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    // Ajoute cette méthode dans ClusterVOCollection
     public function whereQuery(string $query): self
     {
-        // Utiliser filterWithYield pour le traitement mémoire
-        $generator = $this->filterWithYield(
+        if (str_contains($query, '{') && str_contains($query, '}')) {
+            return $this->whereAggregate($query);
+        }
+
+        return $this->whereClosure(
             fn (ClusterVO $cluster) => $this->query->matches($cluster, $query)
         );
-
-        return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the key's numeric value is greater than the given value.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  int|float  $value  The minimum value (exclusive)
-     * @return self A new collection with clusters where value > threshold
-     */
     public function whereGreaterThan(string $key, int|float $value): self
     {
         $generator = $this->filterWithYield(
@@ -363,13 +237,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the key's numeric value is greater than or equal to the given value.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  int|float  $value  The minimum value (inclusive)
-     * @return self A new collection with clusters where value >= threshold
-     */
     public function whereGreaterThanOrEqual(string $key, int|float $value): self
     {
         $generator = $this->filterWithYield(
@@ -383,13 +250,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the key's numeric value is less than the given value.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  int|float  $value  The maximum value (exclusive)
-     * @return self A new collection with clusters where value < threshold
-     */
     public function whereLessThan(string $key, int|float $value): self
     {
         $generator = $this->filterWithYield(
@@ -403,13 +263,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the key's numeric value is less than or equal to the given value.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  int|float  $value  The maximum value (inclusive)
-     * @return self A new collection with clusters where value <= threshold
-     */
     public function whereLessThanOrEqual(string $key, int|float $value): self
     {
         $generator = $this->filterWithYield(
@@ -423,14 +276,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the key's numeric value is between the given min and max.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  mixed  $min  The minimum value (inclusive)
-     * @param  mixed  $max  The maximum value (inclusive)
-     * @return self A new collection with clusters where value is in range
-     */
     public function whereBetween(string $key, mixed $min, mixed $max): self
     {
         if (! is_numeric($min) || ! is_numeric($max)) {
@@ -448,14 +293,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the key's numeric value is outside the given range.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  mixed  $min  The minimum value (inclusive)
-     * @param  mixed  $max  The maximum value (inclusive)
-     * @return self A new collection with clusters where value is outside range
-     */
     public function whereNotBetween(string $key, mixed $min, mixed $max): self
     {
         if (! is_numeric($min) || ! is_numeric($max)) {
@@ -473,12 +310,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the key's value is null.
-     *
-     * @param  string  $key  The attribute key to check
-     * @return self A new collection with clusters where value is null
-     */
     public function whereNull(string $key): self
     {
         $generator = $this->filterWithYield(
@@ -488,12 +319,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the key's value is not null.
-     *
-     * @param  string  $key  The attribute key to check
-     * @return self A new collection with clusters where value is not null
-     */
     public function whereNotNull(string $key): self
     {
         $generator = $this->filterWithYield(
@@ -503,13 +328,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the string value contains the search term (case-insensitive).
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  string  $search  The search term to look for
-     * @return self A new collection with clusters where value contains the search term
-     */
     public function whereContains(string $key, string $search): self
     {
         $generator = $this->filterWithYield(
@@ -523,13 +341,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the string value starts with the given prefix (case-insensitive).
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  string  $prefix  The prefix to look for
-     * @return self A new collection with clusters where value starts with the prefix
-     */
     public function whereStartsWith(string $key, string $prefix): self
     {
         $generator = $this->filterWithYield(
@@ -543,13 +354,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the string value ends with the given suffix (case-insensitive).
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  string  $suffix  The suffix to look for
-     * @return self A new collection with clusters where value ends with the suffix
-     */
     public function whereEndsWith(string $key, string $suffix): self
     {
         $generator = $this->filterWithYield(
@@ -563,13 +367,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the string value does NOT contain the search term (case-insensitive).
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  string  $search  The search term to exclude
-     * @return self A new collection with clusters where value does not contain the search term
-     */
     public function whereNotLike(string $key, string $search): self
     {
         $generator = $this->filterWithYield(
@@ -583,13 +380,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the string value does NOT start with the prefix (case-insensitive).
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  string  $prefix  The prefix to exclude
-     * @return self A new collection with clusters where value does not start with the prefix
-     */
     public function whereNotStarts(string $key, string $prefix): self
     {
         $generator = $this->filterWithYield(
@@ -603,13 +393,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the string value does NOT end with the suffix (case-insensitive).
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  string  $suffix  The suffix to exclude
-     * @return self A new collection with clusters where value does not end with the suffix
-     */
     public function whereNotEnds(string $key, string $suffix): self
     {
         $generator = $this->filterWithYield(
@@ -623,14 +406,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters using a custom callback function.
-     *
-     * The callback receives a ClusterVO instance and should return true to include it.
-     *
-     * @param  Closure(ClusterVO): bool  $callback  The filter function
-     * @return self A new collection with clusters that pass the callback
-     */
     public function whereClosure(Closure $callback): self
     {
         $generator = $this->filterWithYield($callback);
@@ -638,15 +413,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Adds an OR condition using a custom callback.
-     *
-     * The callback receives a ClusterVO instance and should return true to include it.
-     * Clusters that match either the current filter OR the callback condition are included.
-     *
-     * @param  Closure(ClusterVO): bool  $callback  The filter function
-     * @return self A new collection with clusters that pass any condition
-     */
     public function orWhereClosure(Closure $callback): self
     {
         $filtered = [];
@@ -663,6 +429,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
 
         foreach ($currentItems as $cluster) {
             $identifier = $this->getClusterIdentifier($cluster);
+
             if ($callback($cluster) && ! in_array($identifier, $addedIdentifiers, true)) {
                 $filtered[] = $cluster;
                 $addedIdentifiers[] = $identifier;
@@ -672,13 +439,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFilteredResult($filtered);
     }
 
-    /**
-     * Returns the first cluster matching the given condition.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  mixed  $value  The value to match against
-     * @return ClusterVO|null The first matching cluster or null if none found
-     */
     public function firstWhere(string $key, mixed $value): ?ClusterVO
     {
         foreach ($this->items as $cluster) {
@@ -690,44 +450,22 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return null;
     }
 
-    /**
-     * Returns all clusters in the collection as an array.
-     *
-     * @return array<ClusterVO> The array of clusters
-     */
     public function get(): array
     {
         return $this->items;
     }
 
-    /**
-     * Alias for whereContains() for string search.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  string  $search  The search term to look for
-     * @return self A new collection with clusters where value contains the search term
-     */
     public function whereLike(string $key, string $search): self
     {
         return $this->whereContains($key, $search);
     }
 
-    /**
-     * Filters clusters where the string value matches a SQL LIKE pattern.
-     *
-     * Supports:
-     * - '%' → n'importe quelle séquence de caractères
-     * - '_' → un seul caractère
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  string  $pattern  The LIKE pattern (e.g., '%john%', 'j%o%')
-     * @return self A new collection with clusters matching the pattern
-     */
     public function whereLikePattern(string $key, string $pattern): self
     {
         $generator = $this->filterWithYield(
             function (ClusterVO $cluster) use ($key, $pattern) {
                 $value = $cluster->get($key);
+
                 if (! is_string($value)) {
                     return false;
                 }
@@ -739,18 +477,12 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where the string value does NOT match a SQL LIKE pattern.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  string  $pattern  The LIKE pattern to exclude
-     * @return self A new collection with clusters not matching the pattern
-     */
     public function whereNotLikePattern(string $key, string $pattern): self
     {
         $generator = $this->filterWithYield(
             function (ClusterVO $cluster) use ($key, $pattern) {
                 $value = $cluster->get($key);
+
                 if (! is_string($value)) {
                     return true;
                 }
@@ -762,86 +494,68 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Matches a string against a SQL LIKE pattern.
-     *
-     * @param  string  $value  The value to test
-     * @param  string  $pattern  The LIKE pattern
-     * @return bool True if the value matches the pattern
-     */
     private function matchLikePattern(string $value, string $pattern): bool
     {
         $valueLower = strtolower($value);
         $patternLower = strtolower($pattern);
 
-        // Si le pattern contient des %, on les utilise
         if (str_contains($pattern, '%')) {
-            // %keyword% → contient (uniquement si c'est le seul % au début et à la fin)
             if (str_starts_with($pattern, '%') && str_ends_with($pattern, '%') && substr_count($pattern, '%') === 2) {
                 $search = substr($pattern, 1, -1);
 
                 return str_contains($valueLower, strtolower($search));
             }
 
-            // keyword% → commence par
             if (str_ends_with($pattern, '%') && ! str_starts_with($pattern, '%')) {
                 $search = substr($pattern, 0, -1);
 
                 return str_starts_with($valueLower, strtolower($search));
             }
 
-            // %keyword → termine par
             if (str_starts_with($pattern, '%') && ! str_ends_with($pattern, '%') && substr_count($pattern, '%') === 1) {
                 $search = substr($pattern, 1);
 
                 return str_ends_with($valueLower, strtolower($search));
             }
 
-            // ✅ Pattern avec plusieurs % (ex: %j%h%n, j%o%, %a%o%, %j%h%n%)
             $parts = explode('%', $pattern);
             $parts = array_filter($parts, fn ($p) => $p !== '');
 
             if (count($parts) >= 2) {
                 $position = 0;
+
                 foreach ($parts as $part) {
                     $partLower = strtolower($part);
                     $pos = strpos($valueLower, $partLower, $position);
+
                     if ($pos === false) {
                         return false;
                     }
+
                     $position = $pos + strlen($partLower);
                 }
 
                 return true;
             }
 
-            // Cas générique (fallback)
             $search = str_replace('%', '', $pattern);
 
             return str_contains($valueLower, strtolower($search));
         }
 
-        // Sans %, recherche "contient" par défaut
         return str_contains($valueLower, $patternLower);
     }
 
-    /**
-     * Adds an OR condition with a LIKE pattern.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  string  $pattern  The LIKE pattern (e.g., '%john%', 'j%o%')
-     * @return self A new collection with clusters matching the pattern
-     */
     public function orWhereLikePattern(string $key, string $pattern): self
     {
         $filtered = [];
         $addedIdentifiers = [];
         $originalItems = $this->getOriginalItems();
 
-        // Ajouter les items déjà filtrés
         if ($this->hasPriorFilter()) {
             foreach ($this->items as $cluster) {
                 $identifier = $this->getClusterIdentifier($cluster);
+
                 if (! in_array($identifier, $addedIdentifiers, true)) {
                     $filtered[] = $cluster;
                     $addedIdentifiers[] = $identifier;
@@ -849,11 +563,12 @@ final class ClusterVOCollection extends AbstractTypedCollection
             }
         }
 
-        // Ajouter les items qui correspondent au pattern
         foreach ($originalItems as $cluster) {
             $identifier = $this->getClusterIdentifier($cluster);
+
             if (! in_array($identifier, $addedIdentifiers, true)) {
                 $value = $cluster->get($key);
+
                 if (is_string($value) && $this->matchLikePattern($value, $pattern)) {
                     $filtered[] = $cluster;
                     $addedIdentifiers[] = $identifier;
@@ -864,13 +579,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFilteredResult($filtered);
     }
 
-    /**
-     * Adds an OR condition with a NOT LIKE pattern.
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  string  $pattern  The LIKE pattern to exclude
-     * @return self A new collection with clusters not matching the pattern
-     */
     public function orWhereNotLikePattern(string $key, string $pattern): self
     {
         $filtered = [];
@@ -880,6 +588,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
         if ($this->hasPriorFilter()) {
             foreach ($this->items as $cluster) {
                 $identifier = $this->getClusterIdentifier($cluster);
+
                 if (! in_array($identifier, $addedIdentifiers, true)) {
                     $filtered[] = $cluster;
                     $addedIdentifiers[] = $identifier;
@@ -889,8 +598,10 @@ final class ClusterVOCollection extends AbstractTypedCollection
 
         foreach ($originalItems as $cluster) {
             $identifier = $this->getClusterIdentifier($cluster);
+
             if (! in_array($identifier, $addedIdentifiers, true)) {
                 $value = $cluster->get($key);
+
                 if (! is_string($value) || ! $this->matchLikePattern($value, $pattern)) {
                     $filtered[] = $cluster;
                     $addedIdentifiers[] = $identifier;
@@ -901,34 +612,16 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFilteredResult($filtered);
     }
 
-    /**
-     * Alias for whereStartsWith().
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  string  $prefix  The prefix to look for
-     * @return self A new collection with clusters where value starts with the prefix
-     */
     public function whereStarts(string $key, string $prefix): self
     {
         return $this->whereStartsWith($key, $prefix);
     }
 
-    /**
-     * Alias for whereEndsWith().
-     *
-     * @param  string  $key  The attribute key to check
-     * @param  string  $suffix  The suffix to look for
-     * @return self A new collection with clusters where value ends with the suffix
-     */
     public function whereEnds(string $key, string $suffix): self
     {
         return $this->whereEndsWith($key, $suffix);
     }
 
-    /**
-     * Filters clusters where an array key contains a specific value.
-     * Works with flattened keys like 'tags_php', 'tags_js', etc.
-     */
     public function whereArrayContains(string $key, mixed $value): self
     {
         $generator = $this->filterWithYield(
@@ -939,6 +632,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
                 foreach ($clusterData as $clusterKey => $clusterValue) {
                     if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
                         $suffix = substr($clusterKey, strlen($prefix));
+
                         if ((string) $suffix === (string) $value) {
                             return true;
                         }
@@ -952,9 +646,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where an array key does NOT contain a specific value.
-     */
     public function whereArrayNotContains(string $key, mixed $value): self
     {
         $generator = $this->filterWithYield(
@@ -965,6 +656,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
                 foreach ($clusterData as $clusterKey => $clusterValue) {
                     if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
                         $suffix = substr($clusterKey, strlen($prefix));
+
                         if ((string) $suffix === (string) $value) {
                             return false;
                         }
@@ -978,9 +670,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Adds an OR condition for array contains.
-     */
     public function orWhereArrayContains(string $key, mixed $value): self
     {
         $filtered = [];
@@ -989,6 +678,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
 
         foreach ($this->items as $cluster) {
             $identifier = $this->getClusterIdentifier($cluster);
+
             if (! in_array($identifier, $addedIdentifiers, true)) {
                 $filtered[] = $cluster;
                 $addedIdentifiers[] = $identifier;
@@ -997,6 +687,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
 
         foreach ($originalItems as $cluster) {
             $identifier = $this->getClusterIdentifier($cluster);
+
             if (! in_array($identifier, $addedIdentifiers, true)) {
                 $prefix = $key.'_';
                 $found = false;
@@ -1005,6 +696,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
                 foreach ($clusterData as $clusterKey => $clusterValue) {
                     if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
                         $suffix = substr($clusterKey, strlen($prefix));
+
                         if ((string) $suffix === (string) $value) {
                             $found = true;
                             break;
@@ -1022,9 +714,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFilteredResult($filtered);
     }
 
-    /**
-     * Adds an OR condition for array not contains.
-     */
     public function orWhereArrayNotContains(string $key, mixed $value): self
     {
         $filtered = [];
@@ -1033,6 +722,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
 
         foreach ($this->items as $cluster) {
             $identifier = $this->getClusterIdentifier($cluster);
+
             if (! in_array($identifier, $addedIdentifiers, true)) {
                 $filtered[] = $cluster;
                 $addedIdentifiers[] = $identifier;
@@ -1041,6 +731,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
 
         foreach ($originalItems as $cluster) {
             $identifier = $this->getClusterIdentifier($cluster);
+
             if (! in_array($identifier, $addedIdentifiers, true)) {
                 $prefix = $key.'_';
                 $found = false;
@@ -1049,6 +740,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
                 foreach ($clusterData as $clusterKey => $clusterValue) {
                     if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
                         $suffix = substr($clusterKey, strlen($prefix));
+
                         if ((string) $suffix === (string) $value) {
                             $found = true;
                             break;
@@ -1066,9 +758,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFilteredResult($filtered);
     }
 
-    /**
-     * Filters clusters where an array key contains any of the values.
-     */
     public function whereArrayContainsAny(string $key, array $values): self
     {
         $generator = $this->filterWithYield(
@@ -1079,6 +768,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
                 foreach ($clusterData as $clusterKey => $clusterValue) {
                     if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
                         $suffix = substr($clusterKey, strlen($prefix));
+
                         if (in_array($suffix, $values, true)) {
                             return true;
                         }
@@ -1092,9 +782,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Adds an OR condition for array contains any.
-     */
     public function orWhereArrayContainsAny(string $key, array $values): self
     {
         $filtered = [];
@@ -1111,6 +798,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
 
         foreach ($originalItems as $cluster) {
             $id = $this->getClusterIdentifier($cluster);
+
             if (! in_array($id, $addedIds, true) && $this->arrayContainsAny($cluster, $key, $values)) {
                 $filtered[] = $cluster;
                 $addedIds[] = $id;
@@ -1120,9 +808,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFilteredResult($filtered);
     }
 
-    /**
-     * Filters clusters where an array key contains ALL of the values.
-     */
     public function whereArrayContainsAll(string $key, array $values): self
     {
         $generator = $this->filterWithYield(
@@ -1134,6 +819,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
                 foreach ($clusterData as $clusterKey => $clusterValue) {
                     if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
                         $suffix = substr($clusterKey, strlen($prefix));
+
                         if (in_array($suffix, $values, true)) {
                             $foundValues[] = $suffix;
                         }
@@ -1141,6 +827,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
                 }
 
                 $allFound = true;
+
                 foreach ($values as $value) {
                     if (! in_array($value, $foundValues, true)) {
                         $allFound = false;
@@ -1163,6 +850,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
 
         foreach ($this->items as $cluster) {
             $identifier = $this->getClusterIdentifier($cluster);
+
             if (! in_array($identifier, $addedIdentifiers, true)) {
                 $filtered[] = $cluster;
                 $addedIdentifiers[] = $identifier;
@@ -1171,6 +859,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
 
         foreach ($originalItems as $cluster) {
             $identifier = $this->getClusterIdentifier($cluster);
+
             if (! in_array($identifier, $addedIdentifiers, true)) {
                 $prefix = $key.'_';
                 $foundValues = [];
@@ -1179,6 +868,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
                 foreach ($clusterData as $clusterKey => $clusterValue) {
                     if (str_starts_with($clusterKey, $prefix) && $clusterValue === 'true') {
                         $suffix = substr($clusterKey, strlen($prefix));
+
                         if (in_array($suffix, $values, true)) {
                             $foundValues[] = $suffix;
                         }
@@ -1186,6 +876,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
                 }
 
                 $allFound = true;
+
                 foreach ($values as $value) {
                     if (! in_array($value, $foundValues, true)) {
                         $allFound = false;
@@ -1203,9 +894,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFilteredResult($filtered);
     }
 
-    /**
-     * Filters clusters where an array key has a specific size.
-     */
     public function whereArraySize(string $key, int $size): self
     {
         $generator = $this->filterWithYield(
@@ -1227,9 +915,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where an array key has size greater than the given value.
-     */
     public function whereArraySizeGreaterThan(string $key, int $size): self
     {
         $generator = $this->filterWithYield(
@@ -1251,9 +936,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where an array key has size less than the given value.
-     */
     public function whereArraySizeLessThan(string $key, int $size): self
     {
         $generator = $this->filterWithYield(
@@ -1275,12 +957,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where an array key is empty.
-     *
-     * @param  string  $key  The base key to check (e.g., 'tags' for tags_php, tags_js)
-     * @return self A new collection with clusters where the array is empty
-     */
     public function whereArrayEmpty(string $key): self
     {
         $generator = $this->filterWithYield(
@@ -1290,6 +966,7 @@ final class ClusterVOCollection extends AbstractTypedCollection
                 }
 
                 $value = $cluster->get($key);
+
                 if ($value !== null) {
                     return false;
                 }
@@ -1310,9 +987,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
         return $this->createFromGenerator($generator);
     }
 
-    /**
-     * Filters clusters where an array key is not empty.
-     */
     public function whereArrayNotEmpty(string $key): self
     {
         $generator = $this->filterWithYield(
@@ -1332,6 +1006,107 @@ final class ClusterVOCollection extends AbstractTypedCollection
 
         return $this->createFromGenerator($generator);
     }
+
+    // ==================== NOUVELLES MÉTHODES D'AGRÉGATION ====================
+
+    /**
+     * Filtre la collection avec une expression d'agrégation
+     * Supporte les expressions complexes avec multiples fonctions
+     *
+     * @example $collection->whereAggregate('{COUNT(addresses) > 2}')
+     * @example $collection->whereAggregate('{COUNT(addresses) > 2} & {CUSTOM(scores, $prices) > 100}')
+     * @example $collection->whereAggregate('{EXISTS(addresses)}')
+     * @example $collection->whereAggregate('{HAS(addresses, city, "Kinshasa")}')
+     */
+    public function whereAggregate(string $expression): self
+    {
+        return $this->whereClosure(
+            function (ClusterVO $cluster) use ($expression) {
+                $data = $cluster->getUnflattened()->toArray();
+
+                return $this->aggregateEvaluator->evaluate($data, $expression);
+            }
+        );
+    }
+
+    /**
+     * Filtre la collection avec une fonction directe (sans comparaison)
+     *
+     * @example $collection->whereAggregateDirect('COUNT', ['addresses'])
+     * @example $collection->whereAggregateDirect('EXISTS', ['addresses'])
+     * @example $collection->whereAggregateDirect('HAS', ['addresses', 'city', 'Kinshasa'])
+     */
+    public function whereAggregateDirect(string $functionName, array $args = []): self
+    {
+        return $this->whereClosure(
+            function (ClusterVO $cluster) use ($functionName, $args) {
+                $data = $cluster->getUnflattened()->toArray();
+                $result = $this->aggregateEvaluator->evaluateDirect($data, $functionName, $args);
+
+                return (bool) $result;
+            }
+        );
+    }
+
+    /**
+     * Retourne un booléen pour un cluster spécifique avec expression complète
+     *
+     * @example $collection->matchesAggregate($cluster, '{COUNT(addresses) > 2}')
+     * @example $collection->matchesAggregate($cluster, '{EXISTS(addresses)}')
+     */
+    public function matchesAggregate(ClusterVO $cluster, string $expression): bool
+    {
+        $data = $cluster->getUnflattened()->toArray();
+
+        return $this->aggregateEvaluator->evaluate($data, $expression);
+    }
+
+    /**
+     * Retourne un booléen pour un cluster avec fonction directe
+     *
+     * @example $collection->matchesAggregateDirect($cluster, 'COUNT', ['addresses'])
+     * @example $collection->matchesAggregateDirect($cluster, 'EXISTS', ['addresses'])
+     */
+    public function matchesAggregateDirect(ClusterVO $cluster, string $functionName, array $args = []): bool
+    {
+        $data = $cluster->getUnflattened()->toArray();
+        $result = $this->aggregateEvaluator->evaluateDirect($data, $functionName, $args);
+
+        return (bool) $result;
+    }
+
+    /**
+     * Retourne la valeur directe d'une fonction sur un cluster
+     *
+     * @example $collection->getAggregateValue($cluster, 'COUNT', ['addresses'])
+     * @example $collection->getAggregateValue($cluster, 'AVG', ['scores'])
+     */
+    public function getAggregateValue(ClusterVO $cluster, string $functionName, array $args = []): mixed
+    {
+        $data = $cluster->getUnflattened()->toArray();
+
+        return $this->aggregateEvaluator->evaluateDirect($data, $functionName, $args);
+    }
+
+    /**
+     * Valide une expression d'agrégation
+     *
+     * @example $collection->validateAggregate('{COUNT(addresses) > 2}')
+     */
+    public function validateAggregate(string $expression): bool
+    {
+        return $this->aggregateEvaluator->validate($expression);
+    }
+
+    /**
+     * Retourne l'évaluateur d'agrégation pour accéder au registre
+     */
+    public function getAggregateEvaluator(): AggregateEvaluatorService
+    {
+        return $this->aggregateEvaluator;
+    }
+
+    // ==================== MÉTHODES PRIVÉES ====================
 
     private function initializeOriginalItems(): void
     {

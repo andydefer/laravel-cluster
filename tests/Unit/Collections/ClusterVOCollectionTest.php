@@ -18,7 +18,7 @@ final class ClusterVOCollectionTest extends TestCase
 
         $this->collection = new ClusterVOCollection;
 
-        // John Doe avec adresses
+        // John Doe avec adresses et scores
         $this->collection->add(new ClusterVO([
             'id' => 1,
             'name' => 'John Doe',
@@ -32,6 +32,7 @@ final class ClusterVOCollectionTest extends TestCase
                 ['city' => 'Kinshasa', 'street' => 'Avenue de la Paix', 'country' => 'RDC'],
                 ['city' => 'Lubumbashi', 'street' => 'Avenue Lumumba', 'country' => 'RDC'],
             ],
+            'scores' => [80, 90, 85], // ✅ Ajout des scores
             'tags' => ['php', 'js', 'docker'],
             'settings' => [
                 'notifications' => [
@@ -41,7 +42,7 @@ final class ClusterVOCollectionTest extends TestCase
             ],
         ]));
 
-        // Jane Smith avec adresses
+        // Jane Smith avec adresses et scores
         $this->collection->add(new ClusterVO([
             'id' => 2,
             'name' => 'Jane Smith',
@@ -54,6 +55,7 @@ final class ClusterVOCollectionTest extends TestCase
             'addresses' => [
                 ['city' => 'Paris', 'street' => 'Rue de Rivoli', 'country' => 'France'],
             ],
+            'scores' => [70, 75, 80], // ✅ Ajout des scores
             'tags' => ['python', 'react'],
             'settings' => [
                 'notifications' => [
@@ -63,7 +65,7 @@ final class ClusterVOCollectionTest extends TestCase
             ],
         ]));
 
-        // Bob Johnson avec adresses
+        // Bob Johnson avec adresses et scores
         $this->collection->add(new ClusterVO([
             'id' => 3,
             'name' => 'Bob Johnson',
@@ -78,6 +80,7 @@ final class ClusterVOCollectionTest extends TestCase
                 ['city' => 'Paris', 'street' => 'Avenue des Champs-Élysées', 'country' => 'France'],
                 ['city' => 'London', 'street' => 'Oxford Street', 'country' => 'UK'],
             ],
+            'scores' => [95, 98, 92], // ✅ Ajout des scores
             'tags' => ['php', 'laravel', 'vuejs'],
             'settings' => [
                 'notifications' => [
@@ -87,7 +90,7 @@ final class ClusterVOCollectionTest extends TestCase
             ],
         ]));
 
-        // Alice Wonder sans adresses
+        // Alice Wonder sans adresses mais avec scores
         $this->collection->add(new ClusterVO([
             'id' => 4,
             'name' => 'Alice Wonder',
@@ -98,6 +101,7 @@ final class ClusterVOCollectionTest extends TestCase
             'lang_fr' => 'false',
             'lang_en' => 'true',
             'addresses' => [],
+            'scores' => [85, 90, 88], // ✅ Ajout des scores
             'tags' => ['go', 'rust'],
             'settings' => [
                 'notifications' => [
@@ -106,7 +110,6 @@ final class ClusterVOCollectionTest extends TestCase
                 'theme' => 'light',
             ],
         ]));
-
     }
 
     public function test_where_returns_collection_with_matching_items(): void
@@ -1812,6 +1815,682 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertContains('Bob Johnson', $names);
         $this->assertNotContains('Jane Smith', $names);
         $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    // ==================== AGGREGATE WHERE TESTS ====================
+
+    public function test_where_aggregate_count_with_comparison(): void
+    {
+        // ✅ CORRECTION : COUNT(addresses) >= 2 (ou > 1)
+        // John (2) et Bob (3) → 2
+        $result = $this->collection->whereAggregate('{COUNT(addresses) >= 2}');
+
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Jane Smith', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_aggregate_count_equals(): void
+    {
+        // COUNT(addresses) = 2
+        $result = $this->collection->whereAggregate('{COUNT(addresses) = 2}');
+
+        // John (2) et Bob (3) → 1
+        $this->assertCount(1, $result);
+        $this->assertEquals('John Doe', $result->first()?->get('name'));
+    }
+
+    public function test_where_aggregate_count_less_than(): void
+    {
+        // COUNT(addresses) < 2
+        $result = $this->collection->whereAggregate('{COUNT(addresses) < 2}');
+
+        // Jane (1) et Alice (0) → 2
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('Jane Smith', $names);
+        $this->assertContains('Alice Wonder', $names);
+        $this->assertNotContains('John Doe', $names);
+        $this->assertNotContains('Bob Johnson', $names);
+    }
+
+    public function test_where_aggregate_sum(): void
+    {
+        // SUM(prices) > 1000
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'prices' => [100, 200, 300],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'prices' => [50, 75],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Bob',
+            'prices' => [500, 600, 700],
+        ]));
+
+        $result = $collection->whereAggregate('{SUM(prices) > 1000}');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Bob', $result->first()?->get('name'));
+    }
+
+    public function test_where_aggregate_avg(): void
+    {
+        // AVG(scores) >= 85
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'scores' => [80, 90, 85],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'scores' => [70, 75, 80],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Bob',
+            'scores' => [95, 98, 92],
+        ]));
+
+        $result = $collection->whereAggregate('{AVG(scores) >= 85}');
+
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John', $names);
+        $this->assertContains('Bob', $names);
+        $this->assertNotContains('Jane', $names);
+    }
+
+    public function test_where_aggregate_min(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'scores' => [80, 90, 85],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'scores' => [70, 75, 80],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Bob',
+            'scores' => [95, 98, 92],
+        ]));
+
+        $result = $collection->whereAggregate('{MIN(scores) > 80}');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Bob', $result->first()?->get('name'));
+    }
+
+    public function test_where_aggregate_max(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'scores' => [80, 90, 85],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'scores' => [70, 75, 80],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Bob',
+            'scores' => [95, 98, 92],
+        ]));
+
+        $result = $collection->whereAggregate('{MAX(scores) < 95}');
+
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John', $names);
+        $this->assertContains('Jane', $names);
+        $this->assertNotContains('Bob', $names);
+    }
+
+    public function test_where_aggregate_length(): void
+    {
+        // LENGTH(name) > 5
+        $result = $this->collection->whereAggregate('{LENGTH(name) > 5}');
+
+        // John Doe (8), Jane Smith (10), Bob Johnson (11), Alice Wonder (12) → 4
+        $this->assertCount(4, $result);
+    }
+
+    public function test_where_aggregate_with_nested_path(): void
+    {
+        // COUNT(settings.notifications) > 1
+        $result = $this->collection->whereAggregate('{COUNT(settings.notifications) > 1}');
+
+        $this->assertCount(0, $result); // Tous ont 1 notification
+    }
+
+    public function test_where_aggregate_direct_count(): void
+    {
+        // COUNT(addresses) > 0 automatique
+        $result = $this->collection->whereAggregateDirect('COUNT', ['addresses']);
+
+        // John, Jane, Bob ont des adresses → 3
+        $this->assertCount(3, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Jane Smith', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_aggregate_direct_sum(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO(['name' => 'John', 'prices' => [100, 200, 300]]));
+        $collection->add(new ClusterVO(['name' => 'Jane', 'prices' => []]));
+        $collection->add(new ClusterVO(['name' => 'Bob', 'prices' => [500, 600, 700]]));
+
+        // SUM(prices) > 0 automatique
+        $result = $collection->whereAggregateDirect('SUM', ['prices']);
+
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John', $names);
+        $this->assertContains('Bob', $names);
+        $this->assertNotContains('Jane', $names);
+    }
+
+    public function test_where_aggregate_direct_exists(): void
+    {
+        // EXISTS(addresses) retourne booléen
+        $result = $this->collection->whereAggregateDirect('EXISTS', ['addresses']);
+
+        // John, Jane, Bob ont des adresses → 3
+        $this->assertCount(3, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Jane Smith', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_aggregate_direct_has(): void
+    {
+        // HAS(addresses, city, "Kinshasa")
+        $result = $this->collection->whereAggregateDirect('HAS', ['addresses', 'city', 'Kinshasa']);
+
+        // John et Bob ont Kinshasa → 2
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Jane Smith', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_aggregate_direct_all(): void
+    {
+        // ALL(addresses, country, "RDC") - tous les pays sont RDC
+        $result = $this->collection->whereAggregateDirect('ALL', ['addresses', 'country', 'RDC']);
+
+        // John a 2 adresses RDC ✅, Bob a RDC, France, UK ❌
+        $this->assertCount(1, $result);
+        $this->assertEquals('John Doe', $result->first()?->get('name'));
+    }
+
+    public function test_where_aggregate_direct_is_empty(): void
+    {
+        // IS_EMPTY(addresses)
+        $result = $this->collection->whereAggregateDirect('IS_EMPTY', ['addresses']);
+
+        // Alice n'a pas d'adresses → 1
+        $this->assertCount(1, $result);
+        $this->assertEquals('Alice Wonder', $result->first()?->get('name'));
+    }
+
+    public function test_matches_aggregate_count(): void
+    {
+        $cluster = $this->collection->first();
+
+        $result = $this->collection->matchesAggregate($cluster, '{COUNT(addresses) > 1}');
+
+        $this->assertTrue($result);
+    }
+
+    public function test_matches_aggregate_count_false(): void
+    {
+        $cluster = $this->collection->find(fn ($c) => $c->get('name') === 'Jane Smith');
+
+        $result = $this->collection->matchesAggregate($cluster, '{COUNT(addresses) > 1}');
+
+        $this->assertFalse($result);
+    }
+
+    public function test_matches_aggregate_exists(): void
+    {
+        $cluster = $this->collection->first();
+
+        $result = $this->collection->matchesAggregate($cluster, '{EXISTS(addresses)}');
+
+        $this->assertTrue($result);
+    }
+
+    public function test_matches_aggregate_exists_false(): void
+    {
+        $cluster = $this->collection->find(fn ($c) => $c->get('name') === 'Alice Wonder');
+
+        $result = $this->collection->matchesAggregate($cluster, '{EXISTS(addresses)}');
+
+        $this->assertFalse($result);
+    }
+
+    public function test_matches_aggregate_has(): void
+    {
+        $cluster = $this->collection->find(fn ($c) => $c->get('name') === 'John Doe');
+
+        $result = $this->collection->matchesAggregate($cluster, '{HAS(addresses, city, "Kinshasa")}');
+
+        $this->assertTrue($result);
+    }
+
+    public function test_matches_aggregate_has_false(): void
+    {
+        $cluster = $this->collection->find(fn ($c) => $c->get('name') === 'Jane Smith');
+
+        $result = $this->collection->matchesAggregate($cluster, '{HAS(addresses, city, "Kinshasa")}');
+
+        $this->assertFalse($result);
+    }
+
+    public function test_matches_aggregate_all(): void
+    {
+        $cluster = $this->collection->find(fn ($c) => $c->get('name') === 'John Doe');
+
+        // John a 2 adresses en RDC
+        $result = $this->collection->matchesAggregate($cluster, '{ALL(addresses, country, "RDC")}');
+
+        $this->assertTrue($result);
+    }
+
+    public function test_matches_aggregate_all_false(): void
+    {
+        $cluster = $this->collection->find(fn ($c) => $c->get('name') === 'Bob Johnson');
+
+        // Bob a RDC, France, UK → pas tous RDC
+        $result = $this->collection->matchesAggregate($cluster, '{ALL(addresses, country, "RDC")}');
+
+        $this->assertFalse($result);
+    }
+
+    public function test_matches_aggregate_direct_count(): void
+    {
+        $cluster = $this->collection->find(fn ($c) => $c->get('name') === 'John Doe');
+
+        $result = $this->collection->matchesAggregateDirect($cluster, 'COUNT', ['addresses']);
+
+        $this->assertTrue($result); // 2 > 0
+    }
+
+    public function test_matches_aggregate_direct_count_false(): void
+    {
+        $cluster = $this->collection->find(fn ($c) => $c->get('name') === 'Alice Wonder');
+
+        $result = $this->collection->matchesAggregateDirect($cluster, 'COUNT', ['addresses']);
+
+        $this->assertFalse($result); // 0 > 0 = false
+    }
+
+    public function test_matches_aggregate_direct_exists(): void
+    {
+        $cluster = $this->collection->find(fn ($c) => $c->get('name') === 'Bob Johnson');
+
+        $result = $this->collection->matchesAggregateDirect($cluster, 'EXISTS', ['addresses']);
+
+        $this->assertTrue($result);
+    }
+
+    public function test_matches_aggregate_direct_exists_false(): void
+    {
+        $cluster = $this->collection->find(fn ($c) => $c->get('name') === 'Alice Wonder');
+
+        $result = $this->collection->matchesAggregateDirect($cluster, 'EXISTS', ['addresses']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_get_aggregate_value_count(): void
+    {
+        $cluster = $this->collection->find(fn ($c) => $c->get('name') === 'John Doe');
+
+        $result = $this->collection->getAggregateValue($cluster, 'COUNT', ['addresses']);
+
+        $this->assertEquals(2, $result);
+    }
+
+    public function test_get_aggregate_value_count_zero(): void
+    {
+        $cluster = $this->collection->find(fn ($c) => $c->get('name') === 'Alice Wonder');
+
+        $result = $this->collection->getAggregateValue($cluster, 'COUNT', ['addresses']);
+
+        $this->assertEquals(0, $result);
+    }
+
+    public function test_get_aggregate_value_sum(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'prices' => [100, 200, 300],
+        ]));
+
+        $cluster = $collection->first();
+        $result = $collection->getAggregateValue($cluster, 'SUM', ['prices']);
+
+        $this->assertEquals(600.0, $result);
+    }
+
+    public function test_get_aggregate_value_avg(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'scores' => [80, 90, 85],
+        ]));
+
+        $cluster = $collection->first();
+        $result = $collection->getAggregateValue($cluster, 'AVG', ['scores']);
+
+        $this->assertEquals(85.0, $result);
+    }
+
+    public function test_get_aggregate_value_min(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'scores' => [80, 90, 85],
+        ]));
+
+        $cluster = $collection->first();
+        $result = $collection->getAggregateValue($cluster, 'MIN', ['scores']);
+
+        $this->assertEquals(80.0, $result);
+    }
+
+    public function test_get_aggregate_value_max(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'scores' => [80, 90, 85],
+        ]));
+
+        $cluster = $collection->first();
+        $result = $collection->getAggregateValue($cluster, 'MAX', ['scores']);
+
+        $this->assertEquals(90.0, $result);
+    }
+
+    public function test_get_aggregate_value_length(): void
+    {
+        $cluster = $this->collection->find(fn ($c) => $c->get('name') === 'John Doe');
+
+        $result = $this->collection->getAggregateValue($cluster, 'LENGTH', ['name']);
+
+        $this->assertEquals(8, $result); // "John Doe" = 8 caractères
+    }
+
+    public function test_get_aggregate_value_exists(): void
+    {
+        $cluster = $this->collection->find(fn ($c) => $c->get('name') === 'John Doe');
+
+        $result = $this->collection->getAggregateValue($cluster, 'EXISTS', ['addresses']);
+
+        $this->assertTrue($result);
+    }
+
+    public function test_get_aggregate_value_exists_false(): void
+    {
+        $cluster = $this->collection->find(fn ($c) => $c->get('name') === 'Alice Wonder');
+
+        $result = $this->collection->getAggregateValue($cluster, 'EXISTS', ['addresses']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_validate_aggregate_valid_expression(): void
+    {
+        $result = $this->collection->validateAggregate('{COUNT(addresses) > 2}');
+
+        $this->assertTrue($result);
+    }
+
+    public function test_validate_aggregate_valid_complex_expression(): void
+    {
+        $result = $this->collection->validateAggregate('{COUNT(addresses) > 2} & {AVG(scores) >= 85}');
+
+        $this->assertTrue($result);
+    }
+
+    public function test_validate_aggregate_valid_boolean_function(): void
+    {
+        $result = $this->collection->validateAggregate('{EXISTS(addresses)}');
+
+        $this->assertTrue($result);
+    }
+
+    public function test_validate_aggregate_invalid_expression(): void
+    {
+        $result = $this->collection->validateAggregate('{INVALID_FUNCTION(addresses) > 2}');
+
+        $this->assertFalse($result);
+    }
+
+    public function test_validate_aggregate_invalid_syntax(): void
+    {
+        $result = $this->collection->validateAggregate('{COUNT(addresses > 2}');
+
+        $this->assertFalse($result);
+    }
+
+    public function test_where_aggregate_complex_with_and(): void
+    {
+        // COUNT(addresses) > 1 ET AVG(scores) >= 85
+        // John (2, 85) et Bob (3, 95) → 2
+        $result = $this->collection->whereAggregate('{COUNT(addresses) > 1} & {AVG(scores) >= 85}');
+
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Jane Smith', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_aggregate_complex_with_or(): void
+    {
+        // COUNT(addresses) > 1 OU AVG(scores) >= 95
+        // John (2 > 1) et Bob (3 > 1) → 2
+        $result = $this->collection->whereAggregate('{COUNT(addresses) > 1} | {AVG(scores) >= 95}');
+
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Jane Smith', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_aggregate_complex_with_boolean_and_numeric(): void
+    {
+        // EXISTS(addresses) ET COUNT(addresses) > 1
+        $result = $this->collection->whereAggregate('{EXISTS(addresses)} & {COUNT(addresses) > 1}');
+
+        // John (2) et Bob (3) → 2
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Jane Smith', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_aggregate_complex_with_has(): void
+    {
+        // HAS(addresses, city, "Kinshasa") ET COUNT(addresses) > 1
+        $result = $this->collection->whereAggregate('{HAS(addresses, city, "Kinshasa")} & {COUNT(addresses) > 1}');
+
+        // John (2, Kinshasa) et Bob (3, Kinshasa) → 2
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+    }
+
+    public function test_where_aggregate_complex_with_all(): void
+    {
+        // ALL(addresses, country, "RDC") ET COUNT(addresses) > 1
+        $result = $this->collection->whereAggregate('{ALL(addresses, country, "RDC")} & {COUNT(addresses) > 1}');
+
+        // John a 2 adresses RDC → 1
+        $this->assertCount(1, $result);
+        $this->assertEquals('John Doe', $result->first()?->get('name'));
+    }
+
+    public function test_where_aggregate_complex_with_is_empty(): void
+    {
+        // IS_EMPTY(addresses) OR COUNT(addresses) > 2
+        $result = $this->collection->whereAggregate('{IS_EMPTY(addresses)} | {COUNT(addresses) > 2}');
+
+        // Alice (vide) et Bob (3) → 2
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('Alice Wonder', $names);
+        $this->assertContains('Bob Johnson', $names);
+    }
+
+    public function test_where_query_detects_aggregate(): void
+    {
+        // whereQuery détecte automatiquement les agrégations
+        $result = $this->collection->whereQuery('{COUNT(addresses) > 2}');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
+    }
+
+    public function test_where_query_mixed_aggregate_and_normal(): void
+    {
+        // Mélange d'agrégation et condition normale
+        $result = $this->collection->whereQuery('{COUNT(addresses) > 2} & status=active');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
+    }
+
+    public function test_where_query_boolean_aggregate(): void
+    {
+        // whereQuery avec fonction booléenne
+        $result = $this->collection->whereQuery('{EXISTS(addresses)}');
+
+        $this->assertCount(3, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Jane Smith', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_query_complex_with_aggregate_and_normal(): void
+    {
+        // whereQuery avec agrégation + condition normale + fonction booléenne
+        $result = $this->collection->whereQuery(
+            '{COUNT(addresses) > 1} & status=active & {EXISTS(addresses)}'
+        );
+
+        // John (active, 2 adresses) et Bob (active, 3 adresses) → 2
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+    }
+
+    public function test_where_aggregate_with_empty_collection(): void
+    {
+        $emptyCollection = new ClusterVOCollection;
+
+        $result = $emptyCollection->whereAggregate('{COUNT(addresses) > 2}');
+
+        $this->assertCount(0, $result);
+    }
+
+    public function test_where_aggregate_with_numeric_string_values(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'scores' => ['80', '90', '85'], // Strings numériques
+        ]));
+
+        $result = $collection->whereAggregate('{AVG(scores) > 80}');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->first()?->get('name'));
+    }
+
+    public function test_where_aggregate_with_nested_path_complex(): void
+    {
+        // Vérifier que les notifications avec email=true existent
+        // Utiliser HAS pour vérifier la présence d'un élément avec email=true
+        $result = $this->collection->whereAggregate('{HAS(settings.notifications, email, true)}');
+
+        // John (email=true) et Bob (email=true) → 2
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Jane Smith', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_aggregate_with_invalid_expression_returns_empty(): void
+    {
+        $result = $this->collection->whereAggregate('{INVALID(addresses) > 2}');
+
+        $this->assertCount(0, $result);
+    }
+
+    public function test_where_aggregate_with_missing_path_returns_empty(): void
+    {
+        $result = $this->collection->whereAggregate('{COUNT(non_existent_path) > 2}');
+
+        $this->assertCount(0, $result);
+    }
+
+    public function test_where_aggregate_with_non_array_value(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'scores' => 'not_an_array', // String au lieu d'un tableau
+        ]));
+
+        $result = $collection->whereAggregate('{COUNT(scores) > 0}');
+
+        // COUNT sur une string retourne sa longueur
+        $this->assertCount(1, $result);
+    }
+
+    public function test_where_aggregate_chaining_with_where(): void
+    {
+        $result = $this->collection
+            ->where('status', 'active')
+            ->whereAggregate('{COUNT(addresses) > 2}')  // ✅ > 2 au lieu de > 1
+            ->whereAggregate('{AVG(scores) >= 85}');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
     }
 
     private function normalize(ClusterVOCollection $collection): array

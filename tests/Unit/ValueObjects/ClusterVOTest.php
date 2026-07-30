@@ -360,6 +360,7 @@ final class ClusterVOTest extends TestCase
 
     public function test_real_cluster_with_nested_tags_json_encoded(): void
     {
+
         $input = [
             'type' => 'user',
             'status' => 'active',

@@ -42,6 +42,8 @@ final class ClusterVO extends AbstractValueObject
 
     private readonly FlatArrayService $flatArrayService;
 
+    private readonly array $originalNestedData;
+
     /**
      * @param  array<string, mixed>  $data  The cluster data
      *
@@ -59,6 +61,7 @@ final class ClusterVO extends AbstractValueObject
         $flattened = $this->flatArrayService->flatten($data);
         $this->validateFlattenedData($flattened);
 
+        $this->originalNestedData = $data;
         $this->flattenedData = new StrictAssociative($flattened);
         $this->nestedData = new StrictAssociative(
             $this->flatArrayService->unflatten($flattened)
@@ -77,20 +80,71 @@ final class ClusterVO extends AbstractValueObject
 
     /**
      * Returns the nested (unflattened) representation of the cluster data.
+     * Automatically decodes JSON strings to arrays.
      *
-     * @return StrictAssociative The original nested structure
+     * @return StrictAssociative The original nested structure with JSON decoded
      */
     public function getUnflattened(): StrictAssociative
     {
-        return $this->nestedData;
+        $data = $this->originalNestedData;
+        $decoded = $this->decodeJsonValues($data);
+
+        return new StrictAssociative($decoded);
     }
 
     /**
      * Returns the nested (unflattened) representation as an array.
+     * Automatically decodes JSON strings to arrays.
      */
     public function getNestedData(): array
     {
-        return $this->nestedData->toArray();
+        return $this->decodeJsonValues($this->originalNestedData);
+    }
+
+    /**
+     * Recursively decodes JSON strings in an array.
+     *
+     * @param  array<mixed>  $data  The data to decode
+     * @return array<mixed> The data with JSON strings decoded
+     */
+    private function decodeJsonValues(array $data): array
+    {
+        $result = [];
+
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                $result[$key] = $this->decodeJsonValues($value);
+            } elseif (is_string($value) && $this->isJson($value)) {
+                $decoded = json_decode($value, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    // Si le JSON décodé est un tableau, on le traite récursivement
+                    if (is_array($decoded)) {
+                        $result[$key] = $this->decodeJsonValues($decoded);
+                    } else {
+                        $result[$key] = $decoded;
+                    }
+                } else {
+                    $result[$key] = $value;
+                }
+            } else {
+                $result[$key] = $value;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Checks if a string is valid JSON.
+     *
+     * @param  string  $string  The string to check
+     * @return bool True if the string is valid JSON
+     */
+    private function isJson(string $string): bool
+    {
+        json_decode($string);
+
+        return json_last_error() === JSON_ERROR_NONE;
     }
 
     /**
