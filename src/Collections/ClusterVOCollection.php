@@ -10,14 +10,24 @@ use AndyDefer\LaravelCluster\Services\AggregateEvaluatorService;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use Closure;
 use Generator;
+use Illuminate\Support\Collection;
 
 final class ClusterVOCollection extends AbstractTypedCollection
 {
+    private const MAX_RECURSION_DEPTH = 10;
+
     private array $originalItems = [];
+
+    private int $index = 0;
 
     private ClusterQuery $query;
 
     private AggregateEvaluatorService $aggregateEvaluator;
+
+    /**
+     * @var array<string, int> Compteur de récursion par méthode
+     */
+    private static array $recursionDepth = [];
 
     public function __construct()
     {
@@ -114,63 +124,6 @@ final class ClusterVOCollection extends AbstractTypedCollection
             if ($cluster->get($key) === $value && ! in_array($identifier, $addedIdentifiers, true)) {
                 $filtered[] = $cluster;
                 $addedIdentifiers[] = $identifier;
-            }
-        }
-
-        return $this->createFilteredResult($filtered);
-    }
-
-    public function whereGroup(Closure $callback): self
-    {
-        $filtered = [];
-        $originalItems = $this->getOriginalItems();
-
-        foreach ($this->items as $cluster) {
-            $tempCollection = new self;
-            $tempCollection->add($cluster);
-            $tempCollection->originalItems = $originalItems;
-
-            $result = $callback($tempCollection);
-
-            if ($this->clusterExistsInResult($cluster, $result)) {
-                $filtered[] = $cluster;
-            }
-        }
-
-        return $this->createFilteredResult($filtered);
-    }
-
-    public function orWhereGroup(Closure $callback): self
-    {
-        $filtered = [];
-        $addedIdentifiers = [];
-        $originalItems = $this->getOriginalItems();
-
-        if ($this->hasPriorFilter()) {
-            foreach ($this->items as $cluster) {
-                $identifier = $this->getClusterIdentifier($cluster);
-
-                if (! in_array($identifier, $addedIdentifiers, true)) {
-                    $filtered[] = $cluster;
-                    $addedIdentifiers[] = $identifier;
-                }
-            }
-        }
-
-        foreach ($originalItems as $cluster) {
-            $identifier = $this->getClusterIdentifier($cluster);
-
-            if (! in_array($identifier, $addedIdentifiers, true)) {
-                $tempCollection = new self;
-                $tempCollection->add($cluster);
-                $tempCollection->originalItems = $originalItems;
-
-                $result = $callback($tempCollection);
-
-                if ($this->clusterExistsInResult($cluster, $result)) {
-                    $filtered[] = $cluster;
-                    $addedIdentifiers[] = $identifier;
-                }
             }
         }
 
@@ -408,35 +361,47 @@ final class ClusterVOCollection extends AbstractTypedCollection
 
     public function whereClosure(Closure $callback): self
     {
-        $generator = $this->filterWithYield($callback);
+        $this->checkRecursion(__FUNCTION__);
 
-        return $this->createFromGenerator($generator);
+        try {
+            $generator = $this->filterWithYield($callback);
+
+            return $this->createFromGenerator($generator);
+        } finally {
+            $this->resetRecursion(__FUNCTION__);
+        }
     }
 
     public function orWhereClosure(Closure $callback): self
     {
-        $filtered = [];
-        $addedIdentifiers = [];
-        $currentItems = $this->items;
+        $this->checkRecursion(__FUNCTION__);
 
-        if ($this->hasPriorFilter()) {
+        try {
+            $filtered = [];
+            $addedIdentifiers = [];
+            $currentItems = $this->items;
+
+            if ($this->hasPriorFilter()) {
+                foreach ($currentItems as $cluster) {
+                    $identifier = $this->getClusterIdentifier($cluster);
+                    $filtered[] = $cluster;
+                    $addedIdentifiers[] = $identifier;
+                }
+            }
+
             foreach ($currentItems as $cluster) {
                 $identifier = $this->getClusterIdentifier($cluster);
-                $filtered[] = $cluster;
-                $addedIdentifiers[] = $identifier;
+
+                if ($callback($cluster) && ! in_array($identifier, $addedIdentifiers, true)) {
+                    $filtered[] = $cluster;
+                    $addedIdentifiers[] = $identifier;
+                }
             }
+
+            return $this->createFilteredResult($filtered);
+        } finally {
+            $this->resetRecursion(__FUNCTION__);
         }
-
-        foreach ($currentItems as $cluster) {
-            $identifier = $this->getClusterIdentifier($cluster);
-
-            if ($callback($cluster) && ! in_array($identifier, $addedIdentifiers, true)) {
-                $filtered[] = $cluster;
-                $addedIdentifiers[] = $identifier;
-            }
-        }
-
-        return $this->createFilteredResult($filtered);
     }
 
     public function firstWhere(string $key, mixed $value): ?ClusterVO
@@ -1020,13 +985,28 @@ final class ClusterVOCollection extends AbstractTypedCollection
      */
     public function whereAggregate(string $expression): self
     {
-        return $this->whereClosure(
-            function (ClusterVO $cluster) use ($expression) {
-                $data = $cluster->getUnflattened()->toArray();
+        static $recursionStack = [];
+        $hash = spl_object_hash($this);
 
-                return $this->aggregateEvaluator->evaluate($data, $expression);
-            }
-        );
+        if (isset($recursionStack[$hash])) {
+            throw new \RuntimeException(
+                sprintf('Recursive whereAggregate detected for object %s', $hash)
+            );
+        }
+
+        $recursionStack[$hash] = true;
+
+        try {
+            return $this->whereClosure(
+                function (ClusterVO $cluster) use ($expression) {
+                    $data = $cluster->getUnflattened()->toArray();
+
+                    return $this->aggregateEvaluator->evaluate($data, $expression);
+                }
+            );
+        } finally {
+            unset($recursionStack[$hash]);
+        }
     }
 
     /**
@@ -1038,14 +1018,20 @@ final class ClusterVOCollection extends AbstractTypedCollection
      */
     public function whereAggregateDirect(string $functionName, array $args = []): self
     {
-        return $this->whereClosure(
-            function (ClusterVO $cluster) use ($functionName, $args) {
-                $data = $cluster->getUnflattened()->toArray();
-                $result = $this->aggregateEvaluator->evaluateDirect($data, $functionName, $args);
+        $this->checkRecursion(__FUNCTION__);
 
-                return (bool) $result;
-            }
-        );
+        try {
+            return $this->whereClosure(
+                function (ClusterVO $cluster) use ($functionName, $args) {
+                    $data = $cluster->getUnflattened()->toArray();
+                    $result = $this->aggregateEvaluator->evaluateDirect($data, $functionName, $args);
+
+                    return (bool) $result;
+                }
+            );
+        } finally {
+            $this->resetRecursion(__FUNCTION__);
+        }
     }
 
     /**
@@ -1107,6 +1093,50 @@ final class ClusterVOCollection extends AbstractTypedCollection
     }
 
     // ==================== MÉTHODES PRIVÉES ====================
+
+    /**
+     * Vérifie la profondeur de récursion pour une méthode
+     *
+     * @throws \RuntimeException Si la profondeur maximale est atteinte
+     */
+    private function checkRecursion(string $method): void
+    {
+        $key = $this->getRecursionKey($method);
+
+        if (! isset(self::$recursionDepth[$key])) {
+            self::$recursionDepth[$key] = 0;
+        }
+
+        self::$recursionDepth[$key]++;
+
+        if (self::$recursionDepth[$key] > self::MAX_RECURSION_DEPTH) {
+            $this->resetRecursion($method);
+            throw new \RuntimeException(
+                sprintf(
+                    'Maximum recursion depth (%d) exceeded for method "%s". Possible infinite loop detected.',
+                    self::MAX_RECURSION_DEPTH,
+                    $method
+                )
+            );
+        }
+    }
+
+    /**
+     * Réinitialise le compteur de récursion pour une méthode
+     */
+    private function resetRecursion(string $method): void
+    {
+        $key = $this->getRecursionKey($method);
+        unset(self::$recursionDepth[$key]);
+    }
+
+    /**
+     * Génère une clé unique pour le suivi de la récursion
+     */
+    private function getRecursionKey(string $method): string
+    {
+        return spl_object_hash($this).':'.$method;
+    }
 
     private function initializeOriginalItems(): void
     {

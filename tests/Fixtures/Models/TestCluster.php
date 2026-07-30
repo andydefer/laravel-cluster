@@ -11,6 +11,8 @@ final class TestCluster extends Model
     protected $table = 'test_clusters';
 
     protected $fillable = [
+        'name',
+        'email',
         'clusters',
     ];
 

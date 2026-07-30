@@ -12,6 +12,8 @@ return new class extends Migration
     {
         Schema::create('test_clusters', function (Blueprint $table) {
             $table->id();
+            $table->string('name')->nullable();
+            $table->string('email')->nullable();
             $table->json('clusters');
             $table->timestamps();
         });
@@ -22,3 +24,4 @@ return new class extends Migration
         Schema::dropIfExists('test_clusters');
     }
 };
+//

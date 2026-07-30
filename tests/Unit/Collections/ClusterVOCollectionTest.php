@@ -166,10 +166,9 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_group_applies_conditions_as_a_group(): void
     {
-        $result = $this->collection->whereGroup(function (ClusterVOCollection $q) {
-            return $q->where('status', 'active')
-                ->orWhere('status', 'pending');
-        });
+
+        $result = $this->collection
+            ->whereQuery('status=active | status=pending');
 
         $this->assertCount(3, $result); // John, Bob, Alice
     }
@@ -177,119 +176,88 @@ final class ClusterVOCollectionTest extends TestCase
     public function test_where_group_with_and_condition_combines_group_with_outer_condition(): void
     {
         $result = $this->collection
-            ->whereGroup(function (ClusterVOCollection $q) {
-                return $q->where('status', 'active')
-                    ->orWhere('status', 'pending');
-            })
-            ->andWhere('role', 'admin');
+            ->whereQuery('(status=active | status=pending) & role=admin');
 
-        $this->assertCount(1, $result); // John Doe
+        $this->assertCount(1, $result);
         $this->assertEquals('admin', $result->first()?->get('role'));
     }
 
     public function test_where_group_nested_supports_nested_group_conditions(): void
     {
-        $result = $this->collection->whereGroup(function (ClusterVOCollection $q) {
-            return $q->whereGroup(function (ClusterVOCollection $q2) {
-                return $q2->where('status', 'active')
-                    ->where('role', 'admin');
-            })->orWhereGroup(function (ClusterVOCollection $q2) {
-                return $q2->where('status', 'active')
-                    ->where('role', 'doctor');
-            });
-        });
+        $result = $this->collection
+            ->whereQuery('(status=active & role=admin) | (status=active & role=doctor)');
 
-        $this->assertCount(2, $result); // John (admin), Bob (doctor)
+        $this->assertCount(2, $result);
     }
 
     public function test_or_where_group_without_prior_filter_applies_or_group_to_full_collection(): void
     {
-        $result = $this->collection->orWhereGroup(function (ClusterVOCollection $q) {
-            return $q->where('role', 'admin')
-                ->where('verified', 'true');
-        });
+        // Avant: orWhereGroup seul
+        // Équivalent: role=admin & verified=true
+        $result = $this->collection
+            ->whereQuery('role=admin & verified=true');
 
-        $this->assertCount(1, $result); // John Doe
+        $this->assertCount(1, $result);
     }
 
     public function test_or_where_group_with_prior_filter_combines_filters_with_or(): void
     {
+        // Avant: where + orWhereGroup
+        // Équivalent: status=active | (role=admin & verified=true)
         $result = $this->collection
-            ->where('status', 'active')
-            ->orWhereGroup(function (ClusterVOCollection $q) {
-                return $q->where('role', 'admin')
-                    ->where('verified', 'true');
-            });
+            ->whereQuery('status=active | (role=admin & verified=true)');
 
-        $this->assertCount(2, $result); // John (active), Bob (active)
+        $this->assertCount(2, $result);
     }
 
     public function test_chain_with_or_where_after_group_combines_group_and_single_condition(): void
     {
+        // Avant: whereGroup + orWhere
+        // Équivalent: (status=active & role=admin) | status=pending
         $result = $this->collection
-            ->whereGroup(function (ClusterVOCollection $q) {
-                return $q->where('status', 'active')
-                    ->where('role', 'admin');
-            })
-            ->orWhere('status', 'pending');
+            ->whereQuery('(status=active & role=admin) | status=pending');
 
-        $this->assertCount(2, $result); // John (active+admin), Alice (pending)
+        $this->assertCount(2, $result);
     }
 
     public function test_or_where_group_with_multiple_conditions_combines_multiple_or_groups(): void
     {
+        // Avant: whereGroup + orWhereGroup
+        // Équivalent: status=active | (role=admin & verified=true)
         $result = $this->collection
-            ->whereGroup(function (ClusterVOCollection $q) {
-                return $q->where('status', 'active');
-            })
-            ->orWhereGroup(function (ClusterVOCollection $q) {
-                return $q->where('role', 'admin')
-                    ->where('verified', 'true');
-            });
+            ->whereQuery('status=active | (role=admin & verified=true)');
 
-        $this->assertCount(2, $result); // John, Bob (active)
+        $this->assertCount(2, $result);
     }
 
     public function test_nested_groups_support_deep_nesting_of_conditions(): void
     {
-        $result = $this->collection->whereGroup(function (ClusterVOCollection $q) {
-            return $q->whereGroup(function (ClusterVOCollection $q2) {
-                return $q2->where('status', 'active')
-                    ->where('role', 'admin');
-            })->orWhereGroup(function (ClusterVOCollection $q2) {
-                return $q2->where('status', 'active')
-                    ->where('role', 'doctor');
-            });
-        })->andWhere('verified', 'true');
+        // Avant: whereGroup imbriqué + andWhere
+        // Équivalent: ((status=active & role=admin) | (status=active & role=doctor)) & verified=true
+        $result = $this->collection
+            ->whereQuery('((status=active & role=admin) | (status=active & role=doctor)) & verified=true');
 
-        $this->assertCount(2, $result); // John, Bob (verified=true)
+        $this->assertCount(2, $result);
     }
 
     public function test_complex_chaining_with_groups_supports_multiple_group_operations(): void
     {
+        // Avant: whereGroup + andWhere + whereTrue + whereGreaterThanOrEqual
+        // Équivalent: (status=active | status=pending) & role=admin & verified=true & age>=25
         $result = $this->collection
-            ->whereGroup(function (ClusterVOCollection $q) {
-                return $q->where('status', 'active')
-                    ->orWhere('status', 'pending');
-            })
-            ->andWhere('role', 'admin')
-            ->whereTrue('verified')
-            ->whereGreaterThanOrEqual('age', 25);
+            ->whereQuery('(status=active | status=pending) & role=admin & verified=true & age>=25');
 
-        $this->assertCount(1, $result); // John Doe
+        $this->assertCount(1, $result);
     }
 
     public function test_complex_chaining_with_or_groups_supports_or_groups_in_chain(): void
     {
+        // Avant: where + orWhereGroup + andWhere
+        // Équivalent: status=active | (status=pending & role=guest) & verified=true
         $result = $this->collection
-            ->where('status', 'active')
-            ->orWhereGroup(function (ClusterVOCollection $q) {
-                return $q->where('status', 'pending')
-                    ->where('role', 'guest');
-            })
-            ->andWhere('verified', 'true');
+            ->whereQuery('(status=active | (status=pending & role=guest)) & verified=true');
 
-        $this->assertCount(2, $result); // John, Bob (active + verified)
+        $this->assertCount(2, $result);
     }
 
     public function test_where_has_returns_items_with_existing_key(): void
@@ -562,11 +530,7 @@ final class ClusterVOCollectionTest extends TestCase
     public function test_chain_with_where_not_after_group_combines_group_and_not_condition(): void
     {
         $result = $this->collection
-            ->whereGroup(function (ClusterVOCollection $q) {
-                return $q->where('status', 'active')
-                    ->orWhere('status', 'pending');
-            })
-            ->whereNot('role', 'guest');
+            ->whereQuery('(status=active | status=pending) & role!=guest');
 
         $this->assertCount(2, $result); // John, Bob
     }
@@ -1272,10 +1236,18 @@ final class ClusterVOCollectionTest extends TestCase
             'languages' => ['fr', 'es'],
         ]));
 
-        $result = $collection->whereGroup(function (ClusterVOCollection $q) {
-            return $q->where('status', 'active')
-                ->orWhere('status', 'pending');
-        })->whereArrayContainsAny('tags', ['php', 'python'])
+        // Avant:
+        // ->whereGroup(fn($q) => $q->where('status', 'active')->orWhere('status', 'pending'))
+        // ->whereArrayContainsAny('tags', ['php', 'python'])
+        // ->whereArraySizeGreaterThan('languages', 1)
+
+        // Équivalent: (status=active | status=pending) & (tags_php=true | tags_python=true) & (languages_fr=true | languages_en=true) & (languages size > 1)
+        // Mais pour whereArrayContainsAny et whereArraySizeGreaterThan, on doit les garder en méthodes chainées
+        // car whereQuery ne peut pas exprimer ces conditions directement
+
+        $result = $collection
+            ->whereQuery('(status=active | status=pending)')
+            ->whereArrayContainsAny('tags', ['php', 'python'])
             ->whereArraySizeGreaterThan('languages', 1);
 
         $this->assertCount(1, $result);

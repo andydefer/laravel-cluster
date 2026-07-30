@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelCluster\Functions;
 
-/**
- * Checks if any element in an array has a specific key-value pair.
- */
-final class HasFunction extends AbstractAggregateFunction
+use AndyDefer\LaravelCluster\Contracts\Filters\AggregateFunctionInterface;
+
+final class HasFunction implements AggregateFunctionInterface
 {
     public function execute(array $data, array $args): bool
     {
@@ -15,12 +14,25 @@ final class HasFunction extends AbstractAggregateFunction
         $key = $args[1] ?? null;
         $value = $args[2] ?? null;
 
-        $items = $this->resolveArg($data, $path);
+        // ✅ Extraire directement le chemin
+        $items = $this->extractValue($data, $path);
 
         if (! is_array($items)) {
             return false;
         }
 
+        // ✅ Cas 1: HAS(tags, "php") - 2 arguments
+        if ($value === null) {
+            foreach ($items as $item) {
+                if ($item == $key) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // ✅ Cas 2: HAS(addresses, city, "Kinshasa") - 3 arguments
         foreach ($items as $item) {
             if (is_array($item) && isset($item[$key]) && $item[$key] == $value) {
                 return true;
@@ -28,6 +40,21 @@ final class HasFunction extends AbstractAggregateFunction
         }
 
         return false;
+    }
+
+    private function extractValue(array $data, string $path): mixed
+    {
+        $parts = explode('.', $path);
+        $current = $data;
+
+        foreach ($parts as $part) {
+            if (! isset($current[$part])) {
+                return null;
+            }
+            $current = $current[$part];
+        }
+
+        return $current;
     }
 
     public function getName(): string
@@ -52,7 +79,7 @@ final class HasFunction extends AbstractAggregateFunction
 
     public function getMinArgs(): int
     {
-        return 3;
+        return 2;
     }
 
     public function getMaxArgs(): int
@@ -62,6 +89,8 @@ final class HasFunction extends AbstractAggregateFunction
 
     public function validateArgs(array $args): bool
     {
-        return count($args) === 3;
+        $count = count($args);
+
+        return $count >= 2 && $count <= 3;
     }
 }
