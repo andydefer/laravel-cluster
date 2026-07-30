@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AndyDefer\LaravelCluster\Tests\Unit\Parser;
 
 use AndyDefer\LaravelCluster\Nodes\ConditionNode;
+use AndyDefer\LaravelCluster\Nodes\FunctionNode;
 use AndyDefer\LaravelCluster\Nodes\GroupNode;
 use AndyDefer\LaravelCluster\Parser;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
@@ -669,5 +670,345 @@ final class ParserTest extends TestCase
         $this->expectNotToPerformAssertions();
 
         $this->parser->parse('addresses[]');
+    }
+
+    // ==================== SQL FUNCTION TESTS ====================
+
+    public function test_parse_count_function(): void
+    {
+        $ast = $this->parser->parse('COUNT(addresses) > 2');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['addresses' => ['a', 'b', 'c']]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['addresses' => ['a', 'b']]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_count_equals(): void
+    {
+        $ast = $this->parser->parse('COUNT(addresses) = 2');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['addresses' => ['a', 'b']]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['addresses' => ['a', 'b', 'c']]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_count_not_equals(): void
+    {
+        $ast = $this->parser->parse('COUNT(addresses) != 2');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['addresses' => ['a', 'b', 'c']]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['addresses' => ['a', 'b']]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_count_greater_than_or_equal(): void
+    {
+        $ast = $this->parser->parse('COUNT(addresses) >= 2');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['addresses' => ['a', 'b']]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['addresses' => ['a']]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_sum_function(): void
+    {
+        $ast = $this->parser->parse('SUM(prices) > 500');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['prices' => [100, 200, 300]]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['prices' => [50, 75]]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_sum_function_with_numeric_string(): void
+    {
+        $ast = $this->parser->parse('SUM(prices) > 500');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['prices' => ['100', '200', '300']]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['prices' => ['50', '75']]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_avg_function(): void
+    {
+        $ast = $this->parser->parse('AVG(scores) >= 85');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['scores' => [80, 90, 85]]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['scores' => [70, 75, 80]]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_min_function(): void
+    {
+        $ast = $this->parser->parse('MIN(scores) > 75');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['scores' => [80, 90, 85]]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['scores' => [70, 75, 80]]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_max_function(): void
+    {
+        $ast = $this->parser->parse('MAX(scores) > 90');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['scores' => [80, 90, 95]]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['scores' => [80, 90, 85]]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_length_function(): void
+    {
+        $ast = $this->parser->parse('LENGTH(name) > 5');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['name' => 'John Doe']);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['name' => 'John']);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_function_with_nested_path(): void
+    {
+        $ast = $this->parser->parse('COUNT(settings.notifications) > 1');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO([
+            'settings' => [
+                'notifications' => [
+                    ['email' => 'true'],
+                    ['sms' => 'true'],
+                ],
+            ],
+        ]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO([
+            'settings' => [
+                'notifications' => [
+                    ['email' => 'true'],
+                ],
+            ],
+        ]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_function_with_condition(): void
+    {
+        $ast = $this->parser->parse('status=active & COUNT(addresses) > 2');
+
+        $this->assertInstanceOf(GroupNode::class, $ast);
+
+        $cluster = new ClusterVO(['status' => 'active', 'addresses' => ['a', 'b', 'c']]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['status' => 'active', 'addresses' => ['a', 'b']]);
+        $this->assertFalse($ast->evaluate($cluster2));
+
+        $cluster3 = new ClusterVO(['status' => 'inactive', 'addresses' => ['a', 'b', 'c']]);
+        $this->assertFalse($ast->evaluate($cluster3));
+    }
+
+    public function test_parse_multiple_functions(): void
+    {
+        $ast = $this->parser->parse('COUNT(addresses) > 1 & SUM(prices) > 500');
+
+        $this->assertInstanceOf(GroupNode::class, $ast);
+
+        $cluster = new ClusterVO([
+            'addresses' => ['a', 'b'],
+            'prices' => [100, 200, 300],
+        ]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO([
+            'addresses' => ['a'],
+            'prices' => [100, 200, 300],
+        ]);
+        $this->assertFalse($ast->evaluate($cluster2));
+
+        $cluster3 = new ClusterVO([
+            'addresses' => ['a', 'b'],
+            'prices' => [50, 75],
+        ]);
+        $this->assertFalse($ast->evaluate($cluster3));
+    }
+
+    public function test_parse_function_with_or(): void
+    {
+        $ast = $this->parser->parse('COUNT(addresses) > 2 | SUM(prices) > 500');
+
+        $this->assertInstanceOf(GroupNode::class, $ast);
+
+        $cluster = new ClusterVO([
+            'addresses' => ['a', 'b', 'c'],
+            'prices' => [50, 75],
+        ]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO([
+            'addresses' => ['a', 'b'],
+            'prices' => [100, 200, 300],
+        ]);
+        $this->assertTrue($ast->evaluate($cluster2));
+
+        $cluster3 = new ClusterVO([
+            'addresses' => ['a', 'b'],
+            'prices' => [50, 75],
+        ]);
+        $this->assertFalse($ast->evaluate($cluster3));
+    }
+
+    public function test_parse_function_with_parentheses(): void
+    {
+        $ast = $this->parser->parse('(COUNT(addresses) > 2 | SUM(prices) > 500) & status=active');
+
+        $this->assertInstanceOf(GroupNode::class, $ast);
+
+        $cluster = new ClusterVO([
+            'addresses' => ['a', 'b', 'c'],
+            'prices' => [50, 75],
+            'status' => 'active',
+        ]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO([
+            'addresses' => ['a', 'b'],
+            'prices' => [100, 200, 300],
+            'status' => 'active',
+        ]);
+        $this->assertTrue($ast->evaluate($cluster2));
+
+        $cluster3 = new ClusterVO([
+            'addresses' => ['a', 'b'],
+            'prices' => [50, 75],
+            'status' => 'active',
+        ]);
+        $this->assertFalse($ast->evaluate($cluster3));
+
+        $cluster4 = new ClusterVO([
+            'addresses' => ['a', 'b', 'c'],
+            'prices' => [50, 75],
+            'status' => 'inactive',
+        ]);
+        $this->assertFalse($ast->evaluate($cluster4));
+    }
+
+    public function test_parse_function_with_unknown_function_throws_exception(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Unknown function "UNKNOWN"');
+
+        $this->parser->parse('UNKNOWN(addresses) > 2');
+    }
+
+    public function test_parse_function_with_missing_arguments(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Expected path argument for function');
+
+        $this->parser->parse('COUNT() > 2');
+    }
+
+    public function test_parse_function_with_missing_closing_paren(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Expected closing parenthesis');
+
+        $this->parser->parse('COUNT(addresses > 2');
+    }
+
+    public function test_parse_function_with_missing_opening_paren(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Expected opening parenthesis after function name');
+
+        $this->parser->parse('COUNT addresses) > 2');
+    }
+
+    public function test_parse_function_with_missing_operator(): void
+    {
+        // Sans opérateur, la condition est COUNT(addresses) > 0 par défaut
+        $ast = $this->parser->parse('COUNT(addresses)');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['addresses' => ['a', 'b']]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['addresses' => []]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_function_with_empty_array(): void
+    {
+        $ast = $this->parser->parse('COUNT(addresses) > 0');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['addresses' => []]);
+        $this->assertFalse($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['addresses' => ['a']]);
+        $this->assertTrue($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_json_length_function(): void
+    {
+        $ast = $this->parser->parse('JSON_LENGTH(addresses) > 2');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['addresses' => ['a', 'b', 'c']]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['addresses' => ['a', 'b']]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_function_with_spaces(): void
+    {
+        $ast1 = $this->parser->parse('COUNT(addresses) > 2');
+        $ast2 = $this->parser->parse('COUNT( addresses ) > 2');
+
+        $cluster = new ClusterVO(['addresses' => ['a', 'b', 'c']]);
+        $this->assertEquals($ast1->evaluate($cluster), $ast2->evaluate($cluster));
     }
 }

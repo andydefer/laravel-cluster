@@ -94,15 +94,14 @@ enum ComparisonOperator: string
 
     public function evaluate(mixed $actual, ?string $value): bool|int
     {
-        // Normaliser les chaînes pour une comparaison insensible à la casse
         $actualNormalized = $this->normalizeValue($actual);
         $valueNormalized = $this->normalizeValue($value);
 
         return match ($this) {
-            self::EQUAL => $actualNormalized === $valueNormalized,
+            self::EQUAL => $actualNormalized == $valueNormalized,
             self::EQUAL_LOOSE => $actualNormalized == $valueNormalized,
             self::EQUAL_STRICT => $actual === $value,
-            self::NOT_EQUAL => $actualNormalized !== $valueNormalized,
+            self::NOT_EQUAL => $actualNormalized != $valueNormalized,
             self::NOT_EQUAL_STRICT => $actual !== $value,
             self::LESS_THAN => $this->compareLess($actual, $value),
             self::LESS_THAN_OR_EQUAL => $this->compareLessOrEqual($actual, $value),
@@ -116,10 +115,6 @@ enum ComparisonOperator: string
         };
     }
 
-    /**
-     * Normalise une valeur pour une comparaison insensible à la casse.
-     * Si la valeur est une chaîne, la convertit en minuscules.
-     */
     private function normalizeValue(mixed $value): mixed
     {
         if (is_string($value)) {

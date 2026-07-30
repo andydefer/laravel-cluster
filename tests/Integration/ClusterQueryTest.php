@@ -15,9 +15,12 @@ use AndyDefer\LaravelCluster\Nodes\SubConditionNode;
 use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
 use AndyDefer\LaravelCluster\Tests\IntegrationTestCase;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
 final class ClusterQueryTest extends IntegrationTestCase
 {
+    use RefreshDatabase;
+
     private ClusterQuery $clusterQuery;
 
     private ClusterVOCollection $collection;
@@ -25,10 +28,11 @@ final class ClusterQueryTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        TestCluster::truncate();
 
         $this->clusterQuery = new ClusterQuery;
 
-        // Données avec des strings pour éviter les problèmes de types booléens
+        // ✅ Données avec addresses en tableau d'objets et scores en tableau
         TestCluster::create([
             'clusters' => [
                 'status' => 'active',
@@ -38,7 +42,12 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'lang_en' => 'false',
                 'verified' => 'true',
                 'score' => '85.5',
+                'scores' => [85, 90, 82],
                 'name' => 'john_doe',
+                'addresses' => [
+                    ['city' => 'Kinshasa', 'street' => 'Avenue de la Paix'],
+                    ['city' => 'Lubumbashi', 'street' => 'Avenue Lumumba'],
+                ],
             ],
         ]);
 
@@ -51,7 +60,11 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'lang_en' => 'true',
                 'verified' => 'false',
                 'score' => '92.0',
+                'scores' => [92, 88, 95],
                 'name' => 'jane_smith',
+                'addresses' => [
+                    ['city' => 'Paris', 'street' => 'Rue de Rivoli'],
+                ],
             ],
         ]);
 
@@ -64,7 +77,13 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'lang_en' => 'false',
                 'verified' => 'true',
                 'score' => '78.0',
+                'scores' => [75, 80, 79],
                 'name' => 'bob_johnson',
+                'addresses' => [
+                    ['city' => 'Kinshasa', 'street' => 'Boulevard du 30 Juin'],
+                    ['city' => 'London', 'street' => 'Oxford Street'],
+                    ['city' => 'Paris', 'street' => 'Avenue des Champs-Élysées'],
+                ],
             ],
         ]);
 
@@ -77,7 +96,9 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'lang_en' => 'true',
                 'verified' => 'false',
                 'score' => '30.5',
+                'scores' => [30, 35, 28],
                 'name' => 'alice_johanson',
+                'addresses' => [],
             ],
         ]);
 
@@ -90,11 +111,16 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'lang_en' => 'false',
                 'verified' => 'true',
                 'score' => '95.0',
+                'scores' => [92, 98, 95],
                 'name' => 'charlie_doe',
+                'addresses' => [
+                    ['city' => 'Kinshasa', 'street' => 'Avenue de la Paix'],
+                    ['city' => 'Paris', 'street' => 'Avenue des Champs-Élysées'],
+                ],
             ],
         ]);
 
-        // Collection en mémoire avec des strings
+        // Collection en mémoire
         $this->collection = new ClusterVOCollection;
         $this->collection->add(new ClusterVO([
             'status' => 'active',
@@ -104,7 +130,12 @@ final class ClusterQueryTest extends IntegrationTestCase
             'lang_en' => 'false',
             'verified' => 'true',
             'score' => '85.5',
+            'scores' => [85, 90, 82],
             'name' => 'john_doe',
+            'addresses' => [
+                ['city' => 'Kinshasa', 'street' => 'Avenue de la Paix'],
+                ['city' => 'Lubumbashi', 'street' => 'Avenue Lumumba'],
+            ],
         ]));
         $this->collection->add(new ClusterVO([
             'status' => 'inactive',
@@ -114,7 +145,11 @@ final class ClusterQueryTest extends IntegrationTestCase
             'lang_en' => 'true',
             'verified' => 'false',
             'score' => '92.0',
+            'scores' => [92, 88, 95],
             'name' => 'jane_smith',
+            'addresses' => [
+                ['city' => 'Paris', 'street' => 'Rue de Rivoli'],
+            ],
         ]));
         $this->collection->add(new ClusterVO([
             'status' => 'active',
@@ -124,7 +159,13 @@ final class ClusterQueryTest extends IntegrationTestCase
             'lang_en' => 'false',
             'verified' => 'true',
             'score' => '78.0',
+            'scores' => [75, 80, 79],
             'name' => 'bob_johnson',
+            'addresses' => [
+                ['city' => 'Kinshasa', 'street' => 'Boulevard du 30 Juin'],
+                ['city' => 'London', 'street' => 'Oxford Street'],
+                ['city' => 'Paris', 'street' => 'Avenue des Champs-Élysées'],
+            ],
         ]));
         $this->collection->add(new ClusterVO([
             'status' => 'pending',
@@ -134,7 +175,9 @@ final class ClusterQueryTest extends IntegrationTestCase
             'lang_en' => 'true',
             'verified' => 'false',
             'score' => '30.5',
+            'scores' => [30, 35, 28],
             'name' => 'alice_johanson',
+            'addresses' => [],
         ]));
         $this->collection->add(new ClusterVO([
             'status' => 'active',
@@ -144,10 +187,14 @@ final class ClusterQueryTest extends IntegrationTestCase
             'lang_en' => 'false',
             'verified' => 'true',
             'score' => '95.0',
+            'scores' => [92, 98, 95],
             'name' => 'charlie_doe',
+            'addresses' => [
+                ['city' => 'Kinshasa', 'street' => 'Avenue de la Paix'],
+                ['city' => 'Paris', 'street' => 'Avenue des Champs-Élysées'],
+            ],
         ]));
     }
-
     // ==================== PARSE TESTS ====================
 
     public function test_parse_returns_node(): void
@@ -597,27 +644,10 @@ final class ClusterQueryTest extends IntegrationTestCase
 
     public function test_apply_to_eloquent_subcondition_simple(): void
     {
-        TestCluster::create([
-            'clusters' => [
-                'name' => 'John',
-                'addresses' => [
-                    ['city' => 'Kinshasa', 'street' => 'Avenue de la Paix'],
-                ],
-            ],
-        ]);
-
-        TestCluster::create([
-            'clusters' => [
-                'name' => 'Jane',
-                'addresses' => [
-                    ['city' => 'Paris', 'street' => 'Rue de Rivoli'],
-                ],
-            ],
-        ]);
 
         $query = TestCluster::query();
 
-        // Utiliser la bonne casse : "Kinshasa" au lieu de "kinshasa"
+        // John a Kinshasa, Bob a Kinshasa, Charlie a Kinshasa
         $this->clusterQuery->applyToEloquent(
             $query,
             'clusters',
@@ -626,73 +656,32 @@ final class ClusterQueryTest extends IntegrationTestCase
         );
 
         $results = $query->get();
-        $this->assertCount(1, $results);
-        $this->assertEquals('John', $results->first()->clusters['name']);
+        $this->assertCount(3, $results); // John, Bob, Charlie
     }
 
     public function test_apply_to_eloquent_subcondition_with_and(): void
     {
-        TestCluster::create([
-            'clusters' => [
-                'name' => 'John',
-                'addresses' => [
-                    ['city' => 'Kinshasa', 'country' => 'RDC'],
-                ],
-            ],
-        ]);
-
-        TestCluster::create([
-            'clusters' => [
-                'name' => 'Jane',
-                'addresses' => [
-                    ['city' => 'Kinshasa', 'country' => 'France'],
-                ],
-            ],
-        ]);
-
         $query = TestCluster::query();
 
+        // ✅ Utiliser city et street qui existent dans les données
         $this->clusterQuery->applyToEloquent(
             $query,
             'clusters',
-            'addresses[city=Kinshasa & country=RDC]',
+            'addresses[city=Kinshasa & street="Avenue de la Paix"]',
             DatabaseDriver::SQLITE
         );
 
         $results = $query->get();
-        $this->assertCount(1, $results);
-        $this->assertEquals('John', $results->first()->clusters['name']);
+
+        // John (Kinshasa + Avenue de la Paix) et Charlie (Kinshasa + Avenue de la Paix)
+        $this->assertCount(2, $results);
+        $names = $results->pluck('clusters')->pluck('name')->toArray();
+        $this->assertContains('john_doe', $names);
+        $this->assertContains('charlie_doe', $names);
     }
 
     public function test_apply_to_eloquent_subcondition_with_or(): void
     {
-        TestCluster::create([
-            'clusters' => [
-                'name' => 'John',
-                'addresses' => [
-                    ['city' => 'Kinshasa'],
-                ],
-            ],
-        ]);
-
-        TestCluster::create([
-            'clusters' => [
-                'name' => 'Jane',
-                'addresses' => [
-                    ['city' => 'Paris'],
-                ],
-            ],
-        ]);
-
-        TestCluster::create([
-            'clusters' => [
-                'name' => 'Bob',
-                'addresses' => [
-                    ['city' => 'London'],
-                ],
-            ],
-        ]);
-
         $query = TestCluster::query();
 
         $this->clusterQuery->applyToEloquent(
@@ -703,29 +692,12 @@ final class ClusterQueryTest extends IntegrationTestCase
         );
 
         $results = $query->get();
-        $this->assertCount(2, $results);
+        // John (Kinshasa + Paris), Jane (Paris), Bob (Kinshasa + Paris), Charlie (Kinshasa + Paris)
+        $this->assertCount(4, $results);
     }
 
     public function test_apply_to_eloquent_subcondition_with_like(): void
     {
-        TestCluster::create([
-            'clusters' => [
-                'name' => 'John',
-                'addresses' => [
-                    ['city' => 'Kinshasa'],
-                ],
-            ],
-        ]);
-
-        TestCluster::create([
-            'clusters' => [
-                'name' => 'Jane',
-                'addresses' => [
-                    ['city' => 'Paris'],
-                ],
-            ],
-        ]);
-
         $query = TestCluster::query();
 
         $this->clusterQuery->applyToEloquent(
@@ -736,8 +708,7 @@ final class ClusterQueryTest extends IntegrationTestCase
         );
 
         $results = $query->get();
-        $this->assertCount(1, $results);
-        $this->assertEquals('John', $results->first()->clusters['name']);
+        $this->assertCount(3, $results);
     }
 
     public function test_apply_to_eloquent_subcondition_with_nested_path(): void
@@ -791,22 +762,6 @@ final class ClusterQueryTest extends IntegrationTestCase
 
     public function test_apply_to_eloquent_subcondition_with_exists(): void
     {
-        TestCluster::create([
-            'clusters' => [
-                'name' => 'John',
-                'addresses' => [
-                    ['city' => 'Kinshasa'],
-                ],
-            ],
-        ]);
-
-        TestCluster::create([
-            'clusters' => [
-                'name' => 'Jane',
-                'addresses' => [],
-            ],
-        ]);
-
         $query = TestCluster::query();
 
         $this->clusterQuery->applyToEloquent(
@@ -817,41 +772,18 @@ final class ClusterQueryTest extends IntegrationTestCase
         );
 
         $results = $query->get();
-        $this->assertCount(1, $results);
-        $this->assertEquals('John', $results->first()->clusters['name']);
+        $this->assertCount(4, $results); // Tous sauf Alice
+
+        $names = $results->pluck('clusters')->pluck('name')->toArray();
+        $this->assertContains('john_doe', $names);
+        $this->assertContains('jane_smith', $names);
+        $this->assertContains('bob_johnson', $names);
+        $this->assertContains('charlie_doe', $names);
+        $this->assertNotContains('alice_johanson', $names);
     }
 
     public function test_apply_to_eloquent_subcondition_combined_with_condition(): void
     {
-        TestCluster::create([
-            'clusters' => [
-                'name' => 'John',
-                'status' => 'active',
-                'addresses' => [
-                    ['city' => 'Kinshasa'],
-                ],
-            ],
-        ]);
-
-        TestCluster::create([
-            'clusters' => [
-                'name' => 'Jane',
-                'status' => 'active',
-                'addresses' => [
-                    ['city' => 'Paris'],
-                ],
-            ],
-        ]);
-
-        TestCluster::create([
-            'clusters' => [
-                'name' => 'Bob',
-                'status' => 'inactive',
-                'addresses' => [
-                    ['city' => 'Kinshasa'],
-                ],
-            ],
-        ]);
 
         $query = TestCluster::query();
 
@@ -863,10 +795,15 @@ final class ClusterQueryTest extends IntegrationTestCase
         );
 
         $results = $query->get();
-        $this->assertCount(1, $results);
-        $this->assertEquals('John', $results->first()->clusters['name']);
-    }
+        $this->assertCount(3, $results); // john_doe, bob_johnson, charlie_doe
 
+        $names = $results->pluck('clusters')->pluck('name')->toArray();
+        $this->assertContains('john_doe', $names);
+        $this->assertContains('bob_johnson', $names);
+        $this->assertContains('charlie_doe', $names);
+        $this->assertNotContains('jane_smith', $names);
+        $this->assertNotContains('alice_johanson', $names);
+    }
     // ==================== FILTER TESTS (ELOQUENT) ====================
 
     public function test_apply_to_eloquent_simple(): void
@@ -1408,5 +1345,544 @@ final class ClusterQueryTest extends IntegrationTestCase
         $result = $this->clusterQuery->matches($cluster, 'name!~john');
 
         $this->assertTrue($result);
+    }
+
+    // ==================== SQL FUNCTION FILTER TESTS ====================
+
+    public function test_filter_with_count_function(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'addresses' => ['a', 'b', 'c'],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'addresses' => ['a', 'b'],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Bob',
+            'addresses' => ['a'],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'COUNT(addresses) > 2');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_count_equals(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'addresses' => ['a', 'b'],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'addresses' => ['a', 'b', 'c'],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'COUNT(addresses) = 2');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_sum_function(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'prices' => [100, 200, 300],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'prices' => [50, 75],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'SUM(prices) > 500');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_avg_function(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'scores' => [80, 90, 85],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'scores' => [70, 75, 80],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'AVG(scores) >= 85');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_min_function(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'scores' => [80, 90, 85],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'scores' => [70, 75, 80],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'MIN(scores) > 75');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_max_function(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'scores' => [80, 90, 85],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'scores' => [95, 98, 92],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'MAX(scores) > 90');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Jane', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_length_function(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John Doe',
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'LENGTH(name) > 5');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John Doe', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_count_function_and_condition(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'status' => 'active',
+            'addresses' => ['a', 'b', 'c'],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'status' => 'active',
+            'addresses' => ['a', 'b'],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Bob',
+            'status' => 'inactive',
+            'addresses' => ['a', 'b', 'c'],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'status=active & COUNT(addresses) > 2');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_multiple_functions(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'addresses' => ['a', 'b'],
+            'prices' => [100, 200, 300],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'addresses' => ['a', 'b', 'c'],
+            'prices' => [50, 75],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'COUNT(addresses) > 1 & SUM(prices) > 500');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_function_or_condition(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'addresses' => ['a', 'b', 'c'],
+            'prices' => [50, 75],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'addresses' => ['a', 'b'],
+            'prices' => [100, 200, 300],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Bob',
+            'addresses' => ['a'],
+            'prices' => [50, 75],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'COUNT(addresses) > 2 | SUM(prices) > 500');
+
+        $this->assertCount(2, $result);
+    }
+
+    public function test_filter_with_nested_path_and_function(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'settings' => [
+                'notifications' => [
+                    ['email' => 'true'],
+                    ['sms' => 'true'],
+                ],
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'settings' => [
+                'notifications' => [
+                    ['email' => 'true'],
+                ],
+            ],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'COUNT(settings.notifications) > 1');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_function_and_parentheses(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'addresses' => ['a', 'b', 'c'],
+            'status' => 'active',
+            'prices' => [50, 75],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'addresses' => ['a', 'b'],
+            'status' => 'active',
+            'prices' => [100, 200, 300],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Bob',
+            'addresses' => ['a', 'b'],
+            'status' => 'inactive',
+            'prices' => [100, 200, 300],
+        ]));
+
+        $result = $this->clusterQuery->filter(
+            $collection,
+            '(COUNT(addresses) > 2 | SUM(prices) > 500) & status=active'
+        );
+
+        $this->assertCount(2, $result);
+    }
+
+    public function test_filter_with_function_no_operator(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'addresses' => ['a', 'b'],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'addresses' => [],
+        ]));
+
+        // COUNT(addresses) sans opérateur → COUNT > 0
+        $result = $this->clusterQuery->filter($collection, 'COUNT(addresses)');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_json_length_function(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'addresses' => ['a', 'b', 'c'],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'addresses' => ['a', 'b'],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'JSON_LENGTH(addresses) > 2');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->get()[0]->get('name'));
+    }
+
+    // ==================== SQL FUNCTION ELOQUENT TESTS ====================
+
+    public function test_apply_to_eloquent_count_function(): void
+    {
+        $query = TestCluster::query();
+
+        $this->clusterQuery->applyToEloquent(
+            $query,
+            'clusters',
+            'COUNT(addresses) > 2',
+            DatabaseDriver::SQLITE
+        );
+
+        $results = $query->get();
+        // Bob a 3 adresses (dans les données existantes)
+        $this->assertCount(1, $results);
+        $this->assertEquals('bob_johnson', $results->first()->clusters['name']);
+    }
+
+    public function test_apply_to_eloquent_count_equals(): void
+    {
+        $query = TestCluster::query();
+
+        $this->clusterQuery->applyToEloquent(
+            $query,
+            'clusters',
+            'COUNT(addresses) = 0',
+            DatabaseDriver::SQLITE
+        );
+
+        $results = $query->get();
+        $this->assertCount(1, $results);
+        $this->assertEquals('alice_johanson', $results->first()->clusters['name']);
+    }
+
+    public function test_apply_to_eloquent_count_with_condition(): void
+    {
+        $query = TestCluster::query();
+
+        $this->clusterQuery->applyToEloquent(
+            $query,
+            'clusters',
+            'status=active & COUNT(addresses) > 2',
+            DatabaseDriver::SQLITE
+        );
+
+        $results = $query->get();
+        $this->assertCount(1, $results);
+        $this->assertEquals('bob_johnson', $results->first()->clusters['name']);
+    }
+
+    public function test_apply_to_eloquent_sum_function(): void
+    {
+        // Créer des données avec des prix
+        TestCluster::create([
+            'clusters' => [
+                'name' => 'test1',
+                'prices' => [100, 200, 300],
+            ],
+        ]);
+        TestCluster::create([
+            'clusters' => [
+                'name' => 'test2',
+                'prices' => [50, 75],
+            ],
+        ]);
+
+        $query = TestCluster::query();
+
+        $this->clusterQuery->applyToEloquent(
+            $query,
+            'clusters',
+            'SUM(prices) > 500',
+            DatabaseDriver::SQLITE
+        );
+
+        $results = $query->get();
+        $this->assertCount(1, $results);
+        $this->assertEquals('test1', $results->first()->clusters['name']);
+    }
+
+    public function test_apply_to_eloquent_avg_function(): void
+    {
+        // ✅ Vider la base pour ce test
+        TestCluster::truncate();
+
+        TestCluster::create([
+            'clusters' => [
+                'name' => 'test1',
+                'scores' => [80, 90, 85],
+            ],
+        ]);
+        TestCluster::create([
+            'clusters' => [
+                'name' => 'test2',
+                'scores' => [70, 75, 80],
+            ],
+        ]);
+
+        $query = TestCluster::query();
+
+        $this->clusterQuery->applyToEloquent(
+            $query,
+            'clusters',
+            'AVG(scores) >= 85',
+            DatabaseDriver::SQLITE
+        );
+
+        $results = $query->get();
+        $this->assertCount(1, $results);
+        $this->assertEquals('test1', $results->first()->clusters['name']);
+    }
+
+    public function test_apply_to_eloquent_length_function(): void
+    {
+        $query = TestCluster::query();
+
+        $this->clusterQuery->applyToEloquent(
+            $query,
+            'clusters',
+            'LENGTH(name) >= 8', // ✅ >= 8
+            DatabaseDriver::SQLITE
+        );
+
+        $results = $query->get();
+        $this->assertCount(5, $results); // Tous les noms (8, 10, 11, 14, 11)
+    }
+
+    public function test_apply_to_eloquent_complex_with_functions(): void
+    {
+        $query = TestCluster::query();
+
+        $this->clusterQuery->applyToEloquent(
+            $query,
+            'clusters',
+            'status=active & COUNT(addresses) > 1 & AVG(scores) >= 80',
+            DatabaseDriver::SQLITE
+        );
+
+        $results = $query->get();
+
+        // john_doe (active, 2 addresses, AVG=85.66) → ✅
+        // bob_johnson (active, 3 addresses, AVG=78) → ❌ (AVG < 80)
+        // charlie_doe (active, 2 addresses, AVG=95) → ✅
+        $this->assertCount(2, $results);
+
+        $names = $results->pluck('clusters')->pluck('name')->toArray();
+        $this->assertContains('john_doe', $names);
+        $this->assertContains('charlie_doe', $names);
+        $this->assertNotContains('bob_johnson', $names);
+    }
+
+    // ==================== SQL FUNCTION MATCHES TESTS ====================
+
+    public function test_matches_with_count_function(): void
+    {
+        $cluster = new ClusterVO([
+            'addresses' => ['a', 'b', 'c'],
+        ]);
+
+        $result = $this->clusterQuery->matches($cluster, 'COUNT(addresses) > 2');
+
+        $this->assertTrue($result);
+    }
+
+    public function test_matches_with_count_function_false(): void
+    {
+        $cluster = new ClusterVO([
+            'addresses' => ['a', 'b'],
+        ]);
+
+        $result = $this->clusterQuery->matches($cluster, 'COUNT(addresses) > 2');
+
+        $this->assertFalse($result);
+    }
+
+    public function test_matches_with_sum_function(): void
+    {
+        $cluster = new ClusterVO([
+            'prices' => [100, 200, 300],
+        ]);
+
+        $result = $this->clusterQuery->matches($cluster, 'SUM(prices) > 500');
+
+        $this->assertTrue($result);
+    }
+
+    public function test_matches_with_avg_function(): void
+    {
+        $cluster = new ClusterVO([
+            'scores' => [80, 90, 85],
+        ]);
+
+        $result = $this->clusterQuery->matches($cluster, 'AVG(scores) >= 85');
+
+        $this->assertTrue($result);
+    }
+
+    public function test_matches_with_length_function(): void
+    {
+        $cluster = new ClusterVO([
+            'name' => 'John Doe',
+        ]);
+
+        $result = $this->clusterQuery->matches($cluster, 'LENGTH(name) > 5');
+
+        $this->assertTrue($result);
+    }
+
+    // ==================== SQL FUNCTION TO SQL TESTS ====================
+
+    public function test_to_sql_count_function_sqlite(): void
+    {
+        $sql = $this->clusterQuery->toSql('clusters', 'COUNT(addresses) > 2', DatabaseDriver::SQLITE);
+
+        $this->assertStringContainsString('json_array_length(clusters, \'$.addresses\') > 2', $sql);
+    }
+
+    public function test_to_sql_count_function_mysql(): void
+    {
+        $sql = $this->clusterQuery->toSql('clusters', 'COUNT(addresses) > 2', DatabaseDriver::MYSQL);
+
+        $this->assertStringContainsString('JSON_LENGTH(clusters, \'$.addresses\') > 2', $sql);
+    }
+
+    public function test_to_sql_sum_function_sqlite(): void
+    {
+        $sql = $this->clusterQuery->toSql('clusters', 'SUM(prices) > 500', DatabaseDriver::SQLITE);
+
+        $this->assertStringContainsString('CAST(json_extract(clusters, \'$.prices\') AS NUMERIC) > 500', $sql);
+    }
+
+    public function test_to_sql_avg_function_sqlite(): void
+    {
+        $sql = $this->clusterQuery->toSql('clusters', 'AVG(scores) >= 85', DatabaseDriver::SQLITE);
+
+        $this->assertStringContainsString('AVG(CAST(json_extract(clusters, \'$.scores\') AS NUMERIC)) >= 85', $sql);
+    }
+
+    public function test_to_sql_length_function_sqlite(): void
+    {
+        $sql = $this->clusterQuery->toSql('clusters', 'LENGTH(name) > 5', DatabaseDriver::SQLITE);
+
+        $this->assertStringContainsString('LENGTH(json_extract(clusters, \'$.name\')) > 5', $sql);
     }
 }

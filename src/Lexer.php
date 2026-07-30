@@ -23,6 +23,10 @@ final class Lexer implements LexerInterface
 
     private bool $inSubBracket = false;
 
+    private bool $inQuotes = false;
+
+    private string $quoteChar = '';
+
     public function tokenize(string $input): TokenRecordCollection
     {
         $this->initializeLexerState($input);
@@ -30,6 +34,13 @@ final class Lexer implements LexerInterface
 
         while ($this->position < $this->length) {
             $currentChar = $this->input[$this->position];
+
+            // ✅ Gérer les guillemets et tildes
+            if ($this->isDelimiter($currentChar)) {
+                $this->handleDelimiter($currentChar, $tokens);
+
+                continue;
+            }
 
             if ($this->isWhitespace($currentChar)) {
                 $this->advancePosition();
@@ -77,6 +88,11 @@ final class Lexer implements LexerInterface
             );
         }
 
+        // ✅ Si on est encore dans des guillemets à la fin, fermer
+        if ($this->inQuotes) {
+            $tokens->add($this->createIdentifierToken());
+        }
+
         $tokens->add($this->createEndToken());
 
         return $tokens;
@@ -89,11 +105,49 @@ final class Lexer implements LexerInterface
         $this->length = strlen($input);
         $this->isLikeValueMode = false;
         $this->inSubBracket = false;
+        $this->inQuotes = false;
+        $this->quoteChar = '';
     }
 
     private function advancePosition(): void
     {
         $this->position++;
+    }
+
+    /**
+     * ✅ Vérifie si le caractère est un délimiteur (guillemets ou tilde)
+     */
+    private function isDelimiter(string $char): bool
+    {
+        return $char === '"' || $char === "'" || $char === '`';
+    }
+
+    /**
+     * ✅ Gère les délimiteurs (guillemets et tildes)
+     */
+    private function handleDelimiter(string $char, TokenRecordCollection $tokens): void
+    {
+        if (! $this->inQuotes) {
+            // ✅ Début d'une chaîne délimitée
+            $this->inQuotes = true;
+            $this->quoteChar = $char;
+            $this->advancePosition();
+
+            return;
+        }
+
+        if ($this->inQuotes && $char === $this->quoteChar) {
+            // ✅ Fin de la chaîne délimitée
+            $this->inQuotes = false;
+            $this->quoteChar = '';
+            $this->advancePosition();
+
+            return;
+        }
+
+        // ✅ Caractère à l'intérieur des guillemets (le collecter comme identifiant)
+        // On ne fait rien ici car le token sera créé à la fin
+        $this->advancePosition();
     }
 
     private function createParenthesisToken(string $char): TokenRecord
@@ -156,7 +210,11 @@ final class Lexer implements LexerInterface
 
     private function isIdentifierStart(string $char): bool
     {
-        // Dans un sous-crochet, * est autorisé comme identifiant (wildcard)
+        // ✅ À l'intérieur des guillemets, tout caractère est accepté
+        if ($this->inQuotes) {
+            return true;
+        }
+
         if ($this->inSubBracket && $char === '*') {
             return true;
         }
@@ -170,8 +228,6 @@ final class Lexer implements LexerInterface
         usort($symbols, fn ($a, $b) => strlen($b) - strlen($a));
 
         foreach ($symbols as $symbol) {
-            // Si on est dans un sous-crochet et que le symbole est '*', on le saute
-            // car '*' à l'intérieur des crochets doit être un IDENTIFIER
             if ($this->inSubBracket && $symbol === '*') {
                 continue;
             }
@@ -190,12 +246,25 @@ final class Lexer implements LexerInterface
         while ($this->position < $this->length) {
             $char = $this->input[$this->position];
 
+            // ✅ Si on est dans des guillemets, on lit tout jusqu'au guillemet fermant
+            if ($this->inQuotes) {
+                if ($char === $this->quoteChar) {
+                    // ✅ Ne pas consommer le guillemet fermant
+                    break;
+                }
+                $value .= $char;
+                $this->advancePosition();
+
+                continue;
+            }
+
             $isValidChar = ctype_alnum($char)
                 || $char === '_'
                 || $char === '-'
                 || $char === '.'
                 || ($this->isLikeValueMode && $char === '%')
-                || ($this->inSubBracket && $char === '*');
+                || ($this->inSubBracket && $char === '*')
+                || ($this->inQuotes);
 
             if (! $isValidChar) {
                 break;

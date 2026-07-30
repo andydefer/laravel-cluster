@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelCluster\Tests;
 
+use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
 use AndyDefer\LaravelCluster\Providers\ClusterServiceProvider;
+use Illuminate\Support\Collection;
 use Orchestra\Testbench\TestCase as Orchestra;
 
 abstract class IntegrationTestCase extends Orchestra
@@ -14,6 +16,11 @@ abstract class IntegrationTestCase extends Orchestra
     protected function stripAnsi(string $text): string
     {
         return preg_replace('/\033\[[0-9;]+m/', '', $text);
+    }
+
+    protected function normalize(ClusterVOCollection|Collection $collection): array
+    {
+        return action_normalizer_chain(true)->normalize($collection);
     }
 
     protected function getPackageProviders($app): array

@@ -2465,8 +2465,370 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
     }
 
-    private function normalize(ClusterVOCollection $collection): array
+    // ==================== SQL FUNCTION TESTS (NATIVE) ====================
+
+    public function test_where_query_with_count_function(): void
     {
-        return normalizer_chain(true)->normalize($collection);
+        // ✅ COUNT(addresses) > 2 sans accolades
+        $result = $this->collection->whereQuery('COUNT(addresses) > 2');
+
+        // Bob a 3 adresses → 1
+        $this->assertCount(1, $result);
+        $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
+    }
+
+    public function test_where_query_with_count_equals(): void
+    {
+        $result = $this->collection->whereQuery('COUNT(addresses) = 2');
+
+        // John a 2 adresses → 1
+        $this->assertCount(1, $result);
+        $this->assertEquals('John Doe', $result->first()?->get('name'));
+    }
+
+    public function test_where_query_with_count_greater_than_or_equal(): void
+    {
+        $result = $this->collection->whereQuery('COUNT(addresses) >= 2');
+
+        // John (2) et Bob (3) → 2
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+    }
+
+    public function test_where_query_with_sum_function(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'prices' => [100, 200, 300],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'prices' => [50, 75],
+        ]));
+
+        $result = $collection->whereQuery('SUM(prices) > 500');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->first()?->get('name'));
+    }
+
+    public function test_where_query_with_avg_function(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'scores' => [80, 90, 85],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'scores' => [70, 75, 80],
+        ]));
+
+        $result = $collection->whereQuery('AVG(scores) >= 85');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->first()?->get('name'));
+    }
+
+    public function test_where_query_with_min_function(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'scores' => [80, 90, 85],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'scores' => [70, 75, 80],
+        ]));
+
+        $result = $collection->whereQuery('MIN(scores) > 75');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->first()?->get('name'));
+    }
+
+    public function test_where_query_with_max_function(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'scores' => [80, 90, 85],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'scores' => [95, 98, 92],
+        ]));
+
+        $result = $collection->whereQuery('MAX(scores) > 90');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Jane', $result->first()?->get('name'));
+    }
+
+    public function test_where_query_with_length_function(): void
+    {
+        $result = $this->collection->whereQuery('LENGTH(name) > 8');
+
+        // John Doe (8), Jane Smith (10), Bob Johnson (11), Alice Wonder (12) → 4
+        // John Doe a exactement 8 caractères, donc > 8 exclut John
+        $this->assertCount(3, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('Jane Smith', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertContains('Alice Wonder', $names);
+        $this->assertNotContains('John Doe', $names);
+    }
+
+    public function test_where_query_with_function_and_condition(): void
+    {
+        $result = $this->collection->whereQuery('status=active & COUNT(addresses) > 2');
+
+        // Bob (active, 3 adresses) → 1
+        $this->assertCount(1, $result);
+        $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
+    }
+
+    public function test_where_query_with_multiple_functions(): void
+    {
+        $result = $this->collection->whereQuery('COUNT(addresses) > 1 & LENGTH(name) > 8');
+
+        // John (2 adresses, 8 caractères), Bob (3 adresses, 11 caractères) → 1
+        // John a 8 caractères, pas > 8
+        // Bob a 11 caractères, > 8
+        $this->assertCount(1, $result);
+        $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
+    }
+
+    public function test_where_query_with_function_or_condition(): void
+    {
+        $result = $this->collection->whereQuery('COUNT(addresses) > 2 | status=pending');
+
+        // Bob (3 adresses) ou Alice (pending) → 2
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertContains('Alice Wonder', $names);
+    }
+
+    public function test_where_query_with_function_and_parentheses(): void
+    {
+        $result = $this->collection->whereQuery('(COUNT(addresses) > 2 | LENGTH(name) > 10) & status=active');
+
+        // Bob (3 adresses, 11 caractères) et John (2 adresses, 8 caractères) → 1
+        // Bob: COUNT > 2 OK et status=active OK
+        // John: COUNT > 2 non, LENGTH > 10 non → exclu
+        $this->assertCount(1, $result);
+        $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
+    }
+
+    public function test_where_query_with_function_no_operator(): void
+    {
+        // COUNT(addresses) sans opérateur → COUNT > 0
+        $result = $this->collection->whereQuery('COUNT(addresses)');
+
+        // John, Jane, Bob ont des adresses → 3
+        $this->assertCount(3, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Jane Smith', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_query_with_json_length_function(): void
+    {
+        $result = $this->collection->whereQuery('JSON_LENGTH(addresses) > 2');
+
+        // Bob a 3 adresses → 1
+        $this->assertCount(1, $result);
+        $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
+    }
+
+    public function test_where_query_with_count_function_and_nested_path(): void
+    {
+        $result = $this->collection->whereQuery('COUNT(settings.notifications) > 1');
+
+        // Tous ont 1 notification → 0
+        $this->assertCount(0, $result);
+    }
+
+    public function test_where_query_with_function_complex_expression(): void
+    {
+        $result = $this->collection->whereQuery(
+            '(status=active | status=pending) & COUNT(addresses) > 1 & LENGTH(name) > 8'
+        );
+
+        // John (active, 2 adresses, 8 caractères) et Bob (active, 3 adresses, 11 caractères) → 1
+        // John a 8 caractères (pas > 8), Bob a 11 caractères (> 8)
+        $this->assertCount(1, $result);
+        $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
+    }
+
+    public function test_where_query_with_function_and_or_mixed(): void
+    {
+        $result = $this->collection->whereQuery(
+            '(COUNT(addresses) > 1 & status=active) | (LENGTH(name) > 10 & status=pending)'
+        );
+
+        // John (active, 2 adresses) et Bob (active, 3 adresses) → 2
+        // Alice (pending, 12 caractères) → 1
+        // Total → 3
+        $this->assertCount(3, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertContains('Alice Wonder', $names);
+    }
+
+    // ==================== SQL FUNCTION COMPARISON WITH AGGREGATE ====================
+
+    public function test_count_function_vs_aggregate_count(): void
+    {
+        // ✅ Native COUNT (sans accolades)
+        $nativeResult = $this->collection->whereQuery('COUNT(addresses) > 2');
+
+        // ✅ Aggregate COUNT (avec accolades)
+        $aggregateResult = $this->collection->whereAggregate('{COUNT(addresses) > 2}');
+
+        $this->assertEquals(
+            $nativeResult->count(),
+            $aggregateResult->count(),
+            'Native COUNT et Aggregate COUNT devraient donner le même résultat'
+        );
+    }
+
+    public function test_sum_function_vs_aggregate_sum(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'prices' => [100, 200, 300],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'prices' => [50, 75],
+        ]));
+
+        $nativeResult = $collection->whereQuery('SUM(prices) > 500');
+        $aggregateResult = $collection->whereAggregate('{SUM(prices) > 500}');
+
+        $this->assertEquals(
+            $nativeResult->count(),
+            $aggregateResult->count(),
+            'Native SUM et Aggregate SUM devraient donner le même résultat'
+        );
+    }
+
+    public function test_avg_function_vs_aggregate_avg(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'scores' => [80, 90, 85],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'scores' => [70, 75, 80],
+        ]));
+
+        $nativeResult = $collection->whereQuery('AVG(scores) >= 85');
+        $aggregateResult = $collection->whereAggregate('{AVG(scores) >= 85}');
+
+        $this->assertEquals(
+            $nativeResult->count(),
+            $aggregateResult->count(),
+            'Native AVG et Aggregate AVG devraient donner le même résultat'
+        );
+    }
+
+    public function test_length_function_vs_aggregate_length(): void
+    {
+        $nativeResult = $this->collection->whereQuery('LENGTH(name) > 8');
+        $aggregateResult = $this->collection->whereAggregate('{LENGTH(name) > 8}');
+
+        $this->assertEquals(
+            $nativeResult->count(),
+            $aggregateResult->count(),
+            'Native LENGTH et Aggregate LENGTH devraient donner le même résultat'
+        );
+    }
+
+    public function test_function_chaining_native_and_aggregate(): void
+    {
+        // Mélange de native et aggregate
+        $result = $this->collection
+            ->whereQuery('COUNT(addresses) > 1')        // Native
+            ->whereAggregate('{AVG(scores) >= 85}')      // Aggregate
+            ->where('status', 'active');                  // Simple
+
+        // John (2 adresses, AVG 85, active) et Bob (3 adresses, AVG 95, active) → 2
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+    }
+
+    // ==================== SQL FUNCTION EDGE CASES ====================
+
+    public function test_where_query_with_function_invalid_path(): void
+    {
+        $result = $this->collection->whereQuery('COUNT(non_existent) > 2');
+
+        $this->assertCount(0, $result);
+    }
+
+    public function test_where_query_with_function_zero_value(): void
+    {
+        $result = $this->collection->whereQuery('COUNT(addresses) > 0');
+
+        // John, Jane, Bob ont des adresses → 3
+        $this->assertCount(3, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Jane Smith', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_query_with_function_string_comparison(): void
+    {
+        $result = $this->collection->whereQuery('LENGTH(name) > 10');
+
+        // Jane Smith (10), Bob Johnson (11), Alice Wonder (12) → 2
+        // John Doe (8) exclu, Jane Smith (10) exclu (pas > 10)
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertContains('Alice Wonder', $names);
+        $this->assertNotContains('John Doe', $names);
+        $this->assertNotContains('Jane Smith', $names);
+    }
+
+    public function test_where_query_with_function_and_aggregate_combined(): void
+    {
+        // ✅ Native COUNT + Aggregate HAS
+        $result = $this->collection
+            ->whereQuery('COUNT(addresses) > 1')
+            ->whereAggregate('{HAS(addresses, city, "Kinshasa")}');
+
+        // John (2 adresses, Kinshasa) et Bob (3 adresses, Kinshasa) → 2
+        $this->assertCount(2, $result);
+        $names = array_map(fn ($c) => $c->get('name'), $result->get());
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+        $this->assertNotContains('Jane Smith', $names);
+        $this->assertNotContains('Alice Wonder', $names);
+    }
+
+    public function test_where_query_with_unknown_function_throws_exception(): void
+    {
+        // Une fonction inconnue doit lever une exception ou retourner vide
+        // Selon l'implémentation, cela peut lever une RuntimeException
+        $this->expectException(\RuntimeException::class);
+        $this->collection->whereQuery('UNKNOWN(addresses) > 2');
     }
 }

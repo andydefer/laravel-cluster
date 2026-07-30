@@ -8,10 +8,12 @@ use AndyDefer\LaravelCluster\ClusterQuery;
 use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 use AndyDefer\LaravelCluster\Parser;
+use AndyDefer\LaravelCluster\Registry\SqlFunctionRegistry;
 use AndyDefer\LaravelCluster\Services\ClusterService;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
 
 final class ClusterServiceProvider extends ServiceProvider
@@ -26,12 +28,20 @@ final class ClusterServiceProvider extends ServiceProvider
             return new ClusterService($app->make(ClusterQuery::class));
         });
 
+        $this->app->singleton(SqlFunctionRegistry::class, function (): SqlFunctionRegistry {
+            return new SqlFunctionRegistry;
+        });
+
         $this->app->alias(ClusterQuery::class, 'cluster.query');
         $this->app->alias(ClusterService::class, 'cluster.service');
+        $this->app->alias(SqlFunctionRegistry::class, 'cluster.sql_functions');
     }
 
     public function boot(): void
     {
+        // ✅ Uniquement pour SQLite (les autres bases ont déjà les fonctions)
+        $this->registerSqliteFunctionsIfNeeded();
+
         // ✅ Macro sur Builder - whereCluster
         Builder::macro('whereCluster', function (string $column, string $query) {
             /** @var Builder $this */
@@ -54,8 +64,6 @@ final class ClusterServiceProvider extends ServiceProvider
         // ✅ Macro sur Collection - whereCluster
         Collection::macro('whereCluster', function (string $column, string $query) {
             /** @var Collection $this */
-
-            // 1️⃣ Construire la ClusterVOCollection avec conservation des clés
             $clusterCollection = new ClusterVOCollection;
             $items = [];
             $keys = [];
@@ -71,14 +79,12 @@ final class ClusterServiceProvider extends ServiceProvider
                 }
             }
 
-            // 2️⃣ Filtrer avec gestion des erreurs
             try {
                 $filteredClusters = $clusterCollection->whereQuery($query);
             } catch (\Throwable $e) {
                 return new static([]);
             }
 
-            // 3️⃣ Récupérer les éléments correspondants avec leurs clés originales
             $result = [];
             $clusterArray = $clusterCollection->toArray();
 
@@ -92,5 +98,164 @@ final class ClusterServiceProvider extends ServiceProvider
 
             return new static($result);
         });
+    }
+
+    /**
+     * ✅ Enregistrer les fonctions SQL personnalisées UNIQUEMENT pour SQLite
+     * Les autres bases (MySQL, PostgreSQL) ont déjà ces fonctions nativement
+     */
+    private function registerSqliteFunctionsIfNeeded(): void
+    {
+        try {
+            $connection = DB::connection();
+            $driverName = $connection->getDriverName();
+
+            // ✅ Uniquement pour SQLite
+            if ($driverName !== 'sqlite') {
+                return;
+            }
+
+            $pdo = $connection->getPdo();
+
+            // ✅ JSON_LENGTH - alias pour json_array_length (existe déjà dans SQLite)
+            // Mais on le crée pour compatibilité avec MySQL
+            $pdo->sqliteCreateFunction('JSON_LENGTH', function ($json, $path = null) {
+                if ($json === null) {
+                    return null;
+                }
+
+                $data = json_decode($json, true);
+
+                if ($path === null || $path === '' || $path === '$') {
+                    return is_array($data) ? count($data) : null;
+                }
+
+                $path = str_replace('$.', '', $path);
+                $parts = explode('.', $path);
+                $current = $data;
+
+                foreach ($parts as $part) {
+                    if (! isset($current[$part])) {
+                        return null;
+                    }
+                    $current = $current[$part];
+                }
+
+                return is_array($current) ? count($current) : null;
+            });
+
+            // ✅ JSON_AVG - moyenne sur un tableau JSON
+            $pdo->sqliteCreateFunction('JSON_AVG', function ($json, $path) {
+                if ($json === null) {
+                    return null;
+                }
+
+                $data = json_decode($json, true);
+                $path = str_replace('$.', '', $path);
+                $parts = explode('.', $path);
+                $current = $data;
+
+                foreach ($parts as $part) {
+                    if (! isset($current[$part])) {
+                        return null;
+                    }
+                    $current = $current[$part];
+                }
+
+                if (! is_array($current) || empty($current)) {
+                    return null;
+                }
+
+                $numbers = array_filter($current, 'is_numeric');
+                $count = count($numbers);
+
+                return $count > 0 ? array_sum($numbers) / $count : null;
+            });
+
+            // ✅ JSON_SUM - somme sur un tableau JSON
+            $pdo->sqliteCreateFunction('JSON_SUM', function ($json, $path) {
+                if ($json === null) {
+                    return null;
+                }
+
+                $data = json_decode($json, true);
+                $path = str_replace('$.', '', $path);
+                $parts = explode('.', $path);
+                $current = $data;
+
+                foreach ($parts as $part) {
+                    if (! isset($current[$part])) {
+                        return null;
+                    }
+                    $current = $current[$part];
+                }
+
+                if (! is_array($current) || empty($current)) {
+                    return null;
+                }
+
+                $numbers = array_filter($current, 'is_numeric');
+
+                return array_sum($numbers);
+            });
+
+            // ✅ JSON_MIN - minimum sur un tableau JSON
+            $pdo->sqliteCreateFunction('JSON_MIN', function ($json, $path) {
+                if ($json === null) {
+                    return null;
+                }
+
+                $data = json_decode($json, true);
+                $path = str_replace('$.', '', $path);
+                $parts = explode('.', $path);
+                $current = $data;
+
+                foreach ($parts as $part) {
+                    if (! isset($current[$part])) {
+                        return null;
+                    }
+                    $current = $current[$part];
+                }
+
+                if (! is_array($current) || empty($current)) {
+                    return null;
+                }
+
+                $numbers = array_filter($current, 'is_numeric');
+
+                return ! empty($numbers) ? min($numbers) : null;
+            });
+
+            // ✅ JSON_MAX - maximum sur un tableau JSON
+            $pdo->sqliteCreateFunction('JSON_MAX', function ($json, $path) {
+                if ($json === null) {
+                    return null;
+                }
+
+                $data = json_decode($json, true);
+                $path = str_replace('$.', '', $path);
+                $parts = explode('.', $path);
+                $current = $data;
+
+                foreach ($parts as $part) {
+                    if (! isset($current[$part])) {
+                        return null;
+                    }
+                    $current = $current[$part];
+                }
+
+                if (! is_array($current) || empty($current)) {
+                    return null;
+                }
+
+                $numbers = array_filter($current, 'is_numeric');
+
+                return ! empty($numbers) ? max($numbers) : null;
+            });
+
+        } catch (\Throwable $e) {
+            // ✅ Ne pas bloquer l'application
+            report($e);
+        }
     }
 }
