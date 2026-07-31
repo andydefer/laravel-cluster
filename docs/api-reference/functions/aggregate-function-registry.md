@@ -2,7 +2,7 @@
 
 ## Description
 
-Le registre des fonctions d'agrégation gère l'ensemble des fonctions disponibles pour les expressions de requête sur les données en mémoire. Il assure l'enregistrement, la résolution et l'exécution des fonctions d'agrégation comme COUNT, SUM, AVG, MIN, MAX, HAS, ALL, etc.
+Le registre des fonctions d'agrégation gère l'ensemble des fonctions disponibles pour les expressions de requête sur les données en mémoire. Il assure l'enregistrement, la résolution et l'exécution des fonctions d'agrégation comme COUNT, SUM, AVG, MIN, MAX, HAS, ALL, MATCHES, etc.
 
 ## Hiérarchie
 
@@ -38,6 +38,7 @@ Initialise le registre et enregistre les fonctions par défaut.
 - `HasFunction` - Recherche une valeur ou une paire clé-valeur
 - `AllFunction` - Vérifie que tous les éléments satisfont une condition
 - `IsEmptyFunction` - Vérifie si une valeur est vide
+- `MatchesFunction` - Vérifie si une valeur correspond à une expression régulière
 
 ---
 
@@ -115,6 +116,10 @@ Exécute une fonction enregistrée avec les données et arguments fournis.
 ```php
 $data = ['addresses' => ['a', 'b', 'c']];
 $result = $registry->execute('COUNT', $data, ['addresses']); // 3
+
+// Avec MATCHES
+$data = ['tags' => ['php', 'javascript', 'css']];
+$result = $registry->execute('MATCHES', $data, ['tags', '/^ja.*/']); // true
 ```
 
 ---
@@ -134,6 +139,7 @@ Retourne la valeur par défaut pour une fonction.
 $default = $registry->getDefaultValue('COUNT'); // 0
 $default = $registry->getDefaultValue('AVG'); // 0.0
 $default = $registry->getDefaultValue('EXISTS'); // false
+$default = $registry->getDefaultValue('MATCHES'); // false
 ```
 
 ---
@@ -155,7 +161,7 @@ Retourne les fonctions qui retournent des résultats booléens.
 **Exemple :**
 ```php
 $booleanFunctions = $registry->getBooleanFunctions();
-// ['EXISTS' => ExistsFunction, 'HAS' => HasFunction, ...]
+// ['EXISTS' => ExistsFunction, 'HAS' => HasFunction, 'MATCHES' => MatchesFunction, ...]
 ```
 
 ---
@@ -191,6 +197,7 @@ $data = [
     'addresses' => ['a', 'b', 'c'],
     'scores' => [80, 90, 100],
     'prices' => [100, 200, 300],
+    'tags' => ['php', 'javascript', 'css'],
 ];
 
 // Comptage
@@ -207,6 +214,9 @@ $min = $registry->execute('MIN', $data, ['scores']); // 80.0
 
 // Maximum
 $max = $registry->execute('MAX', $data, ['scores']); // 100.0
+
+// Regex - trouve les tags commençant par "ja"
+$matches = $registry->execute('MATCHES', $data, ['tags', '/^ja.*/']); // true
 ```
 
 ### Cas 2 : Fonctions booléennes
@@ -227,6 +237,15 @@ $all = $registry->execute('ALL', $data, ['items', 'status', 'active']);
 // Vérification de vacuité
 $isEmpty = $registry->execute('IS_EMPTY', $data, ['cart']);
 // Vérifie si 'cart' est vide
+
+// Regex sur un tableau de valeurs
+$matches = $registry->execute('MATCHES', $data, ['tags', '/^ja.*/']);
+// true (javascript commence par "ja")
+
+// Regex sur une clé spécifique dans un tableau d'objets
+$data = ['addresses' => [['city' => 'Kinshasa'], ['city' => 'Paris']]];
+$matches = $registry->execute('MATCHES', $data, ['addresses', 'city', '/^Kin.*/']);
+// true (Kinshasa commence par "Kin")
 ```
 
 ### Cas 3 : Enregistrement d'une fonction personnalisée
@@ -265,12 +284,43 @@ $booleanFunctions = $registry->getBooleanFunctions();
 foreach ($booleanFunctions as $name => $function) {
     echo "$name : booléenne\n";
 }
+// EXISTS : booléenne
+// HAS : booléenne
+// ALL : booléenne
+// IS_EMPTY : booléenne
+// MATCHES : booléenne
 
 // Obtenir toutes les fonctions numériques
 $numericFunctions = $registry->getNumericFunctions();
 foreach ($numericFunctions as $name => $function) {
     echo "$name : numérique\n";
 }
+// COUNT : numérique
+// SUM : numérique
+// AVG : numérique
+// MIN : numérique
+// MAX : numérique
+// LENGTH : numérique
+```
+
+### Cas 5 : Utilisation de MATCHES avec des regex complexes
+
+```php
+// Regex insensible à la casse
+$result = $registry->execute('MATCHES', $data, ['tags', '/^ja.*/i']);
+
+// Regex avec caractères spéciaux
+$data = ['codes' => ['ABC-123', 'DEF-456', 'GHI-789']];
+$result = $registry->execute('MATCHES', $data, ['codes', '/^[A-Z]{3}-\d{3}$/']);
+
+// Regex sur un chemin imbriqué
+$data = [
+    'users' => [
+        ['profile' => ['username' => 'john_doe']],
+        ['profile' => ['username' => 'jane_smith']],
+    ],
+];
+$result = $registry->execute('MATCHES', $data, ['users.profile', 'username', '/^john.*/']);
 ```
 
 ---
@@ -291,6 +341,7 @@ Le registre est utilisé par :
 - **Complexité :** O(1) pour l'accès aux fonctions via tableau associatif
 - **Mémoire :** Les fonctions sont instanciées une seule fois
 - **Cache :** Les résultats d'exécution ne sont pas mis en cache
+- **MATCHES :** Les regex sont compilées à chaque exécution, utilisez avec parcimonie sur de grands ensembles de données
 
 ---
 
@@ -317,7 +368,7 @@ $registry = new AggregateFunctionRegistry();
 
 // Vérification des fonctions disponibles
 $available = $registry->getNames();
-// ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'LENGTH', 'EXISTS', 'HAS', 'ALL', 'IS_EMPTY']
+// ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'LENGTH', 'EXISTS', 'HAS', 'ALL', 'IS_EMPTY', 'MATCHES']
 
 // Vérification d'une fonction
 if ($registry->has('COUNT')) {
@@ -332,6 +383,20 @@ if ($registry->has('COUNT')) {
     echo "Default: $default\n"; // Default: 0
 }
 
+// Utilisation de MATCHES
+if ($registry->has('MATCHES')) {
+    $data = ['tags' => ['php', 'javascript', 'css']];
+    
+    // Regex simple
+    $result = $registry->execute('MATCHES', $data, ['tags', '/^ja.*/']);
+    echo "Result: " . ($result ? 'true' : 'false') . "\n"; // true
+    
+    // Regex sur une clé spécifique
+    $data = ['addresses' => [['city' => 'Kinshasa'], ['city' => 'Paris']]];
+    $result = $registry->execute('MATCHES', $data, ['addresses', 'city', '/^Kin.*/']);
+    echo "Result: " . ($result ? 'true' : 'false') . "\n"; // true
+}
+
 // Toutes les fonctions
 $allFunctions = $registry->all();
 foreach ($allFunctions as $name => $function) {
@@ -341,7 +406,7 @@ foreach ($allFunctions as $name => $function) {
 // Classification des fonctions
 $booleanFunctions = $registry->getBooleanFunctions();
 echo "Boolean functions: " . implode(', ', array_keys($booleanFunctions)) . "\n";
-// EXISTS, HAS, ALL, IS_EMPTY
+// EXISTS, HAS, ALL, IS_EMPTY, MATCHES
 
 $numericFunctions = $registry->getNumericFunctions();
 echo "Numeric functions: " . implode(', ', array_keys($numericFunctions)) . "\n";
@@ -356,3 +421,4 @@ echo "Numeric functions: " . implode(', ', array_keys($numericFunctions)) . "\n"
 - `AbstractAggregateFunction` - Classe abstraite de base
 - `AggregateEvaluatorService` - Service d'évaluation
 - `AggregateExpressionParser` - Analyseur d'expressions
+- `MatchesFunction` - Fonction d'agrégation pour les expressions régulières

@@ -15,6 +15,7 @@ SqlFunctionInterface
             ├── LengthFunction
             ├── MaxFunction
             ├── MinFunction
+            ├── RegexpFunction
             └── SumFunction
 ```
 
@@ -284,6 +285,62 @@ $sql = $min->toSql('clusters', 'scores', DatabaseDriver::MYSQL);
 
 ---
 
+# RegexpFunction
+
+## Description
+
+Vérifie si une chaîne correspond à une expression régulière.
+
+Cette fonction fournit des capacités de correspondance regex sur différents drivers de base de données :
+- **SQLite** : utilise l'opérateur `REGEXP` (nécessite l'extension REGEXP)
+- **MySQL** : utilise l'opérateur `REGEXP`
+- **PostgreSQL** : utilise l'opérateur `~` (tilde)
+
+## API
+
+### `toSql(string $column, string $path, DatabaseDriver $driver): string`
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$column` | `string` | La colonne contenant les données JSON |
+| `$path` | `string` | Le chemin JSON |
+| `$driver` | `DatabaseDriver` | Le driver de base de données |
+
+**Retourne :** `string` - L'expression SQL pour extraire la valeur
+
+### `execute(mixed $value): mixed`
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$value` | `mixed` | La valeur à traiter |
+
+**Retourne :** `mixed` - La valeur si c'est une chaîne, `0` sinon
+
+### `validateArgs(array $args): bool`
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$args` | `array<mixed>` | Les arguments à valider |
+
+**Retourne :** `bool` - `true` si exactement deux arguments sont fournis
+
+**Exemples :**
+```php
+$regexp = new RegexpFunction();
+
+// SQL généré pour MySQL
+$sql = $regexp->toSql('clusters', 'name', DatabaseDriver::MYSQL);
+// JSON_EXTRACT(clusters, '$.name')
+
+// Utilisation dans une requête
+$users = User::whereCluster('clusters', 'REGEXP(name, "^John.*")')->get();
+
+// Avec conditions multiples
+$users = User::whereCluster('clusters', 'REGEXP(name, "^John.*") & status=active')->get();
+```
+
+---
+
 # SumFunction
 
 ## Description
@@ -383,6 +440,22 @@ $clusterQuery->applyToEloquent(
 // LENGTH(clusters->>'name') > 5
 ```
 
+### Cas 5 : Filtrage avec expression régulière
+
+```php
+// Utilisateurs dont le nom commence par "John"
+$users = User::whereCluster('clusters', 'REGEXP(name, "^John.*")')->get();
+
+// Utilisateurs dont l'email est Gmail
+$users = User::whereCluster('clusters', 'REGEXP(email, ".*@gmail\.com$")')->get();
+
+// Utilisateurs avec un nom contenant des lettres uniquement
+$users = User::whereCluster('clusters', 'REGEXP(name, "^[A-Za-z]+$")')->get();
+
+// Combinaison avec d'autres conditions
+$users = User::whereCluster('clusters', 'REGEXP(name, "^John.*") & status=active')->get();
+```
+
 ---
 
 ## Gestion des erreurs
@@ -391,6 +464,7 @@ $clusterQuery->applyToEloquent(
 |-----------|-----------|---------|
 | Fonction inconnue | `InvalidArgumentException` | `Function "{name}" not registered` |
 | Driver non supporté | Retourne `1=0` (condition toujours fausse) | - |
+| Arguments invalides pour REGEXP | Retourne `false` | - |
 
 ---
 
@@ -407,11 +481,11 @@ Les fonctions SQL sont utilisées par :
 
 ## Drivers supportés
 
-| Driver | JSON Extraction | COUNT | SUM/AVG/MIN/MAX | LENGTH |
-|--------|-----------------|-------|-----------------|--------|
-| **SQLite** | `json_extract()` | `json_array_length()` | `CAST(... AS NUMERIC)` | `LENGTH(json_extract())` |
-| **MySQL** | `JSON_EXTRACT()` | `JSON_LENGTH()` | `CAST(... AS DECIMAL(10,2))` | `LENGTH(JSON_EXTRACT())` |
-| **PostgreSQL** | `->>` | `jsonb_array_length()` | `::numeric` | `LENGTH(->>)` |
+| Driver | JSON Extraction | COUNT | SUM/AVG/MIN/MAX | LENGTH | REGEXP |
+|--------|-----------------|-------|-----------------|--------|--------|
+| **SQLite** | `json_extract()` | `json_array_length()` | `CAST(... AS NUMERIC)` | `LENGTH(json_extract())` | `REGEXP` |
+| **MySQL** | `JSON_EXTRACT()` | `JSON_LENGTH()` | `CAST(... AS DECIMAL(10,2))` | `LENGTH(JSON_EXTRACT())` | `REGEXP` |
+| **PostgreSQL** | `->>` | `jsonb_array_length()` | `::numeric` | `LENGTH(->>)` | `~` |
 
 ---
 
@@ -433,7 +507,7 @@ Les fonctions SQL sont utilisées par :
 
 | Version Database | Support |
 |------------------|---------|
-| SQLite 3.9+ | ✅ Complet |
+| SQLite 3.9+ | ✅ Complet (REGEXP nécessite l'extension) |
 | MySQL 5.7+ | ✅ Complet |
 | PostgreSQL 9.4+ | ✅ Complet |
 
@@ -450,6 +524,7 @@ use AndyDefer\LaravelCluster\ClusterQuery;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 use AndyDefer\LaravelCluster\SqlFunctions\CountFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\AvgFunction;
+use AndyDefer\LaravelCluster\SqlFunctions\RegexpFunction;
 
 // Création de l'instance
 $clusterQuery = new ClusterQuery;
@@ -462,6 +537,10 @@ $sql = $count->toSql('clusters', 'addresses', DatabaseDriver::SQLITE);
 $avg = new AvgFunction();
 $sql = $avg->toSql('clusters', 'scores', DatabaseDriver::MYSQL);
 // AVG(CAST(JSON_EXTRACT(clusters, '$.scores') AS DECIMAL(10,2)))
+
+$regexp = new RegexpFunction();
+$sql = $regexp->toSql('clusters', 'name', DatabaseDriver::MYSQL);
+// JSON_EXTRACT(clusters, '$.name')
 
 // Application à une requête Eloquent
 $query = TestCluster::query();
@@ -490,11 +569,19 @@ $clusterQuery->applyToEloquent(
     DatabaseDriver::PGSQL
 );
 
+// Filtrage avec REGEXP
+$clusterQuery->applyToEloquent(
+    $query,
+    'clusters',
+    'REGEXP(name, "^John.*")',
+    DatabaseDriver::MYSQL
+);
+
 // Expression combinée
 $clusterQuery->applyToEloquent(
     $query,
     'clusters',
-    'COUNT(addresses) > 1 & AVG(scores) >= 80',
+    'COUNT(addresses) > 1 & AVG(scores) >= 80 & REGEXP(name, "^John.*")',
     DatabaseDriver::SQLITE
 );
 
@@ -509,3 +596,4 @@ $results = $query->get();
 - `FunctionNode` - Nœud de fonction dans l'AST
 - `ClusterQuery` - Service de requêtes
 - `DatabaseDriver` - Énumération des drivers supportés
+- `MatchesFunction` - Fonction d'agrégation pour les regex en mémoire

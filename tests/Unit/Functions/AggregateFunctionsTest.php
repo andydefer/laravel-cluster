@@ -11,6 +11,7 @@ use AndyDefer\LaravelCluster\Functions\ExistsFunction;
 use AndyDefer\LaravelCluster\Functions\HasFunction;
 use AndyDefer\LaravelCluster\Functions\IsEmptyFunction;
 use AndyDefer\LaravelCluster\Functions\LengthFunction;
+use AndyDefer\LaravelCluster\Functions\MatchesFunction;
 use AndyDefer\LaravelCluster\Functions\MaxFunction;
 use AndyDefer\LaravelCluster\Functions\MinFunction;
 use AndyDefer\LaravelCluster\Functions\SumFunction;
@@ -26,10 +27,8 @@ final class AggregateFunctionsTest extends TestCase
 
         $data = ['items' => ['a', 'b', 'c']];
 
-        // Act
         $result = $function->execute($data, ['items']);
 
-        // Assert
         $this->assertSame(3, $result);
     }
 
@@ -601,6 +600,149 @@ final class AggregateFunctionsTest extends TestCase
         $this->assertFalse($result);
     }
 
+    // ==================== MATCHES FUNCTION TESTS (REGEX) ====================
+
+    public function test_matches_function_with_two_arguments_found(): void
+    {
+        $function = new MatchesFunction;
+
+        $data = ['tags' => ['php', 'javascript', 'css']];
+
+        $result = $function->execute($data, ['tags', '/^ja.*/']);
+
+        $this->assertTrue($result);
+    }
+
+    public function test_matches_function_with_two_arguments_not_found(): void
+    {
+        $function = new MatchesFunction;
+
+        $data = ['tags' => ['php', 'js', 'css']];
+
+        $result = $function->execute($data, ['tags', '/^python.*/']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_matches_function_with_three_arguments_found(): void
+    {
+        $function = new MatchesFunction;
+
+        $data = ['addresses' => [['city' => 'Kinshasa'], ['city' => 'Paris']]];
+
+        $result = $function->execute($data, ['addresses', 'city', '/^Kin.*/']);
+
+        $this->assertTrue($result);
+    }
+
+    public function test_matches_function_with_three_arguments_not_found(): void
+    {
+        $function = new MatchesFunction;
+
+        $data = ['addresses' => [['city' => 'Kinshasa'], ['city' => 'Paris']]];
+
+        $result = $function->execute($data, ['addresses', 'city', '/^Lon.*/']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_matches_function_with_case_insensitive_regex(): void
+    {
+        $function = new MatchesFunction;
+
+        $data = ['tags' => ['php', 'JavaScript', 'css']];
+
+        $result = $function->execute($data, ['tags', '/^java.*/i']);
+
+        $this->assertTrue($result);
+    }
+
+    public function test_matches_function_with_invalid_regex_returns_false(): void
+    {
+        $function = new MatchesFunction;
+
+        $data = ['tags' => ['php', 'js', 'css']];
+
+        $result = $function->execute($data, ['tags', '/[invalid/']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_matches_function_with_empty_array(): void
+    {
+        $function = new MatchesFunction;
+
+        $data = ['tags' => []];
+
+        $result = $function->execute($data, ['tags', '/^php.*/']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_matches_function_with_non_array_value(): void
+    {
+        $function = new MatchesFunction;
+
+        $data = ['tags' => 'not an array'];
+
+        $result = $function->execute($data, ['tags', '/^php.*/']);
+
+        $this->assertFalse($result);
+    }
+
+    public function test_matches_function_with_regex_special_characters(): void
+    {
+        $function = new MatchesFunction;
+
+        $data = ['codes' => ['ABC-123', 'DEF-456', 'GHI-789']];
+
+        $result = $function->execute($data, ['codes', '/^[A-Z]{3}-\d{3}$/']);
+
+        $this->assertTrue($result);
+    }
+
+    public function test_matches_function_with_regex_boundaries(): void
+    {
+        $function = new MatchesFunction;
+
+        $data = ['names' => ['John Doe', 'Jane Smith', 'Bob Johnson']];
+
+        $result = $function->execute($data, ['names', '/^John.*/']);
+
+        $this->assertTrue($result);
+
+        $result = $function->execute($data, ['names', '/.*Smith$/']);
+
+        $this->assertTrue($result);
+    }
+
+    public function test_matches_function_with_nested_path_and_regex(): void
+    {
+        $function = new MatchesFunction;
+
+        $data = [
+            'users' => [
+                ['profile' => ['username' => 'john_doe']],
+                ['profile' => ['username' => 'jane_smith']],
+            ],
+        ];
+
+        $result = $function->execute($data, ['users.profile', 'username', '/^john.*/']);
+
+        $this->assertTrue($result);
+    }
+
+    public function test_matches_function_with_quoted_pattern(): void
+    {
+        $function = new MatchesFunction;
+
+        $data = ['tags' => ['php', 'javascript', 'css']];
+
+        $result = $function->execute($data, ['tags', '"/^ja.*/"']);
+
+        $this->assertTrue($result);
+    }
+
     // ==================== VALIDATION TESTS ====================
 
     public function test_count_function_validate_args(): void
@@ -631,6 +773,17 @@ final class AggregateFunctionsTest extends TestCase
         $this->assertFalse($function->validateArgs([]));
     }
 
+    public function test_matches_function_validate_args(): void
+    {
+        $function = new MatchesFunction;
+
+        $this->assertTrue($function->validateArgs(['path', 'pattern']));
+        $this->assertTrue($function->validateArgs(['path', 'key', 'pattern']));
+        $this->assertFalse($function->validateArgs(['path']));
+        $this->assertFalse($function->validateArgs([]));
+        $this->assertFalse($function->validateArgs(['path', 'key', 'pattern', 'extra']));
+    }
+
     // ==================== ABSTRACT FUNCTION TESTS ====================
 
     public function test_function_returns_correct_metadata(): void
@@ -646,6 +799,7 @@ final class AggregateFunctionsTest extends TestCase
             new HasFunction,
             new AllFunction,
             new IsEmptyFunction,
+            new MatchesFunction,
         ];
 
         foreach ($functions as $function) {

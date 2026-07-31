@@ -12,12 +12,13 @@ use AndyDefer\LaravelCluster\SqlFunctions\JsonLengthFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\LengthFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\MaxFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\MinFunction;
+use AndyDefer\LaravelCluster\SqlFunctions\RegexpFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\SumFunction;
 
 /**
  * Registry for SQL functions used in database queries.
  *
- * This registry manages SQL functions (COUNT, SUM, AVG, MIN, MAX, LENGTH, JSON_LENGTH)
+ * This registry manages SQL functions (COUNT, SUM, AVG, MIN, MAX, LENGTH, JSON_LENGTH, REGEXP)
  * that can be used in SQL queries across different database drivers.
  * Each function provides driver-specific SQL generation.
  *
@@ -195,5 +196,6 @@ final class SqlFunctionRegistry
         $this->register(new MaxFunction);
         $this->register(new LengthFunction);
         $this->register(new JsonLengthFunction);
+        $this->register(new RegexpFunction);
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelCluster\Tests\Fixtures\Models;
 
+use AndyDefer\LaravelCluster\Casts\ClusterCast;
 use Illuminate\Database\Eloquent\Model;
 
 final class TestCluster extends Model
@@ -17,6 +18,6 @@ final class TestCluster extends Model
     ];
 
     protected $casts = [
-        'clusters' => 'array',
+        'clusters' => ClusterCast::class,
     ];
 }

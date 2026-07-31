@@ -14,7 +14,7 @@ return new class extends Migration
             $table->id();
             $table->string('name')->nullable();
             $table->string('email')->nullable();
-            $table->json('clusters');
+            $table->json('clusters')->nullable();
             $table->timestamps();
         });
     }

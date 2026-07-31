@@ -11,6 +11,7 @@ use AndyDefer\LaravelCluster\SqlFunctions\JsonLengthFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\LengthFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\MaxFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\MinFunction;
+use AndyDefer\LaravelCluster\SqlFunctions\RegexpFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\SumFunction;
 use PHPUnit\Framework\TestCase;
 
@@ -322,6 +323,93 @@ final class SqlFunctionsTest extends TestCase
         $this->assertSame(0, $result);
     }
 
+    // ==================== REGEXP FUNCTION TESTS ====================
+
+    public function test_regexp_function_execute_with_string(): void
+    {
+        $function = new RegexpFunction;
+
+        $result = $function->execute('hello');
+
+        $this->assertSame('hello', $result);
+    }
+
+    public function test_regexp_function_execute_with_non_string(): void
+    {
+        $function = new RegexpFunction;
+
+        $result = $function->execute(123);
+
+        $this->assertSame(0, $result);
+    }
+
+    public function test_regexp_function_to_sql_sqlite(): void
+    {
+        $function = new RegexpFunction;
+
+        $sql = $function->toSql(self::COLUMN, 'name', DatabaseDriver::SQLITE);
+
+        $this->assertSame(
+            "json_extract(clusters, '$.name')",
+            $sql
+        );
+    }
+
+    public function test_regexp_function_to_sql_mysql(): void
+    {
+        $function = new RegexpFunction;
+
+        $sql = $function->toSql(self::COLUMN, 'name', DatabaseDriver::MYSQL);
+
+        $this->assertSame(
+            "JSON_EXTRACT(clusters, '$.name')",
+            $sql
+        );
+    }
+
+    public function test_regexp_function_to_sql_pgsql(): void
+    {
+        $function = new RegexpFunction;
+
+        $sql = $function->toSql(self::COLUMN, 'name', DatabaseDriver::PGSQL);
+
+        $this->assertSame(
+            "clusters->>'name'",
+            $sql
+        );
+    }
+
+    public function test_regexp_function_validate_args(): void
+    {
+        $function = new RegexpFunction;
+
+        $this->assertTrue($function->validateArgs(['path', 'pattern']));
+        $this->assertFalse($function->validateArgs(['path']));
+        $this->assertFalse($function->validateArgs(['path', 'pattern', 'extra']));
+        $this->assertFalse($function->validateArgs([]));
+    }
+
+    public function test_regexp_function_get_default_value(): void
+    {
+        $function = new RegexpFunction;
+
+        $this->assertSame(0, $function->getDefaultValue());
+    }
+
+    public function test_regexp_function_get_return_type(): void
+    {
+        $function = new RegexpFunction;
+
+        $this->assertSame('int', $function->getReturnType());
+    }
+
+    public function test_regexp_function_get_name(): void
+    {
+        $function = new RegexpFunction;
+
+        $this->assertSame('REGEXP', $function->getName());
+    }
+
     // ==================== TO SQL TESTS ====================
 
     public function test_count_function_to_sql_sqlite(): void
@@ -611,6 +699,7 @@ final class SqlFunctionsTest extends TestCase
             'MAX' => new MaxFunction,
             'LENGTH' => new LengthFunction,
             'JSON_LENGTH' => new JsonLengthFunction,
+            'REGEXP' => new RegexpFunction,
         ];
 
         foreach ($functions as $name => $function) {
@@ -624,6 +713,7 @@ final class SqlFunctionsTest extends TestCase
             new CountFunction,
             new LengthFunction,
             new JsonLengthFunction,
+            new RegexpFunction,
         ];
 
         foreach ($functions as $function) {

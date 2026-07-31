@@ -12,6 +12,7 @@ use AndyDefer\LaravelCluster\Functions\ExistsFunction;
 use AndyDefer\LaravelCluster\Functions\HasFunction;
 use AndyDefer\LaravelCluster\Functions\IsEmptyFunction;
 use AndyDefer\LaravelCluster\Functions\LengthFunction;
+use AndyDefer\LaravelCluster\Functions\MatchesFunction;
 use AndyDefer\LaravelCluster\Functions\MaxFunction;
 use AndyDefer\LaravelCluster\Functions\MinFunction;
 use AndyDefer\LaravelCluster\Functions\SumFunction;
@@ -163,5 +164,6 @@ final class AggregateFunctionRegistry
         $this->register(new HasFunction);
         $this->register(new AllFunction);
         $this->register(new IsEmptyFunction);
+        $this->register(new MatchesFunction);
     }
 }

@@ -13,7 +13,7 @@ SqlFunctionRegistry
 
 ## Rôle principal
 
-Centralise l'accès aux fonctions SQL (COUNT, SUM, AVG, MIN, MAX, LENGTH, JSON_LENGTH) et fournit une interface unifiée pour :
+Centralise l'accès aux fonctions SQL (COUNT, SUM, AVG, MIN, MAX, LENGTH, JSON_LENGTH, REGEXP) et fournit une interface unifiée pour :
 - La génération de SQL spécifique à chaque driver
 - L'exécution en mémoire des fonctions
 - La validation des arguments
@@ -35,6 +35,7 @@ Initialise le registre et enregistre les fonctions par défaut.
 - `MaxFunction`
 - `LengthFunction`
 - `JsonLengthFunction`
+- `RegexpFunction`
 
 ---
 
@@ -114,6 +115,9 @@ $sql = $registry->toSql('COUNT', 'clusters', 'addresses', DatabaseDriver::SQLITE
 
 $sql = $registry->toSql('AVG', 'clusters', 'scores', DatabaseDriver::MYSQL);
 // AVG(CAST(JSON_EXTRACT(clusters, '$.scores') AS DECIMAL(10,2)))
+
+$sql = $registry->toSql('REGEXP', 'clusters', 'name', DatabaseDriver::MYSQL);
+// JSON_EXTRACT(clusters, '$.name')
 ```
 
 ---
@@ -133,6 +137,7 @@ Exécute une fonction enregistrée sur une valeur (évaluation en mémoire).
 ```php
 $result = $registry->execute('COUNT', ['a', 'b', 'c']); // 3
 $result = $registry->execute('SUM', [10, 20, 30]); // 60.0
+$result = $registry->execute('REGEXP', 'hello'); // 'hello'
 ```
 
 ---
@@ -151,6 +156,7 @@ Retourne la valeur par défaut pour une fonction.
 ```php
 $default = $registry->getDefaultValue('COUNT'); // 0
 $default = $registry->getDefaultValue('AVG'); // 0.0
+$default = $registry->getDefaultValue('REGEXP'); // 0
 ```
 
 ---
@@ -170,6 +176,7 @@ Valide les arguments pour une fonction enregistrée.
 ```php
 $valid = $registry->validateArgs('COUNT', ['addresses']); // true
 $valid = $registry->validateArgs('COUNT', ['addresses', 'city']); // false
+$valid = $registry->validateArgs('REGEXP', ['name', '^John.*']); // true
 ```
 
 ---
@@ -196,6 +203,7 @@ Retourne le type de retour pour une fonction enregistrée.
 ```php
 $type = $registry->getReturnType('COUNT'); // 'int'
 $type = $registry->getReturnType('AVG'); // 'float'
+$type = $registry->getReturnType('REGEXP'); // 'int'
 ```
 
 ---
@@ -233,6 +241,10 @@ $sql = $registry->toSql('AVG', 'clusters', 'scores', DatabaseDriver::MYSQL);
 // PostgreSQL
 $sql = $registry->toSql('SUM', 'clusters', 'prices', DatabaseDriver::PGSQL);
 // (clusters->>'prices')::numeric
+
+// REGEXP MySQL
+$sql = $registry->toSql('REGEXP', 'clusters', 'name', DatabaseDriver::MYSQL);
+// JSON_EXTRACT(clusters, '$.name')
 ```
 
 ### Cas 2 : Évaluation en mémoire
@@ -242,6 +254,7 @@ $sql = $registry->toSql('SUM', 'clusters', 'prices', DatabaseDriver::PGSQL);
 $count = $registry->execute('COUNT', ['a', 'b', 'c']); // 3
 $sum = $registry->execute('SUM', [10, 20, 30]); // 60.0
 $avg = $registry->execute('AVG', [80, 90, 100]); // 90.0
+$regexp = $registry->execute('REGEXP', 'hello'); // 'hello'
 ```
 
 ### Cas 3 : Enregistrement d'une fonction personnalisée
@@ -255,6 +268,7 @@ final class CustomFunction extends AbstractSqlFunction
     public function toSql(...): string { /* ... */ }
     public function execute(mixed $value): mixed { /* ... */ }
     public function getReturnType(): string { return 'int'; }
+    public function validateArgs(array $args): bool { return count($args) === 1; }
 }
 
 $registry = new SqlFunctionRegistry();
@@ -264,11 +278,34 @@ $registry->register(new CustomFunction());
 ### Cas 4 : Validation d'arguments
 
 ```php
+// COUNT attend 1 argument
 $valid = $registry->validateArgs('COUNT', ['addresses']);
 // true
 
 $valid = $registry->validateArgs('COUNT', ['addresses', 'city']);
 // false
+
+// REGEXP attend 2 arguments
+$valid = $registry->validateArgs('REGEXP', ['name', '^John.*']);
+// true
+
+$valid = $registry->validateArgs('REGEXP', ['name']);
+// false
+```
+
+### Cas 5 : Utilisation de REGEXP dans une requête
+
+```php
+use App\Models\User;
+
+// Utilisateurs dont le nom commence par "John"
+$users = User::whereCluster('clusters', 'REGEXP(name, "^John.*")')->get();
+
+// Utilisateurs avec un email Gmail
+$users = User::whereCluster('clusters', 'REGEXP(email, ".*@gmail\.com$")')->get();
+
+// Combinaison avec d'autres conditions
+$users = User::whereCluster('clusters', 'REGEXP(name, "^John.*") & status=active')->get();
 ```
 
 ---
@@ -301,7 +338,7 @@ Le registre est utilisé par :
 
 | Version Database | Support |
 |------------------|---------|
-| SQLite 3.9+ | ✅ Complet |
+| SQLite 3.9+ | ✅ Complet (REGEXP nécessite l'extension) |
 | MySQL 5.7+ | ✅ Complet |
 | PostgreSQL 9.4+ | ✅ Complet |
 
@@ -322,7 +359,7 @@ $registry = new SqlFunctionRegistry();
 
 // Vérification des fonctions disponibles
 $available = $registry->getNames();
-// ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'LENGTH', 'JSON_LENGTH']
+// ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'LENGTH', 'JSON_LENGTH', 'REGEXP']
 
 // Vérification d'une fonction
 if ($registry->has('COUNT')) {
@@ -342,6 +379,18 @@ if ($registry->has('COUNT')) {
     // Return type: int
 }
 
+// Vérification de REGEXP
+if ($registry->has('REGEXP')) {
+    // Génération SQL
+    $sql = $registry->toSql('REGEXP', 'clusters', 'name', DatabaseDriver::MYSQL);
+    echo "SQL: $sql\n";
+    // SQL: JSON_EXTRACT(clusters, '$.name')
+
+    // Validation des arguments
+    $valid = $registry->validateArgs('REGEXP', ['name', '^John.*']);
+    var_dump($valid); // bool(true)
+}
+
 // Toutes les fonctions
 $allFunctions = $registry->all();
 foreach ($allFunctions as $name => $function) {
@@ -355,6 +404,8 @@ var_dump($valid); // bool(true)
 // Valeur par défaut
 $default = $registry->getDefaultValue('COUNT');
 var_dump($default); // int(0)
+$default = $registry->getDefaultValue('REGEXP');
+var_dump($default); // int(0)
 ```
 
 ---
@@ -365,3 +416,4 @@ var_dump($default); // int(0)
 - `AbstractSqlFunction` - Classe abstraite de base
 - `DatabaseDriver` - Énumération des drivers supportés
 - `FunctionNode` - Nœud de fonction dans l'AST
+- `RegexpFunction` - Fonction SQL pour les expressions régulières

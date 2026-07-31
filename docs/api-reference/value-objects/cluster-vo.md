@@ -2,13 +2,13 @@
 
 ## Description
 
-Value Object représentant un cluster de données pour l'évaluation des requêtes. Il encapsule une structure de données imbriquée en fournissant à la fois une version aplatie (pour un accès rapide) et une version imbriquée (pour l'intégrité des données).
+Value Object représentant un cluster de données pour l'évaluation des requêtes. Il encapsule une structure de données imbriquée en fournissant à la fois une version aplatie (pour un accès rapide) et une version imbriquée (pour l'intégrité des données). Il implémente également `ArrayAccess` pour un accès natif comme un tableau.
 
 ## Hiérarchie
 
 ```
 AbstractValueObject
-    └── ClusterVO
+    └── ClusterVO (implements ArrayAccess)
 ```
 
 ## Rôle principal
@@ -18,6 +18,7 @@ Fournit un conteneur de données optimisé pour les opérations de requête avec
 - **Accès rapide** : Recherche de valeurs par clé en O(1)
 - **Validation stricte** : Types de données autorisés et clés valides
 - **Double représentation** : Accès aux données aplaties et imbriquées
+- **ArrayAccess** : Accès natif comme un tableau (`$cluster['key']`)
 
 ---
 
@@ -151,6 +152,76 @@ $array = $cluster->toArray();
 
 ---
 
+### `offsetExists(mixed $offset): bool` (ArrayAccess)
+
+Vérifie si une clé existe en utilisant la syntaxe de tableau.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$offset` | `mixed` | La clé à vérifier |
+
+**Retourne :** `bool` - `true` si la clé existe
+
+**Exemple :**
+```php
+if (isset($cluster['user.name'])) {
+    // La clé existe
+}
+```
+
+---
+
+### `offsetGet(mixed $offset): mixed` (ArrayAccess)
+
+Récupère une valeur en utilisant la syntaxe de tableau.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$offset` | `mixed` | La clé à récupérer |
+
+**Retourne :** `mixed` - La valeur ou `null` si la clé n'existe pas
+
+**Exemple :**
+```php
+$name = $cluster['user.name']; // 'John Doe'
+```
+
+---
+
+### `offsetSet(mixed $offset, mixed $value): void` (ArrayAccess)
+
+Tentative de modification du cluster. Le cluster est immutable, cette méthode lance une exception.
+
+**Exceptions :** `RuntimeException` - Toujours levée car le cluster est immutable
+
+**Exemple :**
+```php
+try {
+    $cluster['status'] = 'inactive'; // Lance une RuntimeException
+} catch (RuntimeException $e) {
+    echo $e->getMessage(); // "ClusterVO is immutable..."
+}
+```
+
+---
+
+### `offsetUnset(mixed $offset): void` (ArrayAccess)
+
+Tentative de suppression d'une clé. Le cluster est immutable, cette méthode lance une exception.
+
+**Exceptions :** `RuntimeException` - Toujours levée car le cluster est immutable
+
+**Exemple :**
+```php
+try {
+    unset($cluster['status']); // Lance une RuntimeException
+} catch (RuntimeException $e) {
+    echo $e->getMessage(); // "ClusterVO is immutable..."
+}
+```
+
+---
+
 ## Types de données supportés
 
 | Type | Support | Commentaire |
@@ -168,13 +239,42 @@ $array = $cluster->toArray();
 
 ## Cas d'utilisation
 
-### Cas 1 : Création et accès aux données
+### Cas 1 : Accès natif comme un tableau
 
 ```php
 <?php
 
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
+$cluster = new ClusterVO([
+    'status' => 'active',
+    'role' => 'admin',
+    'user' => [
+        'name' => 'John Doe',
+        'age' => 30,
+    ],
+]);
+
+// Accès comme un tableau (ArrayAccess)
+echo $cluster['status']; // 'active'
+echo $cluster['user.name']; // 'John Doe'
+
+// Vérification d'existence comme un tableau
+if (isset($cluster['user.email'])) {
+    echo $cluster['user.email'];
+}
+
+// Tentative de modification (immutable)
+try {
+    $cluster['status'] = 'inactive';
+} catch (RuntimeException $e) {
+    echo $e->getMessage(); // "ClusterVO is immutable..."
+}
+```
+
+### Cas 2 : Création et accès aux données
+
+```php
 $cluster = new ClusterVO([
     'user' => [
         'name' => 'John Doe',
@@ -187,17 +287,46 @@ $cluster = new ClusterVO([
 
 // Accès aux données aplaties
 echo $cluster->get('user.name'); // John Doe
-echo $cluster->get('user.age'); // 30
+echo $cluster['user.age']; // 30 (ArrayAccess)
 echo $cluster->get('roles_admin'); // true
-echo $cluster->get('active'); // true
+echo $cluster['active']; // true
 
 // Vérification d'existence
 if ($cluster->has('user.email')) {
-    $email = $cluster->get('user.email');
+    $email = $cluster['user.email'];
 }
 ```
 
-### Cas 2 : Structures imbriquées complexes
+### Cas 3 : Utilisation avec Eloquent Cast
+
+```php
+$user = User::find(1);
+
+// Le cast ClusterCast retourne un ClusterVO
+$cluster = $user->metadata;
+
+// Accès natif comme un tableau
+$status = $cluster['status']; // 'active'
+$role = $cluster['role']; // 'admin'
+
+// Vérification d'existence
+if (isset($cluster['preferences.theme'])) {
+    $theme = $cluster['preferences.theme'];
+}
+
+// Modification impossible
+try {
+    $user->metadata['status'] = 'inactive'; // Lance une exception
+} catch (RuntimeException $e) {
+    // Pour modifier, il faut réassigner
+    $data = $user->metadata->toArray();
+    $data['status'] = 'inactive';
+    $user->metadata = $data;
+    $user->save();
+}
+```
+
+### Cas 4 : Structures imbriquées complexes
 
 ```php
 $cluster = new ClusterVO([
@@ -215,15 +344,12 @@ $cluster = new ClusterVO([
     ],
 ]);
 
-// Les tableaux imbriqués sont JSON encodés
-$addresses = $cluster->get('addresses');
-// '[{"city":"Kinshasa","country":"RDC","is_primary":"true"},...]'
-
-// Accès via notation pointée après aplatissement
-$hasKinshasa = $cluster->has('addresses_Kinshasa'); // true
+// Accès comme un tableau
+$firstAddress = $cluster['addresses_Kinshasa']; // true
+$hasParis = isset($cluster['addresses_Paris']); // true
 ```
 
-### Cas 3 : Décodage JSON automatique
+### Cas 5 : Décodage JSON automatique
 
 ```php
 $cluster = new ClusterVO([
@@ -233,25 +359,9 @@ $cluster = new ClusterVO([
 // getUnflattened décode automatiquement le JSON
 $unflattened = $cluster->getUnflattened();
 // ['settings' => ['theme' => 'dark', 'notifications' => true]]
-```
 
-### Cas 4 : Utilisation avec les requêtes
-
-```php
-$cluster = new ClusterVO([
-    'status' => 'active',
-    'role' => 'admin',
-    'addresses' => [
-        ['city' => 'Kinshasa'],
-        ['city' => 'Paris'],
-    ],
-]);
-
-// Vérification d'une condition simple
-$isActive = $cluster->get('status') === 'active';
-
-// Vérification d'existence d'une clé aplatie
-$hasKinshasa = $cluster->has('addresses_Kinshasa');
+// Accès comme un tableau
+$theme = $cluster['settings_theme']; // true (via aplatissement)
 ```
 
 ---
@@ -265,6 +375,8 @@ $hasKinshasa = $cluster->has('addresses_Kinshasa');
 | Objet non stdClass | `InvalidArgumentException` | `Cluster values must be string, int, float, bool, array or null. Got object for key "{key}"` |
 | Resource | `InvalidArgumentException` | `Cluster values cannot be resources. Got resource for key "{key}"` |
 | Type invalide après aplatissement | `InvalidArgumentException` | `Cluster values must be string, int, float or null after flatten. Got {type} for key "{key}"` |
+| Tentative de modification (ArrayAccess) | `RuntimeException` | `ClusterVO is immutable. Use toArray() and create a new instance to modify.` |
+| Tentative de suppression (ArrayAccess) | `RuntimeException` | `ClusterVO is immutable. Use toArray() and create a new instance to modify.` |
 
 ---
 
@@ -273,6 +385,8 @@ $hasKinshasa = $cluster->has('addresses_Kinshasa');
 - **Construction :** O(n) où n est le nombre de nœuds dans la structure
 - **get() :** O(1) - Accès direct au tableau aplati
 - **has() :** O(1) - Vérification directe dans le tableau
+- **offsetGet() :** O(1) - Même performance que get()
+- **offsetExists() :** O(1) - Même performance que has()
 - **getUnflattened() :** O(n) - Reconstruction de la structure imbriquée
 - **Mémoire :** Stocke deux représentations (aplatie et imbriquée)
 
@@ -323,15 +437,24 @@ $cluster = new ClusterVO([
 
 // ==================== ACCÈS AUX DONNÉES ====================
 
-// Accès simple
+// Accès via get()
 echo "Name: " . $cluster->get('name') . "\n";
 echo "Status: " . $cluster->get('status') . "\n";
 echo "Age: " . $cluster->get('age') . "\n";
 echo "Verified: " . $cluster->get('verified') . "\n"; // 'true'
 
+// Accès via ArrayAccess (syntaxe tableau)
+echo "Name (array): " . $cluster['name'] . "\n";
+echo "Status (array): " . $cluster['status'] . "\n";
+
 // Vérification d'existence
 if ($cluster->has('addresses')) {
     echo "Has addresses\n";
+}
+
+// Vérification via ArrayAccess
+if (isset($cluster['addresses'])) {
+    echo "Has addresses (array)\n";
 }
 
 // Clés disponibles
@@ -343,42 +466,17 @@ echo "Keys: " . implode(', ', $keys) . "\n";
 // Données aplaties
 $flattened = $cluster->toArray();
 print_r($flattened);
-// [
-//     'id' => 1,
-//     'name' => 'John Doe',
-//     'status' => 'active',
-//     'role' => 'admin',
-//     'age' => 30,
-//     'verified' => 'true',
-//     'addresses' => '[{"city":"Kinshasa",...}]',
-//     'scores' => '[85,90,78]',
-//     'tags' => '["php","js","docker"]',
-// ]
 
 // Données imbriquées (avec JSON décodés)
 $nested = $cluster->getUnflattened()->toArray();
 print_r($nested);
-// [
-//     'id' => 1,
-//     'name' => 'John Doe',
-//     'status' => 'active',
-//     'role' => 'admin',
-//     'age' => 30,
-//     'verified' => 'true',
-//     'addresses' => [
-//         ['city' => 'Kinshasa', 'country' => 'RDC', 'is_primary' => true],
-//         ['city' => 'Paris', 'country' => 'France', 'is_primary' => false],
-//     ],
-//     'scores' => [85, 90, 78],
-//     'tags' => ['php', 'js', 'docker'],
-// ]
 
 // ==================== UTILISATION AVEC LES REQUÊTES ====================
 
 // Vérification de conditions
-$isActive = $cluster->get('status') === 'active';
-$isAdmin = $cluster->get('role') === 'admin';
-$isAdult = $cluster->get('age') >= 18;
+$isActive = $cluster['status'] === 'active';
+$isAdmin = $cluster['role'] === 'admin';
+$isAdult = $cluster['age'] >= 18;
 
 if ($isActive && $isAdmin && $isAdult) {
     echo "User is active admin and adult\n";
@@ -387,6 +485,26 @@ if ($isActive && $isAdmin && $isAdult) {
 // Vérification de présence de valeurs dans les tableaux aplatis
 $hasPhp = $cluster->has('tags_php'); // true
 $hasKinshasa = $cluster->has('addresses_Kinshasa'); // true
+
+// Vérification via ArrayAccess
+$hasJs = isset($cluster['tags_js']); // true
+
+// ==================== IMMUTABILITÉ ====================
+
+// Tentative de modification (échec)
+try {
+    $cluster['status'] = 'inactive';
+} catch (RuntimeException $e) {
+    echo "Cannot modify: " . $e->getMessage() . "\n";
+}
+
+// Pour modifier, il faut créer une nouvelle instance
+$data = $cluster->toArray();
+$data['status'] = 'inactive';
+$newCluster = new ClusterVO($data);
+
+echo "Old status: " . $cluster['status'] . "\n"; // active
+echo "New status: " . $newCluster['status'] . "\n"; // inactive
 ```
 
 ---
@@ -397,3 +515,4 @@ $hasKinshasa = $cluster->has('addresses_Kinshasa'); // true
 - `StrictAssociative` - Collection associative stricte
 - `ClusterVOCollection` - Collection de clusters
 - `ClusterQuery` - Moteur de requêtes
+- `ClusterCast` - Cast Eloquent pour les clusters

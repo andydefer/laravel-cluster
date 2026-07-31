@@ -7,6 +7,7 @@ namespace AndyDefer\LaravelCluster\ValueObjects;
 use AndyDefer\DomainStructures\Abstracts\AbstractValueObject;
 use AndyDefer\DomainStructures\Utils\StrictAssociative;
 use AndyDefer\LaravelCluster\Services\FlatArrayService;
+use ArrayAccess;
 use InvalidArgumentException;
 
 /**
@@ -27,14 +28,16 @@ use InvalidArgumentException;
  * ]);
  *
  * // Access flattened values
- * $name = $cluster->get('user.name'); // 'John'
+ * $name = $cluster['user.name']; // 'John'
  * $hasRole = $cluster->has('roles_admin'); // true
  *
  * // Access the full data
  * $flat = $cluster->toArray();
  * $nested = $cluster->getUnflattened();
+ *
+ * @implements ArrayAccess<string, mixed>
  */
-final class ClusterVO extends AbstractValueObject
+final class ClusterVO extends AbstractValueObject implements ArrayAccess
 {
     private readonly StrictAssociative $flattenedData;
 
@@ -117,7 +120,6 @@ final class ClusterVO extends AbstractValueObject
             } elseif (is_string($value) && $this->isJson($value)) {
                 $decoded = json_decode($value, true);
                 if (json_last_error() === JSON_ERROR_NONE) {
-                    // Si le JSON décodé est un tableau, on le traite récursivement
                     if (is_array($decoded)) {
                         $result[$key] = $this->decodeJsonValues($decoded);
                     } else {
@@ -189,6 +191,50 @@ final class ClusterVO extends AbstractValueObject
     {
         return $this->flattenedData->toArray();
     }
+
+    // ==================== ArrayAccess Implementation ====================
+
+    /**
+     * {@inheritDoc}
+     */
+    public function offsetExists(mixed $offset): bool
+    {
+        if (! is_string($offset)) {
+            return false;
+        }
+
+        return $this->has($offset);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function offsetGet(mixed $offset): mixed
+    {
+        if (! is_string($offset)) {
+            return null;
+        }
+
+        return $this->get($offset);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function offsetSet(mixed $offset, mixed $value): void
+    {
+        throw new \RuntimeException('ClusterVO is immutable. Use toArray() and create a new instance to modify.');
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function offsetUnset(mixed $offset): void
+    {
+        throw new \RuntimeException('ClusterVO is immutable. Use toArray() and create a new instance to modify.');
+    }
+
+    // ==================== Validation Methods ====================
 
     /**
      * Validates the input data before flattening.

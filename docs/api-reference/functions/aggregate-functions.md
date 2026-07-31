@@ -2,7 +2,7 @@
 
 ## Description
 
-Les fonctions d'agrégation fournissent des opérations de calcul et de validation sur les données extraites des clusters. Elles permettent d'effectuer des analyses statistiques (moyenne, somme, min, max), des comptages, des vérifications d'existence et des recherches dans les structures de données.
+Les fonctions d'agrégation fournissent des opérations de calcul et de validation sur les données extraites des clusters. Elles permettent d'effectuer des analyses statistiques (moyenne, somme, min, max), des comptages, des vérifications d'existence, des recherches dans les structures de données et des correspondances par expressions régulières.
 
 ## Hiérarchie
 
@@ -16,6 +16,7 @@ AggregateFunctionInterface
             ├── HasFunction
             ├── IsEmptyFunction
             ├── LengthFunction
+            ├── MatchesFunction
             ├── MaxFunction
             ├── MinFunction
             └── SumFunction
@@ -270,6 +271,52 @@ $result = $length->execute($data, ['name']);
 
 ---
 
+# MatchesFunction
+
+## Description
+
+Recherche une valeur correspondant à une expression régulière dans un tableau ou un tableau d'objets.
+
+Cette fonction supporte deux modes d'utilisation :
+- Avec 2 arguments : Recherche une regex dans un tableau de valeurs
+- Avec 3 arguments : Recherche une regex sur une clé spécifique dans un tableau d'objets
+
+## API
+
+### `execute(array $data, array $args): bool`
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$data` | `array<string, mixed>` | Les données source |
+| `$args` | `array<int, string>` | Arguments : `[path, key, pattern?]` |
+
+**Retourne :** `bool` - `true` si la regex correspond à une valeur
+
+**Exemples :**
+```php
+$matches = new MatchesFunction();
+
+// Recherche d'une regex dans un tableau de valeurs
+$data = ['tags' => ['php', 'javascript', 'css']];
+$result = $matches->execute($data, ['tags', '/^ja.*/']);
+// true (javascript match)
+
+// Recherche d'une regex sur une clé spécifique
+$data = ['addresses' => [['city' => 'Kinshasa'], ['city' => 'Paris']]];
+$result = $matches->execute($data, ['addresses', 'city', '/^Kin.*/']);
+// true (Kinshasa match)
+
+// Regex insensible à la casse
+$result = $matches->execute($data, ['tags', '/^ja.*/i']);
+// true
+
+// Aucun match
+$result = $matches->execute($data, ['tags', '/^python.*/']);
+// false
+```
+
+---
+
 # MaxFunction
 
 ## Description
@@ -402,6 +449,22 @@ $result = $collection->whereAggregate('{ALL(addresses, country, "RDC")}');
 // Retourne les clusters où toutes les adresses sont en RDC
 ```
 
+### Cas 6 : Recherche par expression régulière sur un tableau
+
+```php
+// Tags commençant par "ja"
+$result = $collection->whereAggregate('{MATCHES(tags, "/^ja.*/")}');
+
+// Tags insensibles à la casse
+$result = $collection->whereAggregate('{MATCHES(tags, "/^ja.*/i")}');
+
+// Villes commençant par "Kin" dans un tableau d'objets
+$result = $collection->whereAggregate('{MATCHES(addresses, city, "/^Kin.*/")}');
+
+// Regex avec caractères spéciaux
+$result = $collection->whereAggregate('{MATCHES(codes, "/^[A-Z]{3}-\\d{3}$/")}');
+```
+
 ---
 
 ## Gestion des erreurs
@@ -411,6 +474,7 @@ $result = $collection->whereAggregate('{ALL(addresses, country, "RDC")}');
 | Fonction inconnue | `InvalidArgumentException` | `Function "{name}" not registered` |
 | Nombre d'arguments invalide | `InvalidArgumentException` | Message personnalisé selon la fonction |
 | Chemin inexistant | Retourne `null` ou valeur par défaut | - |
+| Regex invalide | Retourne `false` | - |
 
 ---
 
@@ -430,6 +494,7 @@ Les fonctions d'agrégation sont utilisées par :
 - **Complexité :** O(n) où n est le nombre d'éléments dans le tableau cible
 - **Extraction des nombres :** Récursive, peut être coûteuse pour des structures profondément imbriquées
 - **Cache :** Les expressions sont parsées et mises en cache par `AggregateEvaluatorService`
+- **MATCHES :** Les regex sont compilées à chaque exécution, utilisez avec parcimonie sur de grands ensembles de données
 - **Recommandation :** Éviter les fonctions d'agrégation sur de très grands tableaux (> 10 000 éléments) en mémoire
 
 ---
@@ -460,7 +525,7 @@ $collection->add(new ClusterVO([
     'addresses' => ['a', 'b', 'c'],
     'scores' => [80, 90, 85],
     'prices' => [100, 200, 300],
-    'tags' => ['php', 'js'],
+    'tags' => ['php', 'javascript', 'docker'],
     'addresses_detail' => [
         ['city' => 'Kinshasa', 'country' => 'RDC'],
         ['city' => 'Paris', 'country' => 'France'],
@@ -486,9 +551,9 @@ $result = $collection->whereAggregate('{COUNT(addresses) > 2}');
 $result = $collection->whereAggregate('{AVG(scores) >= 85}');
 // John
 
-// Filtrer les clusters avec un tag "php"
-$result = $collection->whereAggregate('{HAS(tags, "php")}');
-// John
+// Filtrer les clusters avec un tag commençant par "ja"
+$result = $collection->whereAggregate('{MATCHES(tags, "/^ja.*/")}');
+// John (javascript)
 
 // Filtrer les clusters dont toutes les adresses sont en RDC
 $result = $collection->whereAggregate('{ALL(addresses_detail, country, "RDC")}');
@@ -497,6 +562,12 @@ $result = $collection->whereAggregate('{ALL(addresses_detail, country, "RDC")}')
 // Combinaison d'expressions
 $result = $collection->whereAggregate(
     '{COUNT(addresses) > 1} & {AVG(scores) >= 80}'
+);
+// John
+
+// Combinaison avec regex
+$result = $collection->whereAggregate(
+    '{MATCHES(tags, "/^ja.*/")} & {COUNT(addresses) > 2}'
 );
 // John
 ```
@@ -509,3 +580,4 @@ $result = $collection->whereAggregate(
 - `AggregateFunctionRegistry` - Registre des fonctions d'agrégation
 - `SqlFunctionRegistry` - Registre des fonctions SQL
 - `ClusterVOCollection::whereAggregate()` - Filtrage par expression d'agrégation
+- `MatchesFunction` - Fonction d'agrégation pour les expressions régulières
