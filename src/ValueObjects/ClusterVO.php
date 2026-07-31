@@ -37,22 +37,22 @@ use InvalidArgumentException;
  *
  * @implements ArrayAccess<string, mixed>
  */
-final class ClusterVO extends AbstractValueObject implements ArrayAccess
+class ClusterVO extends AbstractValueObject implements ArrayAccess
 {
-    private readonly StrictAssociative $flattenedData;
+    protected readonly StrictAssociative $flattenedData;
 
-    private readonly StrictAssociative $nestedData;
+    protected readonly StrictAssociative $nestedData;
 
-    private readonly FlatArrayService $flatArrayService;
+    protected readonly FlatArrayService $flatArrayService;
 
-    private readonly array $originalNestedData;
+    protected readonly array $originalNestedData;
 
     /**
      * @param  array<string, mixed>  $data  The cluster data
      *
      * @throws InvalidArgumentException If data contains unsupported types or is empty
      */
-    public function __construct(array $data)
+    final public function __construct(array $data)
     {
         if (empty($data)) {
             throw new InvalidArgumentException('Cluster cannot be empty');
@@ -76,7 +76,7 @@ final class ClusterVO extends AbstractValueObject implements ArrayAccess
      *
      * @return StrictAssociative The flattened data with dot-notated keys
      */
-    public function getValue(): StrictAssociative
+    final public function getValue(): StrictAssociative
     {
         return $this->flattenedData;
     }
@@ -87,7 +87,7 @@ final class ClusterVO extends AbstractValueObject implements ArrayAccess
      *
      * @return StrictAssociative The original nested structure with JSON decoded
      */
-    public function getUnflattened(): StrictAssociative
+    final public function getUnflattened(): StrictAssociative
     {
         $data = $this->originalNestedData;
         $decoded = $this->decodeJsonValues($data);
@@ -99,7 +99,7 @@ final class ClusterVO extends AbstractValueObject implements ArrayAccess
      * Returns the nested (unflattened) representation as an array.
      * Automatically decodes JSON strings to arrays.
      */
-    public function getNestedData(): array
+    final public function getNestedData(): array
     {
         return $this->decodeJsonValues($this->originalNestedData);
     }
@@ -155,7 +155,7 @@ final class ClusterVO extends AbstractValueObject implements ArrayAccess
      * @param  string  $key  The dot-notated key to check
      * @return bool True if the key exists
      */
-    public function has(string $key): bool
+    final public function has(string $key): bool
     {
         return $this->flattenedData->has($key);
     }
@@ -167,7 +167,7 @@ final class ClusterVO extends AbstractValueObject implements ArrayAccess
      * @param  mixed  $default  The default value if key doesn't exist
      * @return mixed The value or default
      */
-    public function get(string $key, mixed $default = null): mixed
+    final public function get(string $key, mixed $default = null): mixed
     {
         return $this->flattenedData->get($key, $default);
     }
@@ -177,7 +177,7 @@ final class ClusterVO extends AbstractValueObject implements ArrayAccess
      *
      * @return array<int, string> The list of dot-notated keys
      */
-    public function keys(): array
+    final public function keys(): array
     {
         return array_keys($this->flattenedData->toArray());
     }
@@ -187,7 +187,7 @@ final class ClusterVO extends AbstractValueObject implements ArrayAccess
      *
      * @return array<string, int|float|string|null> The flattened data
      */
-    public function toArray(): array
+    final public function toArray(): array
     {
         return $this->flattenedData->toArray();
     }
@@ -197,7 +197,7 @@ final class ClusterVO extends AbstractValueObject implements ArrayAccess
     /**
      * {@inheritDoc}
      */
-    public function offsetExists(mixed $offset): bool
+    final public function offsetExists(mixed $offset): bool
     {
         if (! is_string($offset)) {
             return false;
@@ -209,7 +209,7 @@ final class ClusterVO extends AbstractValueObject implements ArrayAccess
     /**
      * {@inheritDoc}
      */
-    public function offsetGet(mixed $offset): mixed
+    final public function offsetGet(mixed $offset): mixed
     {
         if (! is_string($offset)) {
             return null;
@@ -221,7 +221,7 @@ final class ClusterVO extends AbstractValueObject implements ArrayAccess
     /**
      * {@inheritDoc}
      */
-    public function offsetSet(mixed $offset, mixed $value): void
+    final public function offsetSet(mixed $offset, mixed $value): void
     {
         throw new \RuntimeException('ClusterVO is immutable. Use toArray() and create a new instance to modify.');
     }
@@ -229,7 +229,7 @@ final class ClusterVO extends AbstractValueObject implements ArrayAccess
     /**
      * {@inheritDoc}
      */
-    public function offsetUnset(mixed $offset): void
+    final public function offsetUnset(mixed $offset): void
     {
         throw new \RuntimeException('ClusterVO is immutable. Use toArray() and create a new instance to modify.');
     }
