@@ -78,7 +78,7 @@ class ClusterVO extends AbstractValueObject implements ArrayAccess
      */
     final public function getValue(): StrictAssociative
     {
-        return $this->flattenedData;
+        return $this->getUnflattened();
     }
 
     /**
