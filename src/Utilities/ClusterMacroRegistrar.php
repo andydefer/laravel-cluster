@@ -34,6 +34,10 @@ final class ClusterMacroRegistrar
             };
 
             $clusterQuery = app(ClusterQuery::class);
+
+            // ✅ TESTER LE SQL GÉNÉRÉ
+            $sql = $clusterQuery->toSql($column, $query, $driver);
+
             $clusterQuery->applyToEloquent($this, $column, $query, $driver);
 
             return $this;

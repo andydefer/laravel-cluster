@@ -323,4 +323,309 @@ final class ClusterMacroTest extends IntegrationTestCase
         $result = $query->get();
         $this->assertCount(2, $result);
     }
+
+    // ==================== DOT NOTATION TESTS ====================
+
+    public function test_where_cluster_with_dot_notation_simple(): void
+    {
+        TestCluster::truncate();
+
+        TestCluster::create([
+            'name' => 'Dot Test User',
+            'email' => 'dot@example.com',
+            'clusters' => [
+                'profile' => [
+                    'is_verified' => 'true',
+                    'years_experience' => 5,
+                ],
+                'settings' => [
+                    'theme' => 'dark',
+                ],
+            ],
+        ]);
+
+        TestCluster::create([
+            'name' => 'Dot Test User 2',
+            'email' => 'dot2@example.com',
+            'clusters' => [
+                'profile' => [
+                    'is_verified' => 'false',
+                    'years_experience' => 3,
+                ],
+                'settings' => [
+                    'theme' => 'light',
+                ],
+            ],
+        ]);
+
+        $result = TestCluster::whereCluster($this->column, 'profile.is_verified=true')->get();
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Dot Test User', $result->first()->name);
+    }
+
+    public function test_where_cluster_with_dot_notation_and_condition(): void
+    {
+        TestCluster::truncate();
+
+        TestCluster::create([
+            'name' => 'Dot Test User 1',
+            'email' => 'dot1@example.com',
+            'clusters' => [
+                'profile' => [
+                    'is_verified' => 'true',
+                    'years_experience' => 5,
+                ],
+                'settings' => [
+                    'theme' => 'dark',
+                ],
+            ],
+        ]);
+
+        TestCluster::create([
+            'name' => 'Dot Test User 2',
+            'email' => 'dot2@example.com',
+            'clusters' => [
+                'profile' => [
+                    'is_verified' => 'true',
+                    'years_experience' => 3,
+                ],
+                'settings' => [
+                    'theme' => 'light',
+                ],
+            ],
+        ]);
+
+        TestCluster::create([
+            'name' => 'Dot Test User 3',
+            'email' => 'dot3@example.com',
+            'clusters' => [
+                'profile' => [
+                    'is_verified' => 'false',
+                    'years_experience' => 5,
+                ],
+                'settings' => [
+                    'theme' => 'dark',
+                ],
+            ],
+        ]);
+
+        $result = TestCluster::whereCluster($this->column, 'profile.is_verified=true & profile.years_experience>3')->get();
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Dot Test User 1', $result->first()->name);
+    }
+
+    public function test_where_cluster_with_dot_notation_deep(): void
+    {
+        TestCluster::truncate();
+
+        TestCluster::create([
+            'name' => 'Deep Dot User',
+            'email' => 'deep@example.com',
+            'clusters' => [
+                'user' => [
+                    'profile' => [
+                        'address' => [
+                            'city' => 'Kinshasa',
+                            'country' => 'RDC',
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        TestCluster::create([
+            'name' => 'Deep Dot User 2',
+            'email' => 'deep2@example.com',
+            'clusters' => [
+                'user' => [
+                    'profile' => [
+                        'address' => [
+                            'city' => 'Paris',
+                            'country' => 'France',
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = TestCluster::whereCluster($this->column, 'user.profile.address.city=Kinshasa')->get();
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Deep Dot User', $result->first()->name);
+    }
+
+    public function test_where_cluster_with_dot_notation_and_numeric_operator(): void
+    {
+        TestCluster::truncate();
+
+        TestCluster::create([
+            'name' => 'Numeric Dot User',
+            'email' => 'numeric@example.com',
+            'clusters' => [
+                'profile' => [
+                    'years_experience' => 5,
+                ],
+            ],
+        ]);
+
+        TestCluster::create([
+            'name' => 'Numeric Dot User 2',
+            'email' => 'numeric2@example.com',
+            'clusters' => [
+                'profile' => [
+                    'years_experience' => 3,
+                ],
+            ],
+        ]);
+
+        $result = TestCluster::whereCluster($this->column, 'profile.years_experience>3')->get();
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Numeric Dot User', $result->first()->name);
+    }
+
+    public function test_where_cluster_with_dot_notation_and_like(): void
+    {
+        TestCluster::truncate();
+
+        TestCluster::create([
+            'name' => 'Like Dot User',
+            'email' => 'like@example.com',
+            'clusters' => [
+                'profile' => [
+                    'name' => 'John Doe',
+                ],
+            ],
+        ]);
+
+        TestCluster::create([
+            'name' => 'Like Dot User 2',
+            'email' => 'like2@example.com',
+            'clusters' => [
+                'profile' => [
+                    'name' => 'Jane Smith',
+                ],
+            ],
+        ]);
+
+        $result = TestCluster::whereCluster($this->column, 'profile.name=~John%')->get();
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Like Dot User', $result->first()->name);
+    }
+
+    public function test_where_cluster_with_dot_notation_exists(): void
+    {
+        TestCluster::truncate();
+
+        TestCluster::create([
+            'name' => 'Exists Dot User',
+            'email' => 'exists@example.com',
+            'clusters' => [
+                'profile' => [
+                    'verified' => 'true',
+                ],
+            ],
+        ]);
+
+        TestCluster::create([
+            'name' => 'Exists Dot User 2',
+            'email' => 'exists2@example.com',
+            'clusters' => [
+                'status' => 'active',
+            ],
+        ]);
+
+        $result = TestCluster::whereCluster($this->column, '*profile.verified')->get();
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Exists Dot User', $result->first()->name);
+    }
+
+    public function test_where_cluster_with_dot_notation_not_exists(): void
+    {
+        TestCluster::truncate();
+
+        TestCluster::create([
+            'name' => 'Not Exists Dot User',
+            'email' => 'notexists@example.com',
+            'clusters' => [
+                'profile' => [
+                    'name' => 'John',
+                ],
+            ],
+        ]);
+
+        TestCluster::create([
+            'name' => 'Not Exists Dot User 2',
+            'email' => 'notexists2@example.com',
+            'clusters' => [
+                'profile' => [
+                    'verified' => 'true',
+                ],
+            ],
+        ]);
+
+        $result = TestCluster::whereCluster($this->column, '#profile.verified')->get();
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Not Exists Dot User', $result->first()->name);
+    }
+
+    public function test_where_cluster_with_dot_notation_combined_conditions(): void
+    {
+        TestCluster::truncate();
+
+        TestCluster::create([
+            'name' => 'Combined Dot User 1',
+            'email' => 'combined1@example.com',
+            'clusters' => [
+                'profile' => [
+                    'is_verified' => 'true',
+                    'years_experience' => 5,
+                ],
+                'settings' => [
+                    'theme' => 'dark',
+                ],
+            ],
+        ]);
+
+        TestCluster::create([
+            'name' => 'Combined Dot User 2',
+            'email' => 'combined2@example.com',
+            'clusters' => [
+                'profile' => [
+                    'is_verified' => 'true',
+                    'years_experience' => 3,
+                ],
+                'settings' => [
+                    'theme' => 'dark',
+                ],
+            ],
+        ]);
+
+        TestCluster::create([
+            'name' => 'Combined Dot User 3',
+            'email' => 'combined3@example.com',
+            'clusters' => [
+                'profile' => [
+                    'is_verified' => 'false',
+                    'years_experience' => 5,
+                ],
+                'settings' => [
+                    'theme' => 'dark',
+                ],
+            ],
+        ]);
+
+        $result = TestCluster::whereCluster(
+            $this->column,
+            'profile.is_verified=true & profile.years_experience>3 & settings.theme=dark'
+        )->get();
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Combined Dot User 1', $result->first()->name);
+    }
 }
