@@ -1882,4 +1882,395 @@ final class ClusterQueryTest extends IntegrationTestCase
 
         $this->assertStringContainsString('LENGTH(json_extract(clusters, \'$.name\')) > 5', $sql);
     }
+
+    // ==================== NESTED DOT NOTATION FILTER TESTS ====================
+
+    public function test_filter_with_dot_notation_simple(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'settings' => [
+                'theme' => 'dark',
+                'language' => 'fr',
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'settings' => [
+                'theme' => 'light',
+                'language' => 'en',
+            ],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'settings.theme=dark');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_dot_notation_and_nested_subcondition(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'settings' => [
+                'notifications' => [
+                    ['email' => 'true', 'sms' => 'false'],
+                ],
+                'theme' => 'dark',
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'settings' => [
+                'notifications' => [
+                    ['email' => 'false', 'sms' => 'true'],
+                ],
+                'theme' => 'light',
+            ],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'settings.notifications[email=true] & settings.theme=dark');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_deep_dot_notation(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'user' => [
+                'profile' => [
+                    'address' => [
+                        'city' => 'Kinshasa',
+                        'country' => 'RDC',
+                    ],
+                ],
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'user' => [
+                'profile' => [
+                    'address' => [
+                        'city' => 'Paris',
+                        'country' => 'France',
+                    ],
+                ],
+            ],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'user.profile.address.city=Kinshasa');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_dot_notation_and_numeric_operator(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'settings' => [
+                'age' => 25,
+                'score' => 85.5,
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'settings' => [
+                'age' => 30,
+                'score' => 92.0,
+            ],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'settings.age>25');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Jane', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_dot_notation_and_like(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'settings' => [
+                'name' => 'John Doe',
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'settings' => [
+                'name' => 'Jane Smith',
+            ],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'settings.name=~John%');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_dot_notation_and_combined_conditions(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'settings' => [
+                'theme' => 'dark',
+                'language' => 'fr',
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'settings' => [
+                'theme' => 'dark',
+                'language' => 'en',
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Bob',
+            'settings' => [
+                'theme' => 'light',
+                'language' => 'fr',
+            ],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, 'settings.theme=dark & settings.language=fr');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_dot_notation_exists(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'settings' => [
+                'theme' => 'dark',
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'settings' => [
+                'language' => 'en',
+            ],
+        ]));
+
+        $result = $this->clusterQuery->filter($collection, '*settings.theme');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('John', $result->get()[0]->get('name'));
+    }
+
+    public function test_filter_with_dot_notation_and_parentheses(): void
+    {
+        $collection = new ClusterVOCollection;
+        $collection->add(new ClusterVO([
+            'name' => 'John',
+            'settings' => [
+                'theme' => 'dark',
+                'language' => 'fr',
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Jane',
+            'settings' => [
+                'theme' => 'light',
+                'language' => 'fr',
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Bob',
+            'settings' => [
+                'theme' => 'dark',
+                'language' => 'en',
+            ],
+        ]));
+
+        $result = $this->clusterQuery->filter(
+            $collection,
+            '(settings.theme=dark | settings.theme=light) & settings.language=fr'
+        );
+
+        $this->assertCount(2, $result);
+    }
+
+    // ==================== NESTED DOT NOTATION ELOQUENT TESTS ====================
+
+    public function test_apply_to_eloquent_dot_notation_simple(): void
+    {
+        TestCluster::truncate();
+
+        TestCluster::create([
+            'clusters' => [
+                'name' => 'John',
+                'settings' => [
+                    'theme' => 'dark',
+                    'language' => 'fr',
+                ],
+            ],
+        ]);
+
+        TestCluster::create([
+            'clusters' => [
+                'name' => 'Jane',
+                'settings' => [
+                    'theme' => 'light',
+                    'language' => 'en',
+                ],
+            ],
+        ]);
+
+        $query = TestCluster::query();
+
+        $this->clusterQuery->applyToEloquent(
+            $query,
+            'clusters',
+            'settings.theme=dark',
+            DatabaseDriver::SQLITE
+        );
+
+        $results = $query->get();
+        $this->assertCount(1, $results);
+        $this->assertEquals('John', $results->first()->clusters['name']);
+    }
+
+    public function test_apply_to_eloquent_dot_notation_with_subcondition(): void
+    {
+        TestCluster::truncate();
+
+        TestCluster::create([
+            'clusters' => [
+                'name' => 'John',
+                'settings' => [
+                    'notifications' => [
+                        ['email' => 'true', 'sms' => 'false'],
+                    ],
+                    'theme' => 'dark',
+                ],
+            ],
+        ]);
+
+        TestCluster::create([
+            'clusters' => [
+                'name' => 'Jane',
+                'settings' => [
+                    'notifications' => [
+                        ['email' => 'false', 'sms' => 'true'],
+                    ],
+                    'theme' => 'light',
+                ],
+            ],
+        ]);
+
+        $query = TestCluster::query();
+
+        $this->clusterQuery->applyToEloquent(
+            $query,
+            'clusters',
+            'settings.notifications[email=true] & settings.theme=dark',
+            DatabaseDriver::SQLITE
+        );
+
+        $results = $query->get();
+        $this->assertCount(1, $results);
+        $this->assertEquals('John', $results->first()->clusters['name']);
+    }
+
+    public function test_apply_to_eloquent_deep_dot_notation(): void
+    {
+        TestCluster::truncate();
+
+        TestCluster::create([
+            'clusters' => [
+                'name' => 'John',
+                'user' => [
+                    'profile' => [
+                        'address' => [
+                            'city' => 'Kinshasa',
+                            'country' => 'RDC',
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        TestCluster::create([
+            'clusters' => [
+                'name' => 'Jane',
+                'user' => [
+                    'profile' => [
+                        'address' => [
+                            'city' => 'Paris',
+                            'country' => 'France',
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $query = TestCluster::query();
+
+        $this->clusterQuery->applyToEloquent(
+            $query,
+            'clusters',
+            'user.profile.address.city=Kinshasa',
+            DatabaseDriver::SQLITE
+        );
+
+        $results = $query->get();
+        $this->assertCount(1, $results);
+        $this->assertEquals('John', $results->first()->clusters['name']);
+    }
+
+    // ==================== NESTED DOT NOTATION MATCHES TESTS ====================
+
+    public function test_matches_dot_notation_true(): void
+    {
+        $cluster = new ClusterVO([
+            'settings' => [
+                'theme' => 'dark',
+            ],
+        ]);
+
+        $result = $this->clusterQuery->matches($cluster, 'settings.theme=dark');
+
+        $this->assertTrue($result);
+    }
+
+    public function test_matches_dot_notation_false(): void
+    {
+        $cluster = new ClusterVO([
+            'settings' => [
+                'theme' => 'light',
+            ],
+        ]);
+
+        $result = $this->clusterQuery->matches($cluster, 'settings.theme=dark');
+
+        $this->assertFalse($result);
+    }
+
+    public function test_matches_deep_dot_notation(): void
+    {
+        $cluster = new ClusterVO([
+            'user' => [
+                'profile' => [
+                    'address' => [
+                        'city' => 'Kinshasa',
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = $this->clusterQuery->matches($cluster, 'user.profile.address.city=Kinshasa');
+
+        $this->assertTrue($result);
+    }
 }

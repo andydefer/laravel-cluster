@@ -59,6 +59,14 @@ final class SubConditionNode extends Node
         $originalData = $data->getUnflattened()->toArray();
         $value = $this->navigatePath($originalData, $this->path);
 
+        // ✅ Si c'est une string JSON, la décoder
+        if (is_string($value) && str_starts_with($value, '[') && str_ends_with($value, ']')) {
+            $decoded = json_decode($value, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $value = $decoded;
+            }
+        }
+
         if ($this->condition instanceof ConditionNode && $this->condition->isEmptyCondition()) {
             return is_array($value) && ! empty($value);
         }
@@ -409,11 +417,15 @@ final class SubConditionNode extends Node
      */
     private function navigatePath(array $data, string $path): mixed
     {
+        if (empty($path)) {
+            return $data;
+        }
+
         $parts = explode('.', $path);
         $current = $data;
 
         foreach ($parts as $part) {
-            if (! isset($current[$part])) {
+            if (! is_array($current) || ! array_key_exists($part, $current)) {
                 return null;
             }
             $current = $current[$part];

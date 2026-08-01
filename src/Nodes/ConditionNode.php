@@ -80,6 +80,7 @@ final class ConditionNode extends Node
     public function evaluate(ClusterVO $data): bool
     {
         $dataArray = $data->toArray();
+
         $keyExists = array_key_exists($this->key, $dataArray);
 
         if ($this->operator === ComparisonOperator::EXISTS) {
