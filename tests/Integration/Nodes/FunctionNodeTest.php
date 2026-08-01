@@ -16,15 +16,6 @@ use AndyDefer\LaravelCluster\Tests\IntegrationTestCase;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Integration tests for FunctionNode.
- *
- * Tests cover:
- * - In-memory evaluation of aggregate functions (COUNT, SUM, AVG, MIN, MAX, LENGTH)
- * - SQL generation for different database drivers (SQLite, MySQL, PostgreSQL)
- * - Eloquent query application with function conditions
- * - Edge cases (empty arrays, null values, missing paths, unknown functions)
- */
 final class FunctionNodeTest extends IntegrationTestCase
 {
     private SqlFunctionRegistry $registry;
@@ -94,8 +85,6 @@ final class FunctionNodeTest extends IntegrationTestCase
             ],
         ]);
     }
-
-    // ==================== EVALUATE TESTS (MÉMOIRE) ====================
 
     public function test_evaluate_count_greater_than(): void
     {
@@ -236,8 +225,8 @@ final class FunctionNodeTest extends IntegrationTestCase
         $cluster = new ClusterVO([
             'settings' => [
                 'notifications' => [
-                    ['email' => 'true'],
-                    ['sms' => 'true'],
+                    ['email' => 'yes'],
+                    ['sms' => 'yes'],
                 ],
             ],
         ]);
@@ -277,8 +266,6 @@ final class FunctionNodeTest extends IntegrationTestCase
 
         $this->assertFalse($node->evaluate($cluster));
     }
-
-    // ==================== TO SQL TESTS ====================
 
     public function test_to_sql_count_sqlite(): void
     {
@@ -470,8 +457,6 @@ final class FunctionNodeTest extends IntegrationTestCase
         $this->assertEquals($expected, $sql);
     }
 
-    // ==================== TO ELOQUENT TESTS ====================
-
     public function test_to_eloquent_count_sqlite(): void
     {
         $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
@@ -604,8 +589,6 @@ final class FunctionNodeTest extends IntegrationTestCase
         $this->assertContains('Bob Johnson', $names);
     }
 
-    // ==================== GET CHILDREN TESTS ====================
-
     public function test_get_children_returns_empty_array(): void
     {
         $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
@@ -638,17 +621,11 @@ final class FunctionNodeTest extends IntegrationTestCase
         $this->assertTrue($node->evaluate($cluster));
     }
 
-    /**
-     * Checks if the current database connection is PostgreSQL.
-     */
     private function isPostgres(): bool
     {
         return DB::connection()->getDriverName() === 'pgsql';
     }
 
-    /**
-     * Checks if the current database connection is MySQL.
-     */
     private function isMysql(): bool
     {
         return DB::connection()->getDriverName() === 'mysql';

@@ -286,7 +286,7 @@ final class Parser implements ParserInterface
         if ($nextToken && $nextToken->type === TokenType::SUB_CLOSE) {
             $this->advancePosition();
 
-            return new SubConditionNode('', new ConditionNode('__empty__', ComparisonOperator::EQUAL, 'true'));
+            return new SubConditionNode('', new ConditionNode('__empty__', ComparisonOperator::EQUAL, 'yes'));
         }
 
         if ($nextToken && $nextToken->type === TokenType::IDENTIFIER && $nextToken->value === '*') {
@@ -355,7 +355,7 @@ final class Parser implements ParserInterface
                     $this->advancePosition();
                     $this->advancePosition();
 
-                    return new SubConditionNode($key, new ConditionNode('__empty__', ComparisonOperator::EQUAL, 'true'));
+                    return new SubConditionNode($key, new ConditionNode('__empty__', ComparisonOperator::EQUAL, 'yes'));
                 }
             }
 
@@ -478,7 +478,7 @@ final class Parser implements ParserInterface
         if ($nextToken && $nextToken->type === TokenType::SUB_CLOSE) {
             $this->advancePosition();
 
-            return new SubConditionNode($parentKey, new ConditionNode('__empty__', ComparisonOperator::EQUAL, 'true'));
+            return new SubConditionNode($parentKey, new ConditionNode('__empty__', ComparisonOperator::EQUAL, 'yes'));
         }
 
         if ($nextToken && $nextToken->type === TokenType::IDENTIFIER && $nextToken->value === '*') {
@@ -518,19 +518,19 @@ final class Parser implements ParserInterface
         $nextToken = $this->getToken($this->position);
 
         if (! $nextToken || $nextToken->type === TokenType::END) {
-            return new ConditionNode($key, ComparisonOperator::EQUAL, 'true');
+            return new ConditionNode($key, ComparisonOperator::EQUAL, 'yes');
         }
 
         if ($nextToken->type === TokenType::PAREN && $nextToken->value === ')') {
-            return new ConditionNode($key, ComparisonOperator::EQUAL, 'true');
+            return new ConditionNode($key, ComparisonOperator::EQUAL, 'yes');
         }
 
         if ($this->isLogicalOperator($nextToken)) {
-            return new ConditionNode($key, ComparisonOperator::EQUAL, 'true');
+            return new ConditionNode($key, ComparisonOperator::EQUAL, 'yes');
         }
 
         if ($nextToken->type !== TokenType::OPERATOR) {
-            return new ConditionNode($key, ComparisonOperator::EQUAL, 'true');
+            return new ConditionNode($key, ComparisonOperator::EQUAL, 'yes');
         }
 
         $operator = $nextToken->value;
@@ -561,7 +561,8 @@ final class Parser implements ParserInterface
 
         $this->advancePosition();
 
-        return new ConditionNode($valueToken->value, ComparisonOperator::EQUAL, 'false');
+        // NOT key means key should be 'no'
+        return new ConditionNode($valueToken->value, ComparisonOperator::EQUAL, 'no');
     }
 
     /**
@@ -593,9 +594,10 @@ final class Parser implements ParserInterface
             throw new RuntimeException('Expected value after operator');
         }
 
+        $value = $valueToken->value;
         $this->advancePosition();
 
-        return new ConditionNode($key, $comparisonOperator, $valueToken->value);
+        return new ConditionNode($key, $comparisonOperator, $value);
     }
 
     /**
@@ -617,7 +619,8 @@ final class Parser implements ParserInterface
 
         $this->advancePosition();
 
-        return new ConditionNode($nextToken->value, ComparisonOperator::EQUAL, 'false');
+        // NOT key means key should be 'no'
+        return new ConditionNode($nextToken->value, ComparisonOperator::EQUAL, 'no');
     }
 
     /**

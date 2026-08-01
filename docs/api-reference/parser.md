@@ -171,7 +171,7 @@ $ast = $parser->parse('#lang_en');
 
 // NOT
 $ast = $parser->parse('!lang_fr');
-// ConditionNode avec key='lang_fr', operator=EQUAL, value='false'
+// ConditionNode avec key='lang_fr', operator=EQUAL, value='no'
 ```
 
 ### Cas 6 : Chemins avec indices
@@ -280,7 +280,7 @@ $cluster = new ClusterVO([
         ['city' => 'Kinshasa'],
         ['city' => 'Paris'],
     ],
-    'lang_fr' => 'true',
+    'lang_fr' => 'yes',
 ]);
 
 // Évaluation d'une condition
@@ -315,3 +315,4 @@ var_dump($ast1 === $ast2); // true (même instance)
 - `GroupNode` - Nœud de groupe logique
 - `SubConditionNode` - Nœud de sous-condition
 - `FunctionNode` - Nœud de fonction SQL
+```

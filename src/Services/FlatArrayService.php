@@ -30,7 +30,7 @@ use Throwable;
  *
  * // Flatten with indexed arrays
  * $flat = $service->flatten(['roles' => ['admin', 'user']]);
- * // ['roles_admin' => 'true', 'roles_user' => 'true']
+ * // ['roles_admin' => 'yes', 'roles_user' => 'yes']
  *
  * // Unflatten back to nested structure
  * $nested = $service->unflatten(['user.name' => 'John']);
@@ -44,13 +44,15 @@ final class FlatArrayService
      * - Associative arrays: keys become dot-notated paths
      * - Indexed arrays: expanded into separate keys with "_value" suffix
      * - Nested arrays are JSON encoded to preserve structure
-     * - Booleans: converted to 'true' or 'false' strings
-     * - Scalars: kept as-is
+     * - Scalars: kept as-is (string, int, float)
      * - Null: kept as null
+     * - Booleans: NOT ALLOWED (will throw exception)
      *
      * @param  array<string, mixed>  $array  The array to flatten
      * @param  string  $prefix  The key prefix for recursion (internal use)
      * @return array<string, int|float|string|null> The flattened array
+     *
+     * @throws InvalidArgumentException If a boolean is encountered
      */
     public function flatten(array $array, string $prefix = ''): array
     {
@@ -96,7 +98,7 @@ final class FlatArrayService
                     $suffixes = [];
 
                     foreach ($flat as $k => $v) {
-                        if (preg_match($pattern, $k) && ($v === 'true' || $v === true)) {
+                        if (preg_match($pattern, $k) && ($v === 'yes' || $v === 'true' || $v === true)) {
                             $count++;
                             $suffix = substr($k, strlen($baseKey) + 1);
                             $suffixes[] = $suffix;
@@ -177,6 +179,8 @@ final class FlatArrayService
      * @param  array<mixed>  $value  The array value to flatten
      * @param  string  $newKey  The current key path
      * @return array<string, int|float|string|null> The flattened array
+     *
+     * @throws InvalidArgumentException If a boolean is encountered
      */
     private function flattenArrayValue(array $value, string $newKey): array
     {
@@ -185,9 +189,9 @@ final class FlatArrayService
         }
 
         if ($this->hasNestedArrays($value)) {
-            $converted = $this->convertBooleansToStrings($value);
+            $this->validateNoBooleans($value);
 
-            return [$newKey => json_encode($converted)];
+            return [$newKey => json_encode($value)];
         }
 
         return $this->expandIndexedArray($value, $newKey);
@@ -199,17 +203,21 @@ final class FlatArrayService
      * @param  mixed  $value  The value to normalize
      * @param  string  $key  The key for error messages
      * @return int|float|string|null The normalized value
+     *
+     * @throws InvalidArgumentException If a boolean is encountered
      */
     private function normalizeScalarValue(mixed $value, string $key): int|float|string|null
     {
         if (is_bool($value)) {
-            return $value ? 'true' : 'false';
+            throw new InvalidArgumentException(
+                sprintf('Boolean values are not allowed. Got bool for key "%s"', $key)
+            );
         }
 
         if (is_array($value)) {
-            $converted = $this->convertBooleansToStrings($value);
+            $this->validateNoBooleans($value);
 
-            return json_encode($converted);
+            return json_encode($value);
         }
 
         if (is_scalar($value) || $value === null) {
@@ -217,6 +225,27 @@ final class FlatArrayService
         }
 
         return json_encode($value);
+    }
+
+    /**
+     * Validates that an array contains no booleans.
+     *
+     * @param  array<mixed>  $array  The array to validate
+     *
+     * @throws InvalidArgumentException If a boolean is found
+     */
+    private function validateNoBooleans(array $array): void
+    {
+        foreach ($array as $key => $value) {
+            if (is_bool($value)) {
+                throw new InvalidArgumentException(
+                    sprintf('Boolean values are not allowed in arrays. Found bool at key "%s"', $key)
+                );
+            }
+            if (is_array($value)) {
+                $this->validateNoBooleans($value);
+            }
+        }
     }
 
     /**
@@ -255,13 +284,15 @@ final class FlatArrayService
     }
 
     /**
-     * Expands an indexed array into individual keys with "true" as value.
+     * Expands an indexed array into individual keys with "yes" as value.
      *
-     * Converts ['admin', 'user'] to ['roles_admin' => 'true', 'roles_user' => 'true'].
+     * Converts ['admin', 'user'] to ['roles_admin' => 'yes', 'roles_user' => 'yes'].
      *
      * @param  array<int, mixed>  $array  The indexed array
      * @param  string  $baseKey  The base key prefix
      * @return array<string, int|float|string|null> The expanded array
+     *
+     * @throws InvalidArgumentException If a boolean is encountered in the array
      */
     private function expandIndexedArray(array $array, string $baseKey): array
     {
@@ -272,18 +303,24 @@ final class FlatArrayService
         $result = [];
 
         foreach ($array as $value) {
+            if (is_bool($value)) {
+                throw new InvalidArgumentException(
+                    sprintf('Boolean values are not allowed in indexed arrays. Found bool in array "%s"', $baseKey)
+                );
+            }
+
             if (is_array($value)) {
+                $this->validateNoBooleans($value);
                 $keySuffix = $this->normalizeValueForKey($value);
                 $newKey = $baseKey.'_'.$keySuffix;
-                $converted = $this->convertBooleansToStrings($value);
-                $result[$newKey] = json_encode($converted);
+                $result[$newKey] = json_encode($value);
 
                 continue;
             }
 
             $keySuffix = $this->normalizeValueForKey($value);
             $newKey = $baseKey.'_'.$keySuffix;
-            $result[$newKey] = 'true';
+            $result[$newKey] = 'yes';
         }
 
         return $result;
@@ -300,7 +337,9 @@ final class FlatArrayService
         return match (true) {
             is_string($value) => $value,
             is_int($value) || is_float($value) => (string) $value,
-            is_bool($value) => $value ? 'true' : 'false',
+            is_bool($value) => throw new InvalidArgumentException(
+                sprintf('Boolean values are not allowed. Got bool for key suffix')
+            ),
             is_array($value) => 'array',
             $value === null => 'null',
             default => 'value',
@@ -356,29 +395,5 @@ final class FlatArrayService
         json_decode($string);
 
         return json_last_error() === JSON_ERROR_NONE;
-    }
-
-    /**
-     * Recursively converts all booleans to strings 'true' or 'false'.
-     *
-     * @param  mixed  $value  The value to convert
-     * @return mixed The value with booleans converted to strings
-     */
-    private function convertBooleansToStrings(mixed $value): mixed
-    {
-        if (is_bool($value)) {
-            return $value ? 'true' : 'false';
-        }
-
-        if (is_array($value)) {
-            $result = [];
-            foreach ($value as $key => $item) {
-                $result[$key] = $this->convertBooleansToStrings($item);
-            }
-
-            return $result;
-        }
-
-        return $value;
     }
 }

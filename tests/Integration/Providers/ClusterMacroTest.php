@@ -8,16 +8,6 @@ use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
 use AndyDefer\LaravelCluster\Tests\IntegrationTestCase;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Integration tests for the Builder whereCluster macro.
- *
- * Tests cover:
- * - Simple and complex conditions on Eloquent Builder
- * - Chaining with other Eloquent conditions
- * - Model static method usage
- * - Automatic database driver detection
- * - Edge cases (empty results, non-existent keys)
- */
 final class ClusterMacroTest extends IntegrationTestCase
 {
     private string $column = 'clusters';
@@ -31,9 +21,6 @@ final class ClusterMacroTest extends IntegrationTestCase
         $this->createTestData();
     }
 
-    /**
-     * Creates test data with various cluster configurations.
-     */
     private function createTestData(): void
     {
         $data = [
@@ -45,7 +32,7 @@ final class ClusterMacroTest extends IntegrationTestCase
                     'name' => 'John Doe',
                     'role' => 'admin',
                     'age' => 30,
-                    'verified' => 'true',
+                    'verified' => 'yes',
                     'addresses' => [
                         ['city' => 'Kinshasa', 'country' => 'RDC'],
                         ['city' => 'Paris', 'country' => 'France'],
@@ -60,7 +47,7 @@ final class ClusterMacroTest extends IntegrationTestCase
                     'status' => 'inactive',
                     'role' => 'doctor',
                     'age' => 25,
-                    'verified' => 'false',
+                    'verified' => 'no',
                     'addresses' => [
                         ['city' => 'Paris', 'country' => 'France'],
                     ],
@@ -74,7 +61,7 @@ final class ClusterMacroTest extends IntegrationTestCase
                     'status' => 'active',
                     'role' => 'doctor',
                     'age' => 35,
-                    'verified' => 'true',
+                    'verified' => 'yes',
                     'addresses' => [
                         ['city' => 'Kinshasa', 'country' => 'RDC'],
                         ['city' => 'London', 'country' => 'UK'],
@@ -90,7 +77,7 @@ final class ClusterMacroTest extends IntegrationTestCase
                     'status' => 'pending',
                     'role' => 'guest',
                     'age' => 28,
-                    'verified' => 'false',
+                    'verified' => 'no',
                     'addresses' => [],
                     'tags' => ['go', 'rust'],
                 ],
@@ -101,8 +88,6 @@ final class ClusterMacroTest extends IntegrationTestCase
             TestCluster::create($item);
         }
     }
-
-    // ==================== BUILDER TESTS ====================
 
     public function test_where_cluster_on_builder_simple_condition(): void
     {
@@ -227,8 +212,6 @@ final class ClusterMacroTest extends IntegrationTestCase
         $this->assertEquals('John Doe', $result->first()->name);
     }
 
-    // ==================== MODEL TESTS ====================
-
     public function test_where_cluster_on_model_simple_condition(): void
     {
         $result = TestCluster::whereCluster($this->column, 'status=active')->get();
@@ -269,8 +252,6 @@ final class ClusterMacroTest extends IntegrationTestCase
         $this->assertEquals('John Doe', $result->first()->name);
     }
 
-    // ==================== DRIVER TESTS ====================
-
     public function test_where_cluster_detects_driver_automatically(): void
     {
         $driverName = DB::connection()->getDriverName();
@@ -282,8 +263,6 @@ final class ClusterMacroTest extends IntegrationTestCase
         $this->assertCount(2, $result);
     }
 
-    // ==================== AGGREGATION TESTS ====================
-
     public function test_where_cluster_throws_exception_for_aggregations(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -291,8 +270,6 @@ final class ClusterMacroTest extends IntegrationTestCase
 
         TestCluster::whereCluster($this->column, '{COUNT(addresses) > 2}')->get();
     }
-
-    // ==================== EDGE CASES ====================
 
     public function test_where_cluster_with_empty_result(): void
     {
@@ -308,8 +285,6 @@ final class ClusterMacroTest extends IntegrationTestCase
         $this->assertCount(0, $result);
     }
 
-    // ==================== PERFORMANCE TESTS ====================
-
     public function test_where_cluster_generates_valid_sql(): void
     {
         $query = TestCluster::whereCluster($this->column, 'status=active');
@@ -324,8 +299,6 @@ final class ClusterMacroTest extends IntegrationTestCase
         $this->assertCount(2, $result);
     }
 
-    // ==================== DOT NOTATION TESTS ====================
-
     public function test_where_cluster_with_dot_notation_simple(): void
     {
         TestCluster::truncate();
@@ -335,7 +308,7 @@ final class ClusterMacroTest extends IntegrationTestCase
             'email' => 'dot@example.com',
             'clusters' => [
                 'profile' => [
-                    'is_verified' => 'true',
+                    'is_verified' => 'yes',
                     'years_experience' => 5,
                 ],
                 'settings' => [
@@ -349,7 +322,7 @@ final class ClusterMacroTest extends IntegrationTestCase
             'email' => 'dot2@example.com',
             'clusters' => [
                 'profile' => [
-                    'is_verified' => 'false',
+                    'is_verified' => 'no',
                     'years_experience' => 3,
                 ],
                 'settings' => [
@@ -358,7 +331,7 @@ final class ClusterMacroTest extends IntegrationTestCase
             ],
         ]);
 
-        $result = TestCluster::whereCluster($this->column, 'profile.is_verified=true')->get();
+        $result = TestCluster::whereCluster($this->column, 'profile.is_verified=yes')->get();
 
         $this->assertCount(1, $result);
         $this->assertEquals('Dot Test User', $result->first()->name);
@@ -373,7 +346,7 @@ final class ClusterMacroTest extends IntegrationTestCase
             'email' => 'dot1@example.com',
             'clusters' => [
                 'profile' => [
-                    'is_verified' => 'true',
+                    'is_verified' => 'yes',
                     'years_experience' => 5,
                 ],
                 'settings' => [
@@ -387,7 +360,7 @@ final class ClusterMacroTest extends IntegrationTestCase
             'email' => 'dot2@example.com',
             'clusters' => [
                 'profile' => [
-                    'is_verified' => 'true',
+                    'is_verified' => 'yes',
                     'years_experience' => 3,
                 ],
                 'settings' => [
@@ -401,7 +374,7 @@ final class ClusterMacroTest extends IntegrationTestCase
             'email' => 'dot3@example.com',
             'clusters' => [
                 'profile' => [
-                    'is_verified' => 'false',
+                    'is_verified' => 'no',
                     'years_experience' => 5,
                 ],
                 'settings' => [
@@ -410,7 +383,7 @@ final class ClusterMacroTest extends IntegrationTestCase
             ],
         ]);
 
-        $result = TestCluster::whereCluster($this->column, 'profile.is_verified=true & profile.years_experience>3')->get();
+        $result = TestCluster::whereCluster($this->column, 'profile.is_verified=yes & profile.years_experience>3')->get();
 
         $this->assertCount(1, $result);
         $this->assertEquals('Dot Test User 1', $result->first()->name);
@@ -525,7 +498,7 @@ final class ClusterMacroTest extends IntegrationTestCase
             'email' => 'exists@example.com',
             'clusters' => [
                 'profile' => [
-                    'verified' => 'true',
+                    'verified' => 'yes',
                 ],
             ],
         ]);
@@ -563,7 +536,7 @@ final class ClusterMacroTest extends IntegrationTestCase
             'email' => 'notexists2@example.com',
             'clusters' => [
                 'profile' => [
-                    'verified' => 'true',
+                    'verified' => 'yes',
                 ],
             ],
         ]);
@@ -583,7 +556,7 @@ final class ClusterMacroTest extends IntegrationTestCase
             'email' => 'combined1@example.com',
             'clusters' => [
                 'profile' => [
-                    'is_verified' => 'true',
+                    'is_verified' => 'yes',
                     'years_experience' => 5,
                 ],
                 'settings' => [
@@ -597,7 +570,7 @@ final class ClusterMacroTest extends IntegrationTestCase
             'email' => 'combined2@example.com',
             'clusters' => [
                 'profile' => [
-                    'is_verified' => 'true',
+                    'is_verified' => 'yes',
                     'years_experience' => 3,
                 ],
                 'settings' => [
@@ -611,7 +584,7 @@ final class ClusterMacroTest extends IntegrationTestCase
             'email' => 'combined3@example.com',
             'clusters' => [
                 'profile' => [
-                    'is_verified' => 'false',
+                    'is_verified' => 'no',
                     'years_experience' => 5,
                 ],
                 'settings' => [
@@ -622,7 +595,7 @@ final class ClusterMacroTest extends IntegrationTestCase
 
         $result = TestCluster::whereCluster(
             $this->column,
-            'profile.is_verified=true & profile.years_experience>3 & settings.theme=dark'
+            'profile.is_verified=yes & profile.years_experience>3 & settings.theme=dark'
         )->get();
 
         $this->assertCount(1, $result);

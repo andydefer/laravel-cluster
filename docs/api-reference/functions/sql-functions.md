@@ -456,6 +456,76 @@ $users = User::whereCluster('clusters', 'REGEXP(name, "^[A-Za-z]+$")')->get();
 $users = User::whereCluster('clusters', 'REGEXP(name, "^John.*") & status=active')->get();
 ```
 
+### Cas 6 : Utilisation avec les valeurs booléennes 'yes'/'no'
+
+```php
+use App\Models\User;
+
+// Utilisateurs vérifiés
+$users = User::whereCluster('clusters', 'verified=yes')->get();
+
+// Utilisateurs non vérifiés
+$users = User::whereCluster('clusters', 'verified=no')->get();
+
+// Utilisateurs actifs et vérifiés
+$users = User::whereCluster('clusters', 'status=active & verified=yes')->get();
+
+// Utilisateurs avec une moyenne de scores >= 85
+$users = User::whereCluster('clusters', 'AVG(scores) >= 85 & verified=yes')->get();
+
+// Utilisateurs avec une moyenne de scores >= 85 et non vérifiés
+$users = User::whereCluster('clusters', 'AVG(scores) >= 85 & verified=no')->get();
+```
+
+### Cas 7 : Utilisation avec ClusterVOCollection et booléens
+
+```php
+use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
+
+$collection = new ClusterVOCollection();
+$collection->add(new ClusterVO([
+    'name' => 'John Doe',
+    'status' => 'active',
+    'verified' => 'yes',
+    'scores' => [80, 90, 85],
+]));
+$collection->add(new ClusterVO([
+    'name' => 'Jane Smith',
+    'status' => 'active',
+    'verified' => 'no',
+    'scores' => [70, 75, 80],
+]));
+$collection->add(new ClusterVO([
+    'name' => 'Bob Johnson',
+    'status' => 'inactive',
+    'verified' => 'yes',
+    'scores' => [95, 98, 92],
+]));
+
+// Filtrage avec valeurs booléennes
+$activeVerified = $collection->whereQuery('status=active & verified=yes');
+// John Doe uniquement
+
+// Filtrage avec fonction d'agrégation
+$highScores = $collection->whereAggregate('{AVG(scores) >= 85} & verified=yes');
+// John Doe, Bob Johnson
+
+// Filtrage avec NOT
+$notVerified = $collection->whereQuery('!verified');
+// Jane Smith (verified=no)
+
+// Filtrage avec NOT sur la valeur
+$notActive = $collection->whereQuery('status!=active');
+// Bob Johnson
+
+// Filtrage avec whereYes et whereNo
+$verified = $collection->whereYes('verified');
+// John Doe, Bob Johnson
+$unverified = $collection->whereNo('verified');
+// Jane Smith
+```
+
 ---
 
 ## Gestion des erreurs
@@ -577,11 +647,11 @@ $clusterQuery->applyToEloquent(
     DatabaseDriver::MYSQL
 );
 
-// Expression combinée
+// Expression combinée avec valeurs booléennes
 $clusterQuery->applyToEloquent(
     $query,
     'clusters',
-    'COUNT(addresses) > 1 & AVG(scores) >= 80 & REGEXP(name, "^John.*")',
+    'COUNT(addresses) > 1 & AVG(scores) >= 80 & verified=yes',
     DatabaseDriver::SQLITE
 );
 

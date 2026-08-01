@@ -202,6 +202,34 @@ $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 // json_array_length(clusters, '$.addresses') > 2
 ```
 
+### Cas 7 : Combinaison avec valeurs booléennes 'yes'/'no'
+
+```php
+use AndyDefer\LaravelCluster\Nodes\ConditionNode;
+use AndyDefer\LaravelCluster\Nodes\GroupNode;
+use AndyDefer\LaravelCluster\Enums\LogicalOperator;
+
+// Filtrage des utilisateurs actifs avec plus de 2 adresses
+$statusNode = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
+$countNode = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
+$group = new GroupNode(LogicalOperator::AND, $statusNode, $countNode);
+
+$query = User::query();
+$group->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+$users = $query->get();
+// Utilisateurs avec status='active' ET COUNT(addresses) > 2
+
+// Filtrage avec vérification 'verified=yes'
+$verifiedNode = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
+$avgNode = new FunctionNode('AVG', 'scores', ComparisonOperator::GREATER_THAN_OR_EQUAL, '85');
+$group = new GroupNode(LogicalOperator::AND, $verifiedNode, $avgNode);
+
+$query = User::query();
+$group->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+$users = $query->get();
+// Utilisateurs avec verified='yes' ET AVG(scores) >= 85
+```
+
 ---
 
 ## Gestion des erreurs
@@ -240,7 +268,10 @@ $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 declare(strict_types=1);
 
 use AndyDefer\LaravelCluster\Nodes\FunctionNode;
+use AndyDefer\LaravelCluster\Nodes\ConditionNode;
+use AndyDefer\LaravelCluster\Nodes\GroupNode;
 use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
+use AndyDefer\LaravelCluster\Enums\LogicalOperator;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
@@ -254,6 +285,10 @@ $maxNode = new FunctionNode('MAX', 'scores', ComparisonOperator::GREATER_THAN, '
 $lengthNode = new FunctionNode('LENGTH', 'name', ComparisonOperator::GREATER_THAN, '5');
 $jsonLengthNode = new FunctionNode('JSON_LENGTH', 'addresses', ComparisonOperator::GREATER_THAN, '2');
 
+// Conditions booléennes
+$verifiedNode = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
+$activeNode = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
+
 // ==================== ÉVALUATION ====================
 
 $cluster = new ClusterVO([
@@ -261,6 +296,8 @@ $cluster = new ClusterVO([
     'prices' => [100, 200, 300],
     'scores' => [80, 90, 85],
     'name' => 'John Doe',
+    'status' => 'active',
+    'verified' => 'yes',
 ]);
 
 var_dump($countNode->evaluate($cluster)); // true (3 > 2)
@@ -270,6 +307,10 @@ var_dump($minNode->evaluate($cluster)); // false (80 < 75? non)
 var_dump($maxNode->evaluate($cluster)); // false (90 > 90? non)
 var_dump($lengthNode->evaluate($cluster)); // true (8 > 5)
 var_dump($jsonLengthNode->evaluate($cluster)); // true (3 > 2)
+
+// Groupe avec conditions booléennes
+$group = new GroupNode(LogicalOperator::AND, $activeNode, $verifiedNode, $countNode);
+var_dump($group->evaluate($cluster)); // true
 
 // ==================== GÉNÉRATION SQL ====================
 
@@ -295,18 +336,19 @@ echo "LENGTH (SQLite):\n";
 echo $lengthNode->toSql($column, DatabaseDriver::SQLITE) . "\n";
 // LENGTH(json_extract(clusters, '$.name')) > 5
 
+echo "Condition booléenne (SQLite):\n";
+echo $verifiedNode->toSql($column, DatabaseDriver::SQLITE) . "\n";
+// LOWER(json_extract(clusters, '$.verified')) = LOWER('yes')
+
 // ==================== APPLICATION ELOQUENT ====================
 
 $query = User::query();
 
-// Filtrer les utilisateurs avec plus de 2 adresses
-$countNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-
-// Filtrer les utilisateurs avec une moyenne >= 85
-$avgNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+// Filtrer les utilisateurs avec plus de 2 adresses, actifs et vérifiés
+$group->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
 $users = $query->get();
-// Utilisateurs avec COUNT(addresses) > 2 ET AVG(scores) >= 85
+// Utilisateurs avec status='active', verified='yes' ET COUNT(addresses) > 2
 ```
 
 ---

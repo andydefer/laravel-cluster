@@ -122,7 +122,7 @@ Retourne le parseur d'expressions.
 
 ## Cas d'utilisation
 
-### Cas 1 : Évaluation simple
+### Cas 1 : Évaluation simple avec valeurs booléennes 'yes'/'no'
 
 ```php
 <?php
@@ -136,6 +136,8 @@ $data = [
     'addresses' => ['a', 'b', 'c'],
     'scores' => [80, 90, 85],
     'prices' => [100, 200, 300],
+    'verified' => 'yes',
+    'status' => 'active',
 ];
 
 // COUNT
@@ -152,9 +154,12 @@ $result = $service->evaluate($data, '{MIN(scores) > 75}'); // true
 
 // MAX
 $result = $service->evaluate($data, '{MAX(scores) < 95}'); // true
+
+// Avec valeur booléenne 'yes'
+$result = $service->evaluate($data, '{COUNT(addresses) > 2} & verified=yes'); // true
 ```
 
-### Cas 2 : Fonctions booléennes
+### Cas 2 : Fonctions booléennes avec valeurs 'yes'/'no'
 
 ```php
 // EXISTS
@@ -168,15 +173,18 @@ $result = $service->evaluate($data, '{ALL(addresses, country, "RDC")}'); // true
 
 // IS_EMPTY
 $result = $service->evaluate($data, '{IS_EMPTY(cart)}'); // false
+
+// Avec valeur 'no'
+$result = $service->evaluate($data, '{COUNT(addresses) > 2} & verified=no'); // false
 ```
 
-### Cas 3 : Expressions complexes avec AND/OR
+### Cas 3 : Expressions complexes avec AND/OR et valeurs booléennes
 
 ```php
-// AND
+// AND avec valeur 'yes'
 $result = $service->evaluate(
     $data,
-    '{COUNT(addresses) > 2} & {AVG(scores) >= 85}'
+    '{COUNT(addresses) > 2} & verified=yes & {AVG(scores) >= 85}'
 );
 // true
 
@@ -187,12 +195,12 @@ $result = $service->evaluate(
 );
 // true
 
-// Mixte
+// Mixte avec 'no'
 $result = $service->evaluate(
     $data,
-    '{COUNT(addresses) > 2} & {AVG(scores) >= 85} | {SUM(prices) > 500}'
+    '{COUNT(addresses) > 2} & verified=no | {SUM(prices) > 500}'
 );
-// true
+// true (SUM > 500 est true)
 ```
 
 ### Cas 4 : Évaluation directe
@@ -260,6 +268,7 @@ $data = [
     'status' => 'active',
     'role' => 'admin',
     'age' => 30,
+    'verified' => 'yes',
     'addresses' => ['Kinshasa', 'Paris', 'London'],
     'scores' => [80, 90, 85],
     'prices' => [100, 200, 300],
@@ -303,11 +312,22 @@ echo "ALL: " . ($service->evaluate($data, '{ALL(addresses_detail, country, "RDC"
 echo "IS_EMPTY: " . ($service->evaluate($data, '{IS_EMPTY(cart)}') ? 'true' : 'false') . "\n";
 // false
 
+// ==================== VALEURS BOOLÉENNES 'YES'/'NO' ====================
+
+echo "Verified: " . ($service->evaluate($data, 'verified=yes') ? 'true' : 'false') . "\n";
+// true
+
+echo "Verified with COUNT: " . ($service->evaluate($data, '{COUNT(addresses) > 2} & verified=yes') ? 'true' : 'false') . "\n";
+// true
+
+echo "Verified no: " . ($service->evaluate($data, 'verified=no') ? 'true' : 'false') . "\n";
+// false
+
 // ==================== EXPRESSIONS COMPLEXES ====================
 
 echo "AND: " . ($service->evaluate(
     $data,
-    '{COUNT(addresses) > 2} & {AVG(scores) >= 85}'
+    '{COUNT(addresses) > 2} & verified=yes & {AVG(scores) >= 85}'
 ) ? 'true' : 'false') . "\n";
 // true
 
@@ -319,9 +339,9 @@ echo "OR: " . ($service->evaluate(
 
 echo "Mixte: " . ($service->evaluate(
     $data,
-    '{COUNT(addresses) > 2} & {AVG(scores) >= 85} | {SUM(prices) > 1000}'
+    '{COUNT(addresses) > 2} & verified=no | {SUM(prices) > 1000}'
 ) ? 'true' : 'false') . "\n";
-// true
+// false (COUNT > 2 & verified=no est false, SUM > 1000 est false)
 
 // ==================== ÉVALUATION DIRECTE ====================
 
@@ -337,6 +357,9 @@ echo "Direct AVG: " . $service->evaluateDirect($data, 'AVG', ['scores']) . "\n";
 // ==================== VALIDATION ====================
 
 echo "Valid: " . ($service->validate('{COUNT(addresses) > 2}') ? 'true' : 'false') . "\n";
+// true
+
+echo "Valid with boolean: " . ($service->validate('{COUNT(addresses) > 2} & verified=yes') ? 'true' : 'false') . "\n";
 // true
 
 echo "Invalid: " . ($service->validate('{COUNT(addresses > 2}') ? 'true' : 'false') . "\n";

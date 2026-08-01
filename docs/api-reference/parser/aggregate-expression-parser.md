@@ -18,7 +18,7 @@ Transforme les expressions d'agrégation en une structure de données utilisable
 - **Fonctions simples** : `{COUNT(addresses) > 2}`
 - **Fonctions imbriquées** : `{COUNT({LENGTH(name) > 5}) > 2}`
 - **Combinaisons logiques** : `{COUNT({LENGTH(name) > 5} & {SUM(prices) > 100}) > 2}`
-- **Arguments variés** : Variables (`$var`), tableaux (`[1, 2, 3]`), chaînes entre guillemets
+- **Arguments variés** : Variables (`$var`), tableaux (`[1, 2, 3]`), chaînes entre guillemets, valeurs booléennes 'yes'/'no'
 
 ---
 
@@ -163,7 +163,7 @@ $parts = $parser->split('{COUNT(addresses) > 2} & {AVG(scores) >= 85}');
 | **Tableau** | `[1, 2, 3]` | `[1, 2, 3]` |
 | **Tableau imbriqué** | `[1, [2, 3], 4]` | `[1, [2, 3], 4]` |
 | **Fonction imbriquée** | `{...}` | `{LENGTH(name) > 5}` |
-| **Booléen** | `true` ou `false` | `true` |
+| **Booléen** | `'yes'` ou `'no'` | `'yes'` |
 | **Null** | `null` | `null` |
 | **Numérique** | `123` ou `45.67` | `42` |
 
@@ -198,23 +198,30 @@ $result = $parser->parse('{COUNT([1, 2, 3]) > 2}');
 // args = [[1, 2, 3]]
 ```
 
-### Cas 5 : Fonction avec arguments multiples
+### Cas 5 : Fonction avec arguments multiples et valeur 'yes'
 
 ```php
 $result = $parser->parse('{HAS(addresses, city, "Kinshasa")}');
 // args = ['addresses', 'city', 'Kinshasa']
+
+// Avec valeur booléenne 'yes'
+$result = $parser->parse('{HAS(settings, notifications, "yes")}');
+// args = ['settings', 'notifications', 'yes']
 ```
 
-### Cas 6 : Fonction imbriquée
+### Cas 6 : Fonction imbriquée avec valeurs booléennes
 
 ```php
 $result = $parser->parse('{COUNT({LENGTH(name) > 5}) > 2}');
+
+// Avec valeur 'yes'
+$result = $parser->parse('{COUNT({verified = yes}) > 2}');
 ```
 
-### Cas 7 : Expression complexe imbriquée
+### Cas 7 : Expression complexe imbriquée avec booléens
 
 ```php
-$result = $parser->parse('{COUNT({LENGTH(name) > 5} & {SUM(prices) > 100}) > 2}');
+$result = $parser->parse('{COUNT({status=active} & {verified=yes}) > 2}');
 ```
 
 ### Cas 8 : Découpage d'expression composée
@@ -222,6 +229,23 @@ $result = $parser->parse('{COUNT({LENGTH(name) > 5} & {SUM(prices) > 100}) > 2}'
 ```php
 $parts = $parser->split('{COUNT(addresses) > 2} & {AVG(scores) >= 85} | {SUM(prices) > 500}');
 // 3 parties avec opérateurs '&', '|'
+```
+
+### Cas 9 : Fonction avec valeur booléenne 'no'
+
+```php
+$result = $parser->parse('{COUNT({status=inactive} & {verified=no}) > 2}');
+// args = [
+//     [
+//         'functionName' => 'HAS',
+//         'args' => ['status', '=', 'inactive'],
+//         'operator' => AggregateOperator::AND,
+//         'value' => [
+//             'functionName' => 'HAS',
+//             'args' => ['verified', '=', 'no'],
+//         ],
+//     ],
+// ]
 ```
 
 ---
@@ -316,10 +340,21 @@ print_r($nested);
 //     'value' => 2,
 // ]
 
+// ==================== FONCTIONS AVEC VALEURS BOOLÉENNES ====================
+
+$withBoolean = $parser->parse('{HAS(settings, notifications, "yes")}');
+print_r($withBoolean);
+// [
+//     'functionName' => 'HAS',
+//     'args' => ['settings', 'notifications', 'yes'],
+//     'operator' => null,
+//     'value' => null,
+// ]
+
 // ==================== EXPRESSIONS COMPLEXES ====================
 
-$complex = $parser->parse('{COUNT({LENGTH(name) > 5} & {SUM(prices) > 100}) > 2}');
-// L'argument est une expression complexe
+$complex = $parser->parse('{COUNT({status=active} & {verified=yes}) > 2}');
+// L'argument est une expression complexe avec des valeurs booléennes
 
 // ==================== DÉCOUPAGE ====================
 

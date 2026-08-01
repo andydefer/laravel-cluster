@@ -72,7 +72,7 @@ Détermine si la condition est vide (utilisée pour les sous-conditions).
 
 **Exemple :**
 ```php
-$node = new ConditionNode('__empty__', ComparisonOperator::EQUAL, 'true');
+$node = new ConditionNode('__empty__', ComparisonOperator::EQUAL, 'yes');
 $node->isEmptyCondition(); // true
 ```
 
@@ -165,7 +165,8 @@ Retourne les nœuds enfants (vide pour les feuilles).
 |-----------|---------------|---------------|
 | `EXISTS` | `true` | `false` |
 | `NOT_EXISTS` | `false` | `true` |
-| `EQUAL` avec `'false'` ou `'null'` | Dépend de la valeur | `true` |
+| `EQUAL` avec `'no'`, `'false'` ou `'null'` | Dépend de la valeur | `true` |
+| `EQUAL` avec `'yes'` ou `'true'` | Dépend de la valeur | `false` |
 | Autres opérateurs | Dépend de la valeur | `false` |
 
 ---
@@ -193,7 +194,7 @@ Retourne les nœuds enfants (vide pour les feuilles).
 
 ## Cas d'utilisation
 
-### Cas 1 : Condition simple
+### Cas 1 : Condition simple avec valeur booléenne
 
 ```php
 $node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
@@ -207,7 +208,29 @@ $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 // LOWER(json_extract(clusters, '$.status')) = LOWER('active')
 ```
 
-### Cas 2 : Comparaison numérique
+### Cas 2 : Condition avec 'yes'/'no'
+
+```php
+// Vérification d'une valeur 'yes'
+$node = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
+
+$cluster1 = new ClusterVO(['verified' => 'yes']);
+$cluster2 = new ClusterVO(['verified' => 'no']);
+$cluster3 = new ClusterVO(['status' => 'active']); // clé manquante
+
+var_dump($node->evaluate($cluster1)); // true
+var_dump($node->evaluate($cluster2)); // false
+var_dump($node->evaluate($cluster3)); // false (clé manquante, 'yes' n'est pas une valeur par défaut)
+
+// Vérification d'une valeur 'no' (inclut les clés manquantes)
+$node = new ConditionNode('verified', ComparisonOperator::EQUAL, 'no');
+
+var_dump($node->evaluate($cluster1)); // false
+var_dump($node->evaluate($cluster2)); // true
+var_dump($node->evaluate($cluster3)); // true (clé manquante équivaut à 'no')
+```
+
+### Cas 3 : Comparaison numérique
 
 ```php
 $node = new ConditionNode('age', ComparisonOperator::GREATER_THAN, '18');
@@ -219,7 +242,7 @@ $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 // CAST(JSON_EXTRACT(clusters, '$."age"') AS DECIMAL(10,2)) > 18
 ```
 
-### Cas 3 : LIKE pattern
+### Cas 4 : LIKE pattern
 
 ```php
 $node = new ConditionNode('name', ComparisonOperator::LIKE, 'John%');
@@ -228,7 +251,7 @@ $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 // LOWER(json_extract(clusters, '$.name')) LIKE LOWER('John%')
 ```
 
-### Cas 4 : EXISTS / NOT_EXISTS
+### Cas 5 : EXISTS / NOT_EXISTS
 
 ```php
 // Existence d'une clé
@@ -242,20 +265,25 @@ $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 // json_extract(clusters, '$.email') IS NULL
 ```
 
-### Cas 5 : Application Eloquent
+### Cas 6 : Application Eloquent avec valeurs booléennes
 
 ```php
 $query = User::query();
 
-// Condition simple
-$node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
+// Utilisateurs vérifiés
+$node = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
+$node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+
+// Utilisateurs non vérifiés (inclut ceux sans la clé)
+$node = new ConditionNode('verified', ComparisonOperator::EQUAL, 'no');
 $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
 // Chaînage
-$node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
+$node2 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
 $node2->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
 $users = $query->get();
+// Utilisateurs avec verified='yes' ET status='active'
 ```
 
 ---
@@ -306,6 +334,8 @@ $ageNode = new ConditionNode('age', ComparisonOperator::GREATER_THAN, '18');
 $nameNode = new ConditionNode('name', ComparisonOperator::LIKE, 'John%');
 $existsNode = new ConditionNode('email', ComparisonOperator::EXISTS);
 $notExistsNode = new ConditionNode('email', ComparisonOperator::NOT_EXISTS);
+$verifiedNode = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
+$unverifiedNode = new ConditionNode('verified', ComparisonOperator::EQUAL, 'no');
 
 // ==================== ÉVALUATION ====================
 
@@ -314,6 +344,7 @@ $cluster = new ClusterVO([
     'age' => 25,
     'name' => 'John Doe',
     'email' => 'john@example.com',
+    'verified' => 'yes',
 ]);
 
 var_dump($statusNode->evaluate($cluster)); // true
@@ -321,6 +352,18 @@ var_dump($ageNode->evaluate($cluster)); // true
 var_dump($nameNode->evaluate($cluster)); // true
 var_dump($existsNode->evaluate($cluster)); // true
 var_dump($notExistsNode->evaluate($cluster)); // false
+var_dump($verifiedNode->evaluate($cluster)); // true
+var_dump($unverifiedNode->evaluate($cluster)); // false
+
+// Cluster sans la clé 'verified'
+$cluster2 = new ClusterVO([
+    'status' => 'active',
+    'age' => 25,
+    'name' => 'John Doe',
+]);
+
+var_dump($verifiedNode->evaluate($cluster2)); // false
+var_dump($unverifiedNode->evaluate($cluster2)); // true (clé manquante = 'no')
 
 // ==================== GÉNÉRATION SQL ====================
 
@@ -332,6 +375,9 @@ echo $statusNode->toSql($column, DatabaseDriver::SQLITE) . "\n";
 
 echo $ageNode->toSql($column, DatabaseDriver::SQLITE) . "\n";
 // CAST(json_extract(clusters, '$.age') AS NUMERIC) > 18
+
+echo $verifiedNode->toSql($column, DatabaseDriver::SQLITE) . "\n";
+// LOWER(json_extract(clusters, '$.verified')) = LOWER('yes')
 
 echo "MySQL:\n";
 echo $statusNode->toSql($column, DatabaseDriver::MYSQL) . "\n";
@@ -345,12 +391,13 @@ echo $statusNode->toSql($column, DatabaseDriver::PGSQL) . "\n";
 
 $query = User::query();
 
+// Filtrage avec valeurs booléennes
 $statusNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+$verifiedNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 $ageNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-$nameNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
 $users = $query->get();
-// Utilisateurs avec status='active', age>18, et nom commençant par 'John'
+// Utilisateurs avec status='active', verified='yes', et age>18
 ```
 
 ---

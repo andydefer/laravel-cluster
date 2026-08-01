@@ -19,6 +19,7 @@ Fournit un conteneur de données optimisé pour les opérations de requête avec
 - **Validation stricte** : Types de données autorisés et clés valides
 - **Double représentation** : Accès aux données aplaties et imbriquées
 - **ArrayAccess** : Accès natif comme un tableau (`$cluster['key']`)
+- **Valeurs booléennes** : Utilisation de `'yes'` et `'no'` pour les valeurs booléennes
 
 ---
 
@@ -40,6 +41,7 @@ $cluster = new ClusterVO([
     'user' => [
         'name' => 'John Doe',
         'age' => 30,
+        'verified' => 'yes',
     ],
     'roles' => ['admin', 'editor'],
 ]);
@@ -56,7 +58,7 @@ Retourne la représentation aplatie des données.
 **Exemple :**
 ```php
 $data = $cluster->getValue();
-// ['user.name' => 'John Doe', 'user.age' => 30, 'roles_admin' => 'true', 'roles_editor' => 'true']
+// ['user.name' => 'John Doe', 'user.age' => 30, 'user.verified' => 'yes', 'roles_admin' => 'yes', 'roles_editor' => 'yes']
 ```
 
 ---
@@ -70,7 +72,7 @@ Retourne la représentation imbriquée (non aplatie) des données. Décode autom
 **Exemple :**
 ```php
 $nested = $cluster->getUnflattened();
-// ['user' => ['name' => 'John Doe', 'age' => 30], 'roles' => ['admin', 'editor']]
+// ['user' => ['name' => 'John Doe', 'age' => 30, 'verified' => 'yes'], 'roles' => ['admin', 'editor']]
 ```
 
 ---
@@ -121,6 +123,7 @@ Récupère une valeur des données aplaties par clé.
 ```php
 $name = $cluster->get('user.name'); // 'John Doe'
 $email = $cluster->get('user.email', 'unknown@example.com'); // 'unknown@example.com'
+$verified = $cluster->get('user.verified'); // 'yes'
 ```
 
 ---
@@ -134,7 +137,7 @@ Retourne toutes les clés des données aplaties.
 **Exemple :**
 ```php
 $keys = $cluster->keys();
-// ['user.name', 'user.age', 'roles_admin', 'roles_editor']
+// ['user.name', 'user.age', 'user.verified', 'roles_admin', 'roles_editor']
 ```
 
 ---
@@ -148,6 +151,7 @@ Retourne les données aplaties sous forme de tableau.
 **Exemple :**
 ```php
 $array = $cluster->toArray();
+// ['user.name' => 'John Doe', 'user.age' => 30, 'user.verified' => 'yes', 'roles_admin' => 'yes', 'roles_editor' => 'yes']
 ```
 
 ---
@@ -184,6 +188,7 @@ Récupère une valeur en utilisant la syntaxe de tableau.
 **Exemple :**
 ```php
 $name = $cluster['user.name']; // 'John Doe'
+$verified = $cluster['user.verified']; // 'yes'
 ```
 
 ---
@@ -226,10 +231,12 @@ try {
 
 | Type | Support | Commentaire |
 |------|---------|-------------|
-| `string` | ✅ | Converti en `'true'` ou `'false'` pour les booléens |
+| `string` | ✅ | 'yes'/'no' pour les valeurs booléennes |
 | `int` | ✅ | Conservé tel quel |
 | `float` | ✅ | Conservé tel quel |
-| `bool` | ✅ | Converti en `'true'` ou `'false'` |
+| `bool` | ❌ | **Exception** - Non autorisé, utiliser 'yes'/'no' |
+| `'true'/'false'` | ❌ | **Exception** - Non autorisé, utiliser 'yes'/'no' |
+| `'yes'/'no'` | ✅ | Accepté comme valeurs booléennes |
 | `null` | ✅ | Conservé tel quel |
 | `array` | ✅ | Aplati ou JSON encodé selon la structure |
 | `object` | ⚠️ | Seuls `stdClass` sont autorisés |
@@ -249,6 +256,7 @@ use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 $cluster = new ClusterVO([
     'status' => 'active',
     'role' => 'admin',
+    'verified' => 'yes',
     'user' => [
         'name' => 'John Doe',
         'age' => 30,
@@ -257,6 +265,7 @@ $cluster = new ClusterVO([
 
 // Accès comme un tableau (ArrayAccess)
 echo $cluster['status']; // 'active'
+echo $cluster['verified']; // 'yes'
 echo $cluster['user.name']; // 'John Doe'
 
 // Vérification d'existence comme un tableau
@@ -272,7 +281,7 @@ try {
 }
 ```
 
-### Cas 2 : Création et accès aux données
+### Cas 2 : Création et accès aux données avec 'yes'/'no'
 
 ```php
 $cluster = new ClusterVO([
@@ -280,20 +289,32 @@ $cluster = new ClusterVO([
         'name' => 'John Doe',
         'age' => 30,
         'email' => 'john@example.com',
+        'verified' => 'yes',
     ],
     'roles' => ['admin', 'editor'],
-    'active' => true,
+    'active' => 'yes',
+    'deleted' => 'no',
 ]);
 
 // Accès aux données aplaties
 echo $cluster->get('user.name'); // John Doe
 echo $cluster['user.age']; // 30 (ArrayAccess)
-echo $cluster->get('roles_admin'); // true
-echo $cluster['active']; // true
+echo $cluster->get('roles_admin'); // yes
+echo $cluster['active']; // yes
+echo $cluster['deleted']; // no
 
 // Vérification d'existence
 if ($cluster->has('user.email')) {
     $email = $cluster['user.email'];
+}
+
+// Vérification booléenne
+if ($cluster['verified'] === 'yes') {
+    echo "User is verified";
+}
+
+if ($cluster['deleted'] === 'no') {
+    echo "User is not deleted";
 }
 ```
 
@@ -307,7 +328,7 @@ $cluster = $user->metadata;
 
 // Accès natif comme un tableau
 $status = $cluster['status']; // 'active'
-$role = $cluster['role']; // 'admin'
+$verified = $cluster['verified']; // 'yes'
 
 // Vérification d'existence
 if (isset($cluster['preferences.theme'])) {
@@ -326,7 +347,7 @@ try {
 }
 ```
 
-### Cas 4 : Structures imbriquées complexes
+### Cas 4 : Structures imbriquées complexes avec valeurs booléennes
 
 ```php
 $cluster = new ClusterVO([
@@ -334,34 +355,80 @@ $cluster = new ClusterVO([
         [
             'city' => 'Kinshasa',
             'country' => 'RDC',
-            'is_primary' => true,
+            'is_primary' => 'yes',
         ],
         [
             'city' => 'Paris',
             'country' => 'France',
-            'is_primary' => false,
+            'is_primary' => 'no',
         ],
+    ],
+    'settings' => [
+        'notifications' => 'yes',
+        'dark_mode' => 'no',
     ],
 ]);
 
 // Accès comme un tableau
-$firstAddress = $cluster['addresses_Kinshasa']; // true
+$firstAddress = $cluster['addresses_Kinshasa']; // yes
 $hasParis = isset($cluster['addresses_Paris']); // true
+$notifications = $cluster['settings.notifications']; // yes
+
+// Vérification booléenne
+if ($cluster['settings.notifications'] === 'yes') {
+    echo "Notifications enabled";
+}
+
+if ($cluster['settings.dark_mode'] === 'no') {
+    echo "Dark mode disabled";
+}
 ```
 
 ### Cas 5 : Décodage JSON automatique
 
 ```php
 $cluster = new ClusterVO([
-    'settings' => '{"theme":"dark","notifications":true}',
+    'settings' => '{"theme":"dark","notifications":"yes"}',
 ]);
 
 // getUnflattened décode automatiquement le JSON
 $unflattened = $cluster->getUnflattened();
-// ['settings' => ['theme' => 'dark', 'notifications' => true]]
+// ['settings' => ['theme' => 'dark', 'notifications' => 'yes']]
 
 // Accès comme un tableau
 $theme = $cluster['settings_theme']; // true (via aplatissement)
+$notifications = $cluster['settings.notifications']; // yes
+```
+
+### Cas 6 : Gestion des erreurs avec booléens
+
+```php
+// ❌ Exception - booléen PHP non autorisé
+try {
+    $cluster = new ClusterVO([
+        'active' => true,  // Exception
+    ]);
+} catch (InvalidArgumentException $e) {
+    echo $e->getMessage();
+    // Boolean values are not allowed. Got bool for key "active"
+}
+
+// ❌ Exception - chaîne 'true'/'false' non autorisée
+try {
+    $cluster = new ClusterVO([
+        'active' => 'true',  // Exception
+    ]);
+} catch (InvalidArgumentException $e) {
+    echo $e->getMessage();
+    // Boolean strings "true" and "false" are not allowed. Got "true" for key "active". Use "yes" or "no" instead.
+}
+
+// ✅ Correct - utiliser 'yes'/'no'
+$cluster = new ClusterVO([
+    'active' => 'yes',
+    'deleted' => 'no',
+    'verified' => 'yes',
+]);
 ```
 
 ---
@@ -371,8 +438,11 @@ $theme = $cluster['settings_theme']; // true (via aplatissement)
 | Situation | Exception | Message |
 |-----------|-----------|---------|
 | Données vides | `InvalidArgumentException` | `Cluster cannot be empty` |
-| Clé non string | `InvalidArgumentException` | `Cluster keys must be strings` |
-| Objet non stdClass | `InvalidArgumentException` | `Cluster values must be string, int, float, bool, array or null. Got object for key "{key}"` |
+| Booléen PHP | `InvalidArgumentException` | `Boolean values are not allowed. Got bool for key "{key}"` |
+| Chaîne 'true'/'false' | `InvalidArgumentException` | `Boolean strings "true" and "false" are not allowed. Got "{value}" for key "{key}". Use "yes" or "no" instead.` |
+| Clé non string (top-level) | `InvalidArgumentException` | `Top-level cluster keys must be strings. Got {type}` |
+| Clé non string/int (nested) | `InvalidArgumentException` | `Nested array keys must be strings or integers. Got {type}` |
+| Objet non stdClass | `InvalidArgumentException` | `Cluster values must be string, int, float, array or null. Got object for key "{key}"` |
 | Resource | `InvalidArgumentException` | `Cluster values cannot be resources. Got resource for key "{key}"` |
 | Type invalide après aplatissement | `InvalidArgumentException` | `Cluster values must be string, int, float or null after flatten. Got {type} for key "{key}"` |
 | Tentative de modification (ArrayAccess) | `RuntimeException` | `ClusterVO is immutable. Use toArray() and create a new instance to modify.` |
@@ -418,21 +488,23 @@ $cluster = new ClusterVO([
     'status' => 'active',
     'role' => 'admin',
     'age' => 30,
-    'verified' => true,
+    'verified' => 'yes',
+    'deleted' => 'no',
     'addresses' => [
         [
             'city' => 'Kinshasa',
             'country' => 'RDC',
-            'is_primary' => true,
+            'is_primary' => 'yes',
         ],
         [
             'city' => 'Paris',
             'country' => 'France',
-            'is_primary' => false,
+            'is_primary' => 'no',
         ],
     ],
     'scores' => [85, 90, 78],
     'tags' => ['php', 'js', 'docker'],
+    'settings' => '{"theme":"dark","notifications":"yes"}',
 ]);
 
 // ==================== ACCÈS AUX DONNÉES ====================
@@ -441,11 +513,13 @@ $cluster = new ClusterVO([
 echo "Name: " . $cluster->get('name') . "\n";
 echo "Status: " . $cluster->get('status') . "\n";
 echo "Age: " . $cluster->get('age') . "\n";
-echo "Verified: " . $cluster->get('verified') . "\n"; // 'true'
+echo "Verified: " . $cluster->get('verified') . "\n"; // 'yes'
+echo "Deleted: " . $cluster->get('deleted') . "\n"; // 'no'
 
 // Accès via ArrayAccess (syntaxe tableau)
 echo "Name (array): " . $cluster['name'] . "\n";
 echo "Status (array): " . $cluster['status'] . "\n";
+echo "Verified (array): " . $cluster['verified'] . "\n";
 
 // Vérification d'existence
 if ($cluster->has('addresses')) {
@@ -477,9 +551,11 @@ print_r($nested);
 $isActive = $cluster['status'] === 'active';
 $isAdmin = $cluster['role'] === 'admin';
 $isAdult = $cluster['age'] >= 18;
+$isVerified = $cluster['verified'] === 'yes';
+$isNotDeleted = $cluster['deleted'] === 'no';
 
-if ($isActive && $isAdmin && $isAdult) {
-    echo "User is active admin and adult\n";
+if ($isActive && $isAdmin && $isAdult && $isVerified && $isNotDeleted) {
+    echo "User is active, admin, adult, verified and not deleted\n";
 }
 
 // Vérification de présence de valeurs dans les tableaux aplatis
@@ -501,10 +577,33 @@ try {
 // Pour modifier, il faut créer une nouvelle instance
 $data = $cluster->toArray();
 $data['status'] = 'inactive';
+$data['verified'] = 'no';
 $newCluster = new ClusterVO($data);
 
 echo "Old status: " . $cluster['status'] . "\n"; // active
 echo "New status: " . $newCluster['status'] . "\n"; // inactive
+echo "Old verified: " . $cluster['verified'] . "\n"; // yes
+echo "New verified: " . $newCluster['verified'] . "\n"; // no
+
+// ==================== GESTION DES ERREURS ====================
+
+// Booléen PHP (exception)
+try {
+    $invalid = new ClusterVO(['active' => true]);
+} catch (InvalidArgumentException $e) {
+    echo "Error: " . $e->getMessage() . "\n";
+}
+
+// Chaîne 'true' (exception)
+try {
+    $invalid = new ClusterVO(['active' => 'true']);
+} catch (InvalidArgumentException $e) {
+    echo "Error: " . $e->getMessage() . "\n";
+}
+
+// Valeurs correctes
+$valid = new ClusterVO(['active' => 'yes', 'verified' => 'no']);
+echo "Valid cluster created successfully\n";
 ```
 
 ---

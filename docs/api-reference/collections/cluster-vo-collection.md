@@ -66,24 +66,24 @@ $result = $collection->whereNot('status', 'inactive');
 
 ---
 
-### `whereTrue(string $key): self`
+### `whereYes(string $key): self`
 
-Filtre les éléments où la clé est égale à `'true'`.
+Filtre les éléments où la clé est égale à `'yes'`.
 
 **Exemple :**
 ```php
-$result = $collection->whereTrue('verified');
+$result = $collection->whereYes('verified');
 ```
 
 ---
 
-### `whereFalse(string $key): self`
+### `whereNo(string $key): self`
 
-Filtre les éléments où la clé est égale à `'false'`.
+Filtre les éléments où la clé est égale à `'no'`.
 
 **Exemple :**
 ```php
-$result = $collection->whereFalse('verified');
+$result = $collection->whereNo('verified');
 ```
 
 ---
@@ -665,3 +665,4 @@ echo "First cluster matches COUNT > 1: " . ($matches ? 'true' : 'false') . "\n";
 - `ClusterQuery` - Moteur de requêtes
 - `AggregateEvaluatorService` - Service d'évaluation d'agrégation
 - `AbstractTypedCollection` - Collection typée parente
+```

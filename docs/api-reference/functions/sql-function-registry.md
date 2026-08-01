@@ -308,6 +308,63 @@ $users = User::whereCluster('clusters', 'REGEXP(email, ".*@gmail\.com$")')->get(
 $users = User::whereCluster('clusters', 'REGEXP(name, "^John.*") & status=active')->get();
 ```
 
+### Cas 6 : Filtrage avec valeurs booléennes 'yes'/'no'
+
+```php
+use App\Models\User;
+
+// Utilisateurs vérifiés
+$users = User::whereCluster('clusters', 'verified=yes')->get();
+
+// Utilisateurs non vérifiés
+$users = User::whereCluster('clusters', 'verified=no')->get();
+
+// Utilisateurs actifs et vérifiés
+$users = User::whereCluster('clusters', 'status=active & verified=yes')->get();
+
+// Utilisateurs avec une moyenne de scores >= 85
+$users = User::whereCluster('clusters', 'AVG(scores) >= 85 & verified=yes')->get();
+```
+
+### Cas 7 : Utilisation avec ClusterVOCollection
+
+```php
+use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
+
+$collection = new ClusterVOCollection();
+$collection->add(new ClusterVO([
+    'name' => 'John Doe',
+    'status' => 'active',
+    'verified' => 'yes',
+    'scores' => [80, 90, 85],
+]));
+$collection->add(new ClusterVO([
+    'name' => 'Jane Smith',
+    'status' => 'active',
+    'verified' => 'no',
+    'scores' => [70, 75, 80],
+]));
+$collection->add(new ClusterVO([
+    'name' => 'Bob Johnson',
+    'status' => 'inactive',
+    'verified' => 'yes',
+    'scores' => [95, 98, 92],
+]));
+
+// Filtrage avec valeurs booléennes
+$activeVerified = $collection->whereQuery('status=active & verified=yes');
+// John Doe uniquement
+
+// Filtrage avec fonction d'agrégation
+$highScores = $collection->whereAggregate('{AVG(scores) >= 85} & verified=yes');
+// John Doe, Bob Johnson
+
+// Filtrage avec NOT
+$notVerified = $collection->whereQuery('!verified');
+// Jane Smith (verified=no)
+```
+
 ---
 
 ## Intégration

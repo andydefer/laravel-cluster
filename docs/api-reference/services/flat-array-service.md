@@ -16,7 +16,7 @@ FlatArrayService
 
 `FlatArrayService` est un service utilitaire qui permet de :
 
-- **Aplatir (flatten)** : Transformer des tableaux imbriqués en structure plate en utilisant la notation pointée pour les clés et en expansant les tableaux indexés en clés séparées (ex: `tags = ['php', 'js']` → `tags_php = 'true'`, `tags_js = 'true'`)
+- **Aplatir (flatten)** : Transformer des tableaux imbriqués en structure plate en utilisant la notation pointée pour les clés et en expansant les tableaux indexés en clés séparées (ex: `tags = ['php', 'js']` → `tags_php = 'yes'`, `tags_js = 'yes'`)
 - **Dé-aplatir (unflatten)** : Reconstruire la structure imbriquée à partir d'un tableau plat
 
 Ce service est essentiel pour la recherche et le filtrage sur des données JSON stockées en base de données, où les tableaux indexés doivent être convertis en champs consultables.
@@ -36,13 +36,13 @@ Aplatit un tableau imbriqué en une structure plate.
 
 **Retourne :** `array<string, int|float|string|null>` - Tableau aplati
 
-**Exceptions :** `InvalidArgumentException` - Si un type de valeur non supporté est rencontré
+**Exceptions :** `InvalidArgumentException` - Si un booléen ou un type de valeur non supporté est rencontré
 
 **Règles de conversion :**
 - Les clés sont concaténées avec un point (`.`)
 - Les tableaux associatifs sont parcourus récursivement
-- Les tableaux indexés sont expansés : `['php', 'js']` → `['tags_php' => 'true', 'tags_js' => 'true']`
-- Les booléens sont convertis en `'true'` / `'false'`
+- Les tableaux indexés sont expansés : `['php', 'js']` → `['tags_php' => 'yes', 'tags_js' => 'yes']`
+- **Les booléens sont strictement interdits** (lèvent une exception)
 - `null` est conservé comme `null`
 - Les tableaux vides indexés → `['key' => null]`
 
@@ -57,7 +57,7 @@ $input = [
         'zip' => 75000
     ],
     'tags' => ['php', 'js', 'docker'],
-    'active' => true,
+    'active' => 'yes',
     'metadata' => null
 ];
 
@@ -67,10 +67,10 @@ $flat = $service->flatten($input);
 //     'id' => 1,
 //     'address.city' => 'Paris',
 //     'address.zip' => 75000,
-//     'tags_php' => 'true',
-//     'tags_js' => 'true',
-//     'tags_docker' => 'true',
-//     'active' => 'true',
+//     'tags_php' => 'yes',
+//     'tags_js' => 'yes',
+//     'tags_docker' => 'yes',
+//     'active' => 'yes',
 //     'metadata' => null
 // ]
 ```
@@ -92,8 +92,8 @@ Reconstruit un tableau imbriqué à partir d'une structure plate.
 $flat = [
     'address.city' => 'Paris',
     'address.zip' => 75000,
-    'tags_php' => 'true',
-    'tags_js' => 'true'
+    'tags_php' => 'yes',
+    'tags_js' => 'yes'
 ];
 
 $nested = $service->unflatten($flat);
@@ -103,10 +103,7 @@ $nested = $service->unflatten($flat);
 //         'city' => 'Paris',
 //         'zip' => 75000
 //     ],
-//     'tags' => [
-//         'php' => 'true',
-//         'js' => 'true'
-//     ]
+//     'tags' => ['php', 'js']
 // ]
 ```
 
@@ -117,9 +114,10 @@ $nested = $service->unflatten($flat);
 | Méthode | Rôle |
 |---------|------|
 | `setNestedValue()` | Définit une valeur dans un tableau imbriqué en utilisant la notation pointée |
-| `expandIndexedArray()` | Expande un tableau indexé en clés séparées avec valeur `'true'` |
+| `expandIndexedArray()` | Expande un tableau indexé en clés séparées avec valeur `'yes'` |
 | `normalizeValueForKey()` | Normalise une valeur pour l'utiliser comme suffixe de clé |
 | `isAssociativeArray()` | Vérifie si un tableau est associatif (clés non numériques) |
+| `validateNoBooleans()` | Valide qu'un tableau ne contient pas de booléens |
 
 ---
 
@@ -146,7 +144,7 @@ $user = [
     'skills' => ['php', 'javascript', 'docker'],
     'preferences' => [
         'theme' => 'dark',
-        'notifications' => true
+        'notifications' => 'yes'
     ]
 ];
 
@@ -157,11 +155,11 @@ $flatUser = $service->flatten($user);
 //     'profile.first_name' => 'John',
 //     'profile.last_name' => 'Doe',
 //     'profile.age' => 30,
-//     'skills_php' => 'true',
-//     'skills_javascript' => 'true',
-//     'skills_docker' => 'true',
+//     'skills_php' => 'yes',
+//     'skills_javascript' => 'yes',
+//     'skills_docker' => 'yes',
 //     'preferences.theme' => 'dark',
-//     'preferences.notifications' => 'true'
+//     'preferences.notifications' => 'yes'
 // ]
 
 // Maintenant facile à stocker ou rechercher
@@ -189,9 +187,9 @@ $flat = $service->flatten($data);
 // Résultat :
 // [
 //     'title' => 'Mon article',
-//     'tags_php' => 'true',
-//     'tags_laravel' => 'true',
-//     'tags_api' => 'true'
+//     'tags_php' => 'yes',
+//     'tags_laravel' => 'yes',
+//     'tags_api' => 'yes'
 // ]
 
 // Permet une recherche simple sur les tags
@@ -219,8 +217,8 @@ $flatData = [
     'user_profile.first_name' => 'Jane',
     'user_profile.last_name' => 'Smith',
     'user_profile.age' => 28,
-    'user_roles_phpe' => 'true',
-    'user_roles_csharpe' => 'true'
+    'user_roles_php' => 'yes',
+    'user_roles_csharp' => 'yes'
 ];
 
 $nested = $service->unflatten($flatData);
@@ -232,10 +230,7 @@ $nested = $service->unflatten($flatData);
 //         'last_name' => 'Smith',
 //         'age' => 28
 //     ],
-//     'user_roles' => [
-//         'php' => 'true',
-//         'csharp' => 'true'
-//     ]
+//     'user_roles' => ['php', 'csharp']
 // ]
 
 // Accès facilité aux données
@@ -265,8 +260,8 @@ $flat = $service->flatten($dirtyData);
 // [
 //     'name' => 'John Doe',
 //     'email' => 'john@example.com',
-//     'tags_php' => 'true',
-//     'tags_laravel' => 'true'
+//     'tags_php' => 'yes',
+//     'tags_laravel' => 'yes'
 // ]
 ```
 
@@ -301,13 +296,46 @@ $flat = $service->flatten($data);
 
 ---
 
+### Cas 6 : Gestion des booléens (Exception)
+
+Les booléens sont strictement interdits et lèvent une exception.
+
+```php
+<?php
+
+$service = new FlatArrayService();
+
+try {
+    $data = [
+        'id' => 1,
+        'active' => true,  // ❌ Booléen interdit
+        'verified' => false // ❌ Booléen interdit
+    ];
+    $flat = $service->flatten($data);
+} catch (InvalidArgumentException $e) {
+    echo "Erreur : " . $e->getMessage();
+    // Boolean values are not allowed. Got bool for key "active"
+}
+
+// Utiliser 'yes'/'no' à la place
+$data = [
+    'id' => 1,
+    'active' => 'yes',
+    'verified' => 'no'
+];
+$flat = $service->flatten($data);
+// Résultat : ['id' => 1, 'active' => 'yes', 'verified' => 'no']
+```
+
+---
+
 ## Gestion des erreurs
 
 | Situation | Exception | Message |
 |-----------|-----------|---------|
-| Type de valeur non supporté | `InvalidArgumentException` | `Unsupported value type "{type}" for key "{key}". Only string, int, float, null, or indexed arrays are allowed.` |
-| Tableau imbriqué dans tableau indexé | `InvalidArgumentException` | `Nested arrays are not supported for key "{key}". Only flat lists are allowed.` |
-| Valeur impossible à utiliser comme clé | `InvalidArgumentException` | `Cannot use value of type "{type}" as a key suffix.` |
+| Booléen rencontré | `InvalidArgumentException` | `Boolean values are not allowed. Got bool for key "{key}"` |
+| Booléen dans tableau indexé | `InvalidArgumentException` | `Boolean values are not allowed in indexed arrays. Found bool in array "{key}"` |
+| Type de valeur non supporté | `InvalidArgumentException` | `Unsupported value type "{type}" for key "{key}"` |
 | Erreur de normalisation | `InvalidArgumentException` | Message de l'erreur originale |
 
 ### Types supportés
@@ -317,10 +345,10 @@ $flat = $service->flatten($data);
 | `string` | Conservé tel quel |
 | `int` | Conservé comme int |
 | `float` | Conservé comme float |
-| `bool` | Converti en `'true'` / `'false'` |
+| `bool` | ❌ **Exception** - Non autorisé |
 | `null` | Conservé comme `null` |
 | Tableau associatif | Parcouru récursivement |
-| Tableau indexé (liste) | Expansé en clés séparées |
+| Tableau indexé (liste) | Expansé en clés séparées avec `'yes'` |
 | Tableau vide | Converti en `null` |
 | `object` | ❌ Non supporté |
 
@@ -353,13 +381,14 @@ Ce service est typiquement utilisé dans :
 | `unflatten()` | O(n) | n = nombre de clés plates |
 | `expandIndexedArray()` | O(n) | n = taille du tableau indexé |
 | `isAssociativeArray()` | O(k) | k = nombre de clés du tableau (peut être O(1) pour les tableaux indexés) |
+| `validateNoBooleans()` | O(n) | n = nombre d'éléments du tableau |
 
 ### Optimisations
 
 - Récursion pour les tableaux associatifs
 - Expansion directe pour les tableaux indexés
 - Utilisation de `normalizer_chain()` pour le nettoyage
-- Pas de cache (calcul à chaque appel)
+- Validation des booléens en temps réel
 
 ### Considérations mémoire
 
@@ -394,12 +423,12 @@ use AndyDefer\LaravelCluster\Services\FlatArrayService;
 // 1. Instanciation
 $service = new FlatArrayService();
 
-// 2. Données complexes
+// 2. Données complexes avec valeurs 'yes'/'no'
 $complexData = [
     'id' => 1,
     'name' => '  John Doe  ',
     'email' => 'JOHN@EXAMPLE.COM',
-    'active' => true,
+    'active' => 'yes',
     'age' => 30,
     'height' => 1.75,
     'metadata' => null,
@@ -412,7 +441,7 @@ $complexData = [
     'skills' => ['php', 'javascript', 'docker'],
     'preferences' => [
         'theme' => 'dark',
-        'notifications' => true,
+        'notifications' => 'yes',
         'language' => 'fr'
     ],
     'empty_tags' => [],
@@ -455,12 +484,12 @@ foreach ($skillsFields as $field) {
     echo "- {$field}: {$flat[$field]}\n";
 }
 
-// 8. Gestion des erreurs
-echo "\n=== GESTION DES ERREURS ===\n";
+// 8. Gestion des erreurs avec booléen
+echo "\n=== GESTION DES ERREURS (BOOLÉEN) ===\n";
 try {
     $invalid = $service->flatten([
         'valid' => 'ok',
-        'invalid' => new stdClass() // Object non supporté
+        'invalid' => true // Booléen interdit
     ]);
 } catch (InvalidArgumentException $e) {
     echo "✅ Erreur capturée : " . $e->getMessage() . PHP_EOL;
@@ -476,11 +505,11 @@ $flatList = $service->flatten($listData);
 print_r($flatList);
 // Résultat :
 // [
-//     'tags_php' => 'true',
-//     'tags_js' => 'true',
-//     'tags_docker' => 'true',
-//     'roles_admin' => 'true',
-//     'roles_user' => 'true'
+//     'tags_php' => 'yes',
+//     'tags_js' => 'yes',
+//     'tags_docker' => 'yes',
+//     'roles_admin' => 'yes',
+//     'roles_user' => 'yes'
 // ]
 
 // 10. Utilisation avec ClusterVO
@@ -491,12 +520,13 @@ $cluster = new ClusterVO([
         'name' => 'John',
         'email' => 'john@example.com'
     ],
-    'tags' => ['php', 'laravel']
+    'tags' => ['php', 'laravel'],
+    'verified' => 'yes'
 ]);
 
 $clusterFlat = $service->flatten($cluster->toArray());
 echo "Clés aplaties du cluster : " . implode(', ', array_keys($clusterFlat)) . PHP_EOL;
-// Résultat : id, user.name, user.email, tags_php, tags_laravel
+// Résultat : id, user.name, user.email, tags_php, tags_laravel, verified
 ```
 
 ---

@@ -266,7 +266,7 @@ $user = User::create([
         'age' => 30,
         'preferences' => [
             'theme' => 'dark',
-            'notifications' => true,
+            'notifications' => 'yes',
         ],
         'addresses' => [
             ['city' => 'Kinshasa', 'country' => 'RDC'],
@@ -290,7 +290,7 @@ echo "Age: " . $cluster['age'] . "\n"; // 30
 
 // 4. Vérification
 if ($cluster->has('preferences.notifications')) {
-    echo "Notifications: " . $cluster->get('preferences.notifications') . "\n";
+    echo "Notifications: " . $cluster->get('preferences.notifications') . "\n"; // yes
 }
 
 // 5. Filtrage Eloquent avec oùCluster
@@ -344,3 +344,4 @@ print_r($exportData);
 - `ClusterService` - Service principal du package
 - `ClusterMacroRegistrar` - Enregistreur des macros
 - `ClusterQuery` - Moteur de requêtes
+```

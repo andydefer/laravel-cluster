@@ -264,7 +264,7 @@ final class ClusterVOCollectionBenchmarkTest extends IntegrationTestCase
                         ->where('status', 'active')
                         ->where('role', 'admin')
                         ->whereGreaterThan('age', 25)
-                        ->whereTrue('verified');
+                        ->whereYes('verified');
                 }
             );
 

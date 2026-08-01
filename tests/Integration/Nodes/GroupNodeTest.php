@@ -25,9 +25,9 @@ final class GroupNodeTest extends IntegrationTestCase
                 'status' => 'active',
                 'role' => 'admin',
                 'age' => '25',
-                'lang_fr' => 'true',
-                'lang_en' => 'false',
-                'verified' => 'true',
+                'lang_fr' => 'yes',
+                'lang_en' => 'no',
+                'verified' => 'yes',
                 'score' => '85.5',
             ],
         ]);
@@ -38,9 +38,9 @@ final class GroupNodeTest extends IntegrationTestCase
                 'status' => 'inactive',
                 'role' => 'doctor',
                 'age' => '30',
-                'lang_fr' => 'false',
-                'lang_en' => 'true',
-                'verified' => 'false',
+                'lang_fr' => 'no',
+                'lang_en' => 'yes',
+                'verified' => 'no',
                 'score' => '92.0',
             ],
         ]);
@@ -51,9 +51,9 @@ final class GroupNodeTest extends IntegrationTestCase
                 'status' => 'active',
                 'role' => 'doctor',
                 'age' => '35',
-                'lang_fr' => 'true',
-                'lang_en' => 'false',
-                'verified' => 'true',
+                'lang_fr' => 'yes',
+                'lang_en' => 'no',
+                'verified' => 'yes',
                 'score' => '78.0',
             ],
         ]);
@@ -64,9 +64,9 @@ final class GroupNodeTest extends IntegrationTestCase
                 'status' => 'pending',
                 'role' => 'guest',
                 'age' => '18',
-                'lang_fr' => 'false',
-                'lang_en' => 'true',
-                'verified' => 'false',
+                'lang_fr' => 'no',
+                'lang_en' => 'yes',
+                'verified' => 'no',
                 'score' => '30.5',
             ],
         ]);
@@ -77,15 +77,13 @@ final class GroupNodeTest extends IntegrationTestCase
                 'status' => 'active',
                 'role' => 'admin',
                 'age' => '40',
-                'lang_fr' => 'true',
-                'lang_en' => 'false',
-                'verified' => 'true',
+                'lang_fr' => 'yes',
+                'lang_en' => 'no',
+                'verified' => 'yes',
                 'score' => '95.0',
             ],
         ]);
     }
-
-    // ==================== EVALUATE TESTS ====================
 
     public function test_evaluate_and(): void
     {
@@ -128,14 +126,14 @@ final class GroupNodeTest extends IntegrationTestCase
     {
         $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
         $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
-        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'true');
+        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
 
         $group = new GroupNode(LogicalOperator::AND, $node1, $node2, $node3);
 
-        $cluster1 = new ClusterVO(['status' => 'active', 'role' => 'admin', 'verified' => 'true']);
+        $cluster1 = new ClusterVO(['status' => 'active', 'role' => 'admin', 'verified' => 'yes']);
         $this->assertTrue($group->evaluate($cluster1));
 
-        $cluster2 = new ClusterVO(['status' => 'active', 'role' => 'admin', 'verified' => 'false']);
+        $cluster2 = new ClusterVO(['status' => 'active', 'role' => 'admin', 'verified' => 'no']);
         $this->assertFalse($group->evaluate($cluster2));
     }
 
@@ -143,20 +141,20 @@ final class GroupNodeTest extends IntegrationTestCase
     {
         $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
         $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
-        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'true');
+        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
 
         $group = new GroupNode(LogicalOperator::OR, $node1, $node2, $node3);
 
-        $cluster1 = new ClusterVO(['status' => 'active', 'role' => 'guest', 'verified' => 'false']);
+        $cluster1 = new ClusterVO(['status' => 'active', 'role' => 'guest', 'verified' => 'no']);
         $this->assertTrue($group->evaluate($cluster1));
 
-        $cluster2 = new ClusterVO(['status' => 'inactive', 'role' => 'admin', 'verified' => 'false']);
+        $cluster2 = new ClusterVO(['status' => 'inactive', 'role' => 'admin', 'verified' => 'no']);
         $this->assertTrue($group->evaluate($cluster2));
 
-        $cluster3 = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'verified' => 'true']);
+        $cluster3 = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'verified' => 'yes']);
         $this->assertTrue($group->evaluate($cluster3));
 
-        $cluster4 = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'verified' => 'false']);
+        $cluster4 = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'verified' => 'no']);
         $this->assertFalse($group->evaluate($cluster4));
     }
 
@@ -175,23 +173,21 @@ final class GroupNodeTest extends IntegrationTestCase
 
         $innerGroup = new GroupNode(LogicalOperator::OR, $node1, $node2);
 
-        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'true');
+        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
         $outerGroup = new GroupNode(LogicalOperator::AND, $innerGroup, $node3);
 
-        $cluster1 = new ClusterVO(['status' => 'active', 'role' => 'guest', 'verified' => 'true']);
+        $cluster1 = new ClusterVO(['status' => 'active', 'role' => 'guest', 'verified' => 'yes']);
         $this->assertTrue($outerGroup->evaluate($cluster1));
 
-        $cluster2 = new ClusterVO(['status' => 'inactive', 'role' => 'admin', 'verified' => 'true']);
+        $cluster2 = new ClusterVO(['status' => 'inactive', 'role' => 'admin', 'verified' => 'yes']);
         $this->assertTrue($outerGroup->evaluate($cluster2));
 
-        $cluster3 = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'verified' => 'true']);
+        $cluster3 = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'verified' => 'yes']);
         $this->assertFalse($outerGroup->evaluate($cluster3));
 
-        $cluster4 = new ClusterVO(['status' => 'active', 'role' => 'admin', 'verified' => 'false']);
+        $cluster4 = new ClusterVO(['status' => 'active', 'role' => 'admin', 'verified' => 'no']);
         $this->assertFalse($outerGroup->evaluate($cluster4));
     }
-
-    // ==================== TO SQL TESTS ====================
 
     public function test_to_sql_and(): void
     {
@@ -223,13 +219,13 @@ final class GroupNodeTest extends IntegrationTestCase
     {
         $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
         $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
-        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'true');
+        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
 
         $group = new GroupNode(LogicalOperator::AND, $node1, $node2, $node3);
 
         $sql = $group->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "(LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active') AND LOWER(JSON_EXTRACT(clusters, '$.\"role\"')) = LOWER('admin') AND LOWER(JSON_EXTRACT(clusters, '$.\"verified\"')) = LOWER('true'))";
+        $expected = "(LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active') AND LOWER(JSON_EXTRACT(clusters, '$.\"role\"')) = LOWER('admin') AND LOWER(JSON_EXTRACT(clusters, '$.\"verified\"')) = LOWER('yes'))";
         $this->assertEquals($expected, $sql);
     }
 
@@ -252,12 +248,12 @@ final class GroupNodeTest extends IntegrationTestCase
 
         $innerGroup = new GroupNode(LogicalOperator::OR, $node1, $node2);
 
-        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'true');
+        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
         $outerGroup = new GroupNode(LogicalOperator::AND, $innerGroup, $node3);
 
         $sql = $outerGroup->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "((LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active') OR LOWER(JSON_EXTRACT(clusters, '$.\"role\"')) = LOWER('admin')) AND LOWER(JSON_EXTRACT(clusters, '$.\"verified\"')) = LOWER('true'))";
+        $expected = "((LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active') OR LOWER(JSON_EXTRACT(clusters, '$.\"role\"')) = LOWER('admin')) AND LOWER(JSON_EXTRACT(clusters, '$.\"verified\"')) = LOWER('yes'))";
         $this->assertEquals($expected, $sql);
     }
 
@@ -286,8 +282,6 @@ final class GroupNodeTest extends IntegrationTestCase
         $expected = "(LOWER(json_extract(clusters, '$.status')) = LOWER('active') AND LOWER(json_extract(clusters, '$.role')) = LOWER('admin'))";
         $this->assertEquals($expected, $sql);
     }
-
-    // ==================== TO ELOQUENT TESTS ====================
 
     public function test_to_eloquent_and(): void
     {
@@ -327,7 +321,7 @@ final class GroupNodeTest extends IntegrationTestCase
     {
         $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
         $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
-        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'true');
+        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
 
         $group = new GroupNode(LogicalOperator::AND, $node1, $node2, $node3);
 
@@ -345,7 +339,7 @@ final class GroupNodeTest extends IntegrationTestCase
 
         $innerGroup = new GroupNode(LogicalOperator::OR, $node1, $node2);
 
-        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'true');
+        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
         $outerGroup = new GroupNode(LogicalOperator::AND, $innerGroup, $node3);
 
         $query = TestCluster::query();
@@ -368,8 +362,6 @@ final class GroupNodeTest extends IntegrationTestCase
         $results = $query->get();
         $this->assertCount(4, $results);
     }
-
-    // ==================== GET CHILDREN TESTS ====================
 
     public function test_get_children(): void
     {

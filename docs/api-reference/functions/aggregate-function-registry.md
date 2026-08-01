@@ -1,3 +1,4 @@
+```markdown
 # AggregateFunctionRegistry - Technical Reference
 
 ## Description
@@ -422,3 +423,4 @@ echo "Numeric functions: " . implode(', ', array_keys($numericFunctions)) . "\n"
 - `AggregateEvaluatorService` - Service d'évaluation
 - `AggregateExpressionParser` - Analyseur d'expressions
 - `MatchesFunction` - Fonction d'agrégation pour les expressions régulières
+```

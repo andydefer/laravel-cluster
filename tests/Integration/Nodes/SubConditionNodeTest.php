@@ -14,17 +14,6 @@ use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
 use AndyDefer\LaravelCluster\Tests\IntegrationTestCase;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
-/**
- * Integration tests for SubConditionNode.
- *
- * Tests cover:
- * - In-memory evaluation of sub-conditions
- * - SQL generation for SQLite
- * - Eloquent query application
- * - Complex nested paths
- * - EXISTS and NOT_EXISTS operators
- * - Combined conditions with AND/OR
- */
 final class SubConditionNodeTest extends IntegrationTestCase
 {
     protected function setUp(): void
@@ -34,12 +23,8 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $this->createTestData();
     }
 
-    /**
-     * Creates test data with various address and settings configurations.
-     */
     private function createTestData(): void
     {
-        // John Doe avec 2 adresses
         TestCluster::create([
             'clusters' => [
                 'name' => 'John Doe',
@@ -51,27 +36,26 @@ final class SubConditionNodeTest extends IntegrationTestCase
                         'street' => 'Avenue de la Paix',
                         'country' => 'RDC',
                         'postal_code' => '1000',
-                        'is_primary' => 'true',
+                        'is_primary' => 'yes',
                     ],
                     [
                         'city' => 'Lubumbashi',
                         'street' => 'Avenue Lumumba',
                         'country' => 'RDC',
                         'postal_code' => '2000',
-                        'is_primary' => 'false',
+                        'is_primary' => 'no',
                     ],
                 ],
                 'tags' => ['php', 'js', 'docker'],
                 'settings' => [
                     'notifications' => [
-                        ['email' => 'true', 'sms' => 'false', 'push' => 'true'],
+                        ['email' => 'yes', 'sms' => 'no', 'push' => 'yes'],
                     ],
                     'theme' => 'dark',
                 ],
             ],
         ]);
 
-        // Jane Smith avec 1 adresse
         TestCluster::create([
             'clusters' => [
                 'name' => 'Jane Smith',
@@ -83,20 +67,19 @@ final class SubConditionNodeTest extends IntegrationTestCase
                         'street' => 'Rue de Rivoli',
                         'country' => 'France',
                         'postal_code' => '75001',
-                        'is_primary' => 'true',
+                        'is_primary' => 'yes',
                     ],
                 ],
                 'tags' => ['python', 'react'],
                 'settings' => [
                     'notifications' => [
-                        ['email' => 'false', 'sms' => 'true', 'push' => 'false'],
+                        ['email' => 'no', 'sms' => 'yes', 'push' => 'no'],
                     ],
                     'theme' => 'light',
                 ],
             ],
         ]);
 
-        // Bob Johnson avec 3 adresses
         TestCluster::create([
             'clusters' => [
                 'name' => 'Bob Johnson',
@@ -108,34 +91,33 @@ final class SubConditionNodeTest extends IntegrationTestCase
                         'street' => 'Boulevard du 30 Juin',
                         'country' => 'RDC',
                         'postal_code' => '1000',
-                        'is_primary' => 'true',
+                        'is_primary' => 'yes',
                     ],
                     [
                         'city' => 'Paris',
                         'street' => 'Avenue des Champs-Élysées',
                         'country' => 'France',
                         'postal_code' => '75008',
-                        'is_primary' => 'false',
+                        'is_primary' => 'no',
                     ],
                     [
                         'city' => 'London',
                         'street' => 'Oxford Street',
                         'country' => 'UK',
                         'postal_code' => 'W1D 1BS',
-                        'is_primary' => 'false',
+                        'is_primary' => 'no',
                     ],
                 ],
                 'tags' => ['php', 'laravel', 'vuejs'],
                 'settings' => [
                     'notifications' => [
-                        ['email' => 'true', 'sms' => 'true', 'push' => 'true'],
+                        ['email' => 'yes', 'sms' => 'yes', 'push' => 'yes'],
                     ],
                     'theme' => 'dark',
                 ],
             ],
         ]);
 
-        // Alice Wonder sans adresses
         TestCluster::create([
             'clusters' => [
                 'name' => 'Alice Wonder',
@@ -145,15 +127,13 @@ final class SubConditionNodeTest extends IntegrationTestCase
                 'tags' => ['go', 'rust'],
                 'settings' => [
                     'notifications' => [
-                        ['email' => 'false', 'sms' => 'false', 'push' => 'false'],
+                        ['email' => 'no', 'sms' => 'no', 'push' => 'no'],
                     ],
                     'theme' => 'light',
                 ],
             ],
         ]);
     }
-
-    // ==================== EVALUATE TESTS ====================
 
     public function test_evaluate_subcondition_simple(): void
     {
@@ -261,13 +241,13 @@ final class SubConditionNodeTest extends IntegrationTestCase
 
     public function test_evaluate_subcondition_with_nested_path(): void
     {
-        $condition = new ConditionNode('email', ComparisonOperator::EQUAL, 'true');
+        $condition = new ConditionNode('email', ComparisonOperator::EQUAL, 'yes');
         $node = new SubConditionNode('settings.notifications', $condition);
 
         $cluster = new ClusterVO([
             'settings' => [
                 'notifications' => [
-                    ['email' => 'true', 'sms' => 'false'],
+                    ['email' => 'yes', 'sms' => 'no'],
                 ],
             ],
         ]);
@@ -277,13 +257,13 @@ final class SubConditionNodeTest extends IntegrationTestCase
 
     public function test_evaluate_subcondition_with_nested_path_false(): void
     {
-        $condition = new ConditionNode('email', ComparisonOperator::EQUAL, 'true');
+        $condition = new ConditionNode('email', ComparisonOperator::EQUAL, 'yes');
         $node = new SubConditionNode('settings.notifications', $condition);
 
         $cluster = new ClusterVO([
             'settings' => [
                 'notifications' => [
-                    ['email' => 'false', 'sms' => 'true'],
+                    ['email' => 'no', 'sms' => 'yes'],
                 ],
             ],
         ]);
@@ -314,8 +294,6 @@ final class SubConditionNodeTest extends IntegrationTestCase
 
         $this->assertFalse($node->evaluate($cluster));
     }
-
-    // ==================== TO SQL TESTS ====================
 
     public function test_to_sql_sqlite_subcondition_simple(): void
     {
@@ -400,16 +378,14 @@ final class SubConditionNodeTest extends IntegrationTestCase
 
     public function test_to_sql_sqlite_subcondition_with_nested_path(): void
     {
-        $condition = new ConditionNode('email', ComparisonOperator::EQUAL, 'true');
+        $condition = new ConditionNode('email', ComparisonOperator::EQUAL, 'yes');
         $node = new SubConditionNode('settings.notifications', $condition);
 
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.settings.notifications') WHERE LOWER(json_extract(value, '$.email')) = LOWER('true'))";
+        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.settings.notifications') WHERE LOWER(json_extract(value, '$.email')) = LOWER('yes'))";
         $this->assertEquals($expected, $sql);
     }
-
-    // ==================== TO ELOQUENT TESTS ====================
 
     public function test_to_eloquent_sqlite_subcondition_simple(): void
     {
@@ -465,7 +441,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
 
     public function test_to_eloquent_sqlite_subcondition_with_nested_path(): void
     {
-        $condition = new ConditionNode('email', ComparisonOperator::EQUAL, 'true');
+        $condition = new ConditionNode('email', ComparisonOperator::EQUAL, 'yes');
         $node = new SubConditionNode('settings.notifications', $condition);
 
         $query = TestCluster::query();
@@ -560,8 +536,6 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $results = $query->get();
         $this->assertCount(2, $results);
     }
-
-    // ==================== GET CHILDREN TESTS ====================
 
     public function test_get_children(): void
     {

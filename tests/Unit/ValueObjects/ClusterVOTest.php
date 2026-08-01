@@ -15,14 +15,14 @@ final class ClusterVOTest extends TestCase
         $input = [
             'name' => 'Dupont',
             'age' => 30,
-            'active' => 'true',
+            'active' => 'yes',
         ];
 
         $cluster = new ClusterVO($input);
 
         $this->assertEquals('Dupont', $cluster->get('name'));
         $this->assertEquals(30, $cluster->get('age'));
-        $this->assertEquals('true', $cluster->get('active'));
+        $this->assertEquals('yes', $cluster->get('active'));
     }
 
     public function test_flattens_nested_array_with_dot_notation(): void
@@ -52,9 +52,9 @@ final class ClusterVOTest extends TestCase
         $cluster = new ClusterVO($input);
 
         $this->assertEquals('Dupont', $cluster->get('name'));
-        $this->assertEquals('true', $cluster->get('languages_fr'));
-        $this->assertEquals('true', $cluster->get('languages_en'));
-        $this->assertEquals('true', $cluster->get('languages_es'));
+        $this->assertEquals('yes', $cluster->get('languages_fr'));
+        $this->assertEquals('yes', $cluster->get('languages_en'));
+        $this->assertEquals('yes', $cluster->get('languages_es'));
     }
 
     public function test_handles_empty_indexed_array_as_null(): void
@@ -70,21 +70,24 @@ final class ClusterVOTest extends TestCase
         $this->assertNull($cluster->get('tags'));
     }
 
-    public function test_handles_boolean_values_converted_to_strings(): void
+    public function test_handles_boolean_values_throw_exception(): void
     {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean values are not allowed');
+
         $input = [
             'active' => true,
             'verified' => false,
         ];
 
-        $cluster = new ClusterVO($input);
-
-        $this->assertEquals('true', $cluster->get('active'));
-        $this->assertEquals('false', $cluster->get('verified'));
+        new ClusterVO($input);
     }
 
-    public function test_handles_boolean_in_nested_array(): void
+    public function test_handles_boolean_in_nested_array_throw_exception(): void
     {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean values are not allowed');
+
         $input = [
             'user' => [
                 'active' => true,
@@ -96,12 +99,20 @@ final class ClusterVOTest extends TestCase
             ],
         ];
 
-        $cluster = new ClusterVO($input);
+        new ClusterVO($input);
+    }
 
-        $this->assertEquals('true', $cluster->get('user.active'));
-        $this->assertEquals('false', $cluster->get('user.verified'));
-        $this->assertEquals('true', $cluster->get('user.settings.notifications'));
-        $this->assertEquals('false', $cluster->get('user.settings.dark_mode'));
+    public function test_handles_boolean_strings_throw_exception(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean strings "true" and "false" are not allowed');
+
+        $input = [
+            'active' => 'true',
+            'verified' => 'false',
+        ];
+
+        new ClusterVO($input);
     }
 
     public function test_flattens_deeply_nested_structure(): void
@@ -122,11 +133,11 @@ final class ClusterVOTest extends TestCase
         $cluster = new ClusterVO($input);
 
         $this->assertEquals('John', $cluster->get('user.personal.name'));
-        $this->assertEquals('true', $cluster->get('user.personal.languages_fr'));
-        $this->assertEquals('true', $cluster->get('user.personal.languages_en'));
+        $this->assertEquals('yes', $cluster->get('user.personal.languages_fr'));
+        $this->assertEquals('yes', $cluster->get('user.personal.languages_en'));
         $this->assertEquals('admin', $cluster->get('user.professional.role'));
-        $this->assertEquals('true', $cluster->get('user.professional.tags_premium'));
-        $this->assertEquals('true', $cluster->get('user.professional.tags_verified'));
+        $this->assertEquals('yes', $cluster->get('user.professional.tags_premium'));
+        $this->assertEquals('yes', $cluster->get('user.professional.tags_verified'));
     }
 
     public function test_handles_mixed_types(): void
@@ -136,8 +147,8 @@ final class ClusterVOTest extends TestCase
             'int' => 42,
             'float' => 3.14,
             'null' => null,
-            'bool_true' => true,
-            'bool_false' => false,
+            'bool_true' => 'yes',
+            'bool_false' => 'no',
         ];
 
         $cluster = new ClusterVO($input);
@@ -146,14 +157,14 @@ final class ClusterVOTest extends TestCase
         $this->assertEquals(42, $cluster->get('int'));
         $this->assertEquals(3.14, $cluster->get('float'));
         $this->assertNull($cluster->get('null'));
-        $this->assertEquals('true', $cluster->get('bool_true'));
-        $this->assertEquals('false', $cluster->get('bool_false'));
+        $this->assertEquals('yes', $cluster->get('bool_true'));
+        $this->assertEquals('no', $cluster->get('bool_false'));
     }
 
     public function test_throws_exception_for_object_values(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Cluster values must be string, int, float, bool, array or null. Got object for key "invalid"');
+        $this->expectExceptionMessage('Cluster values must be string, int, float, array or null. Got object for key "invalid"');
 
         $input = [
             'name' => 'John',
@@ -252,9 +263,9 @@ final class ClusterVOTest extends TestCase
 
         $cluster = new ClusterVO($input);
 
-        $this->assertEquals('true', $cluster->get('data.simple_a'));
-        $this->assertEquals('true', $cluster->get('data.simple_b'));
-        $this->assertEquals('true', $cluster->get('data.simple_c'));
+        $this->assertEquals('yes', $cluster->get('data.simple_a'));
+        $this->assertEquals('yes', $cluster->get('data.simple_b'));
+        $this->assertEquals('yes', $cluster->get('data.simple_c'));
 
         $nested = $cluster->get('data.nested');
         $this->assertIsString($nested);
@@ -315,10 +326,10 @@ final class ClusterVOTest extends TestCase
             'type' => 'user',
             'status' => 'active',
             'role' => 'admin',
-            'verified' => true,
-            'lang_fr' => true,
-            'lang_en' => false,
-            'lang_ln' => true,
+            'verified' => 'yes',
+            'lang_fr' => 'yes',
+            'lang_en' => 'no',
+            'lang_ln' => 'yes',
             'age' => 25,
             'name' => 'John Doe',
             'address' => [
@@ -335,18 +346,18 @@ final class ClusterVOTest extends TestCase
         $this->assertEquals('user', $cluster->get('type'));
         $this->assertEquals('active', $cluster->get('status'));
         $this->assertEquals('admin', $cluster->get('role'));
-        $this->assertEquals('true', $cluster->get('verified'));
+        $this->assertEquals('yes', $cluster->get('verified'));
         $this->assertEquals(25, $cluster->get('age'));
         $this->assertEquals('John Doe', $cluster->get('name'));
         $this->assertEquals(85.5, $cluster->get('score'));
         $this->assertEquals('Paris', $cluster->get('address.city'));
         $this->assertEquals(75001, $cluster->get('address.postal_code'));
-        $this->assertEquals('true', $cluster->get('tags_premium'));
-        $this->assertEquals('true', $cluster->get('tags_verified'));
-        $this->assertEquals('true', $cluster->get('tags_expert'));
-        $this->assertEquals('true', $cluster->get('lang_fr'));
-        $this->assertEquals('false', $cluster->get('lang_en'));
-        $this->assertEquals('true', $cluster->get('lang_ln'));
+        $this->assertEquals('yes', $cluster->get('tags_premium'));
+        $this->assertEquals('yes', $cluster->get('tags_verified'));
+        $this->assertEquals('yes', $cluster->get('tags_expert'));
+        $this->assertEquals('yes', $cluster->get('lang_fr'));
+        $this->assertEquals('no', $cluster->get('lang_en'));
+        $this->assertEquals('yes', $cluster->get('lang_ln'));
 
         $this->assertTrue($cluster->has('tags_premium'));
         $this->assertTrue($cluster->has('address.city'));
@@ -360,7 +371,6 @@ final class ClusterVOTest extends TestCase
 
     public function test_real_cluster_with_nested_tags_json_encoded(): void
     {
-
         $input = [
             'type' => 'user',
             'status' => 'active',
@@ -396,5 +406,70 @@ final class ClusterVOTest extends TestCase
         $this->assertIsString($nested);
         $this->assertJson($nested);
         $this->assertEquals([['a', 'b'], ['c', 'd']], json_decode($nested, true));
+    }
+
+    public function test_handles_string_boolean_values_correctly(): void
+    {
+        $input = [
+            'active' => 'yes',
+            'verified' => 'no',
+            'pending' => 'yes',
+        ];
+
+        $cluster = new ClusterVO($input);
+
+        $this->assertEquals('yes', $cluster->get('active'));
+        $this->assertEquals('no', $cluster->get('verified'));
+        $this->assertEquals('yes', $cluster->get('pending'));
+    }
+
+    public function test_throws_exception_for_invalid_boolean_strings(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean strings "true" and "false" are not allowed');
+
+        $input = [
+            'active' => 'true',
+        ];
+
+        new ClusterVO($input);
+    }
+
+    public function test_throws_exception_for_invalid_boolean_strings_in_nested(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean strings "true" and "false" are not allowed');
+
+        $input = [
+            'user' => [
+                'active' => 'false',
+            ],
+        ];
+
+        new ClusterVO($input);
+    }
+
+    public function test_handles_numeric_indices_in_nested_arrays(): void
+    {
+        $input = [
+            'tags' => ['php', 'laravel', 'vue'],
+            'addresses' => [
+                ['city' => 'Kinshasa', 'country' => 'RDC'],
+                ['city' => 'Paris', 'country' => 'France'],
+            ],
+        ];
+
+        $cluster = new ClusterVO($input);
+
+        $this->assertEquals('yes', $cluster->get('tags_php'));
+        $this->assertEquals('yes', $cluster->get('tags_laravel'));
+        $this->assertEquals('yes', $cluster->get('tags_vue'));
+
+        $addresses = $cluster->get('addresses');
+        $this->assertIsString($addresses);
+        $this->assertJson($addresses);
+        $decoded = json_decode($addresses, true);
+        $this->assertIsArray($decoded);
+        $this->assertEquals('Kinshasa', $decoded[0]['city']);
     }
 }

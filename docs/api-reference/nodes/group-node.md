@@ -233,7 +233,7 @@ $group = new GroupNode(
 // Vérifie que le statut n'est pas inactif
 ```
 
-### Cas 4 : Groupes imbriqués
+### Cas 4 : Groupes imbriqués avec valeurs booléennes
 
 ```php
 $innerGroup = new GroupNode(
@@ -245,34 +245,43 @@ $innerGroup = new GroupNode(
 $outerGroup = new GroupNode(
     LogicalOperator::AND,
     new ConditionNode('status', ComparisonOperator::EQUAL, 'active'),
+    new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes'),
     $innerGroup
 );
-// (status=active AND (role=admin OR role=doctor))
+// (status=active AND verified=yes AND (role=admin OR role=doctor))
 ```
 
-### Cas 5 : Application Eloquent
+### Cas 5 : Application Eloquent avec booléens
 
 ```php
 $query = User::query();
 
-// Groupe AND
+// Groupe AND avec valeur 'yes'
 $group = new GroupNode(
     LogicalOperator::AND,
     new ConditionNode('status', ComparisonOperator::EQUAL, 'active'),
+    new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes'),
     new ConditionNode('role', ComparisonOperator::EQUAL, 'admin')
 );
 $group->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
-// Groupe OR
+// Groupe OR avec valeurs booléennes
 $orGroup = new GroupNode(
     LogicalOperator::OR,
-    new ConditionNode('lang_fr', ComparisonOperator::EQUAL, 'true'),
-    new ConditionNode('lang_en', ComparisonOperator::EQUAL, 'true')
+    new ConditionNode('lang_fr', ComparisonOperator::EQUAL, 'yes'),
+    new ConditionNode('lang_en', ComparisonOperator::EQUAL, 'yes')
 );
 $orGroup->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
+// Groupe NOT avec valeur 'no'
+$notGroup = new GroupNode(
+    LogicalOperator::NOT,
+    new ConditionNode('verified', ComparisonOperator::EQUAL, 'no')
+);
+$notGroup->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+
 $users = $query->get();
-// status=active AND role=admin AND (lang_fr=true OR lang_en=true)
+// status=active AND verified=yes AND role=admin AND (lang_fr=yes OR lang_en=yes) AND NOT (verified=no)
 ```
 
 ---
@@ -322,25 +331,26 @@ use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
 // ==================== CRÉATION ====================
 
-// Groupe AND simple
+// Groupe AND simple avec valeurs booléennes
 $andGroup = new GroupNode(
     LogicalOperator::AND,
     new ConditionNode('status', ComparisonOperator::EQUAL, 'active'),
+    new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes'),
     new ConditionNode('role', ComparisonOperator::EQUAL, 'admin')
 );
 
-// Groupe OR
+// Groupe OR avec valeurs booléennes
 $orGroup = new GroupNode(
     LogicalOperator::OR,
-    new ConditionNode('role', ComparisonOperator::EQUAL, 'admin'),
-    new ConditionNode('role', ComparisonOperator::EQUAL, 'doctor'),
-    new ConditionNode('role', ComparisonOperator::EQUAL, 'guest')
+    new ConditionNode('lang_fr', ComparisonOperator::EQUAL, 'yes'),
+    new ConditionNode('lang_en', ComparisonOperator::EQUAL, 'yes'),
+    new ConditionNode('lang_es', ComparisonOperator::EQUAL, 'yes')
 );
 
 // Groupe NOT
 $notGroup = new GroupNode(
     LogicalOperator::NOT,
-    new ConditionNode('status', ComparisonOperator::EQUAL, 'inactive')
+    new ConditionNode('verified', ComparisonOperator::EQUAL, 'no')
 );
 
 // Groupe imbriqué
@@ -352,6 +362,7 @@ $nestedGroup = new GroupNode(
         new ConditionNode('role', ComparisonOperator::EQUAL, 'admin'),
         new ConditionNode('role', ComparisonOperator::EQUAL, 'doctor')
     ),
+    new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes'),
     new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2')
 );
 
@@ -360,7 +371,9 @@ $nestedGroup = new GroupNode(
 $cluster = new ClusterVO([
     'status' => 'active',
     'role' => 'admin',
+    'verified' => 'yes',
     'addresses' => ['a', 'b', 'c'],
+    'lang_fr' => 'yes',
 ]);
 
 var_dump($andGroup->evaluate($cluster)); // true
@@ -368,32 +381,43 @@ var_dump($orGroup->evaluate($cluster)); // true
 var_dump($notGroup->evaluate($cluster)); // true
 var_dump($nestedGroup->evaluate($cluster)); // true
 
+// Cluster non vérifié
+$cluster2 = new ClusterVO([
+    'status' => 'active',
+    'role' => 'admin',
+    'verified' => 'no',
+    'addresses' => ['a', 'b', 'c'],
+]);
+
+var_dump($andGroup->evaluate($cluster2)); // false
+var_dump($notGroup->evaluate($cluster2)); // false (not verified=no est faux car verified=no)
+
 // ==================== GÉNÉRATION SQL ====================
 
 $column = 'clusters';
 
-echo "AND Group:\n";
+echo "AND Group with booleans:\n";
 echo $andGroup->toSql($column, DatabaseDriver::SQLITE) . "\n";
-// (LOWER(json_extract(clusters, '$.status')) = LOWER('active') AND LOWER(json_extract(clusters, '$.role')) = LOWER('admin'))
+// (LOWER(json_extract(clusters, '$.status')) = LOWER('active') AND LOWER(json_extract(clusters, '$.verified')) = LOWER('yes') AND LOWER(json_extract(clusters, '$.role')) = LOWER('admin'))
 
-echo "\nOR Group:\n";
+echo "\nOR Group with booleans:\n";
 echo $orGroup->toSql($column, DatabaseDriver::SQLITE) . "\n";
-// (LOWER(json_extract(clusters, '$.role')) = LOWER('admin') OR LOWER(json_extract(clusters, '$.role')) = LOWER('doctor') OR LOWER(json_extract(clusters, '$.role')) = LOWER('guest'))
+// (LOWER(json_extract(clusters, '$.lang_fr')) = LOWER('yes') OR LOWER(json_extract(clusters, '$.lang_en')) = LOWER('yes') OR LOWER(json_extract(clusters, '$.lang_es')) = LOWER('yes'))
 
 echo "\nNOT Group:\n";
 echo $notGroup->toSql($column, DatabaseDriver::SQLITE) . "\n";
-// NOT (LOWER(json_extract(clusters, '$.status')) = LOWER('inactive'))
+// NOT (LOWER(json_extract(clusters, '$.verified')) = LOWER('no'))
 
 echo "\nNested Group:\n";
 echo $nestedGroup->toSql($column, DatabaseDriver::SQLITE) . "\n";
-// (LOWER(json_extract(clusters, '$.status')) = LOWER('active') AND (LOWER(json_extract(clusters, '$.role')) = LOWER('admin') OR LOWER(json_extract(clusters, '$.role')) = LOWER('doctor')) AND json_array_length(clusters, '$.addresses') > 2)
+// (LOWER(json_extract(clusters, '$.status')) = LOWER('active') AND (LOWER(json_extract(clusters, '$.role')) = LOWER('admin') OR LOWER(json_extract(clusters, '$.role')) = LOWER('doctor')) AND LOWER(json_extract(clusters, '$.verified')) = LOWER('yes') AND json_array_length(clusters, '$.addresses') > 2)
 
 // ==================== APPLICATION ELOQUENT ====================
 
 $query = User::query();
 $nestedGroup->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 $users = $query->get();
-// Utilisateurs actifs, admins ou docteurs, avec plus de 2 adresses
+// Utilisateurs actifs, admins ou docteurs, vérifiés (verified=yes), avec plus de 2 adresses
 ```
 
 ---

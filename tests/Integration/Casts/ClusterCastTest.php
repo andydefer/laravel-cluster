@@ -4,21 +4,10 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelCluster\Tests\Integration\Casts;
 
-use AndyDefer\LaravelCluster\Casts\ClusterCast;
 use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
 use AndyDefer\LaravelCluster\Tests\IntegrationTestCase;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
-/**
- * Integration tests for ClusterCast.
- *
- * Tests cover:
- * - Model attribute casting to ClusterVO
- * - Model attribute casting from ClusterVO to JSON
- * - Storage and retrieval with database
- * - Querying with whereCluster macro
- * - Edge cases (null, empty arrays, invalid data)
- */
 final class ClusterCastTest extends IntegrationTestCase
 {
     protected function setUp(): void
@@ -27,8 +16,6 @@ final class ClusterCastTest extends IntegrationTestCase
 
         TestCluster::truncate();
     }
-
-    // ==================== BASIC CASTING TESTS ====================
 
     public function test_casting_returns_cluster_vo_from_array(): void
     {
@@ -79,8 +66,6 @@ final class ClusterCastTest extends IntegrationTestCase
         $this->assertSame('admin', $fresh->clusters->get('role'));
         $this->assertNotSame($cluster, $fresh->clusters);
     }
-
-    // ==================== STORAGE TESTS ====================
 
     public function test_stores_array_as_json_in_database(): void
     {
@@ -138,8 +123,6 @@ final class ClusterCastTest extends IntegrationTestCase
         $this->assertSame($json, $raw['clusters']);
     }
 
-    // ==================== NULL AND EMPTY TESTS ====================
-
     public function test_handles_null_value(): void
     {
         $model = TestCluster::create([
@@ -179,8 +162,6 @@ final class ClusterCastTest extends IntegrationTestCase
         $this->assertNull($fresh->getAttributes()['clusters']);
     }
 
-    // ==================== COMPLEX STRUCTURES TESTS ====================
-
     public function test_handles_nested_structures(): void
     {
         $data = [
@@ -196,7 +177,7 @@ final class ClusterCastTest extends IntegrationTestCase
             'tags' => ['php', 'js', 'docker'],
             'settings' => [
                 'theme' => 'dark',
-                'notifications' => true,
+                'notifications' => 'yes',
             ],
         ];
 
@@ -212,17 +193,17 @@ final class ClusterCastTest extends IntegrationTestCase
         $this->assertSame('active', $fresh->clusters->get('status'));
         $this->assertSame('John Doe', $fresh->clusters->get('user.name'));
         $this->assertSame('Kinshasa', $fresh->clusters->get('user.address.city'));
-        $this->assertSame('true', $fresh->clusters->get('tags_php'));
+        $this->assertSame('yes', $fresh->clusters->get('tags_php'));
         $this->assertSame('dark', $fresh->clusters->get('settings.theme'));
-        $this->assertSame('true', $fresh->clusters->get('settings.notifications'));
+        $this->assertSame('yes', $fresh->clusters->get('settings.notifications'));
     }
 
-    public function test_handles_boolean_values(): void
+    public function test_handles_string_boolean_values(): void
     {
         $data = [
-            'is_active' => true,
-            'is_deleted' => false,
-            'is_verified' => true,
+            'is_active' => 'yes',
+            'is_deleted' => 'no',
+            'is_verified' => 'yes',
             'age' => 30,
         ];
 
@@ -235,13 +216,30 @@ final class ClusterCastTest extends IntegrationTestCase
         $fresh = TestCluster::find($model->id);
 
         $this->assertInstanceOf(ClusterVO::class, $fresh->clusters);
-        $this->assertSame('true', $fresh->clusters->get('is_active'));
-        $this->assertSame('false', $fresh->clusters->get('is_deleted'));
-        $this->assertSame('true', $fresh->clusters->get('is_verified'));
+        $this->assertSame('yes', $fresh->clusters->get('is_active'));
+        $this->assertSame('no', $fresh->clusters->get('is_deleted'));
+        $this->assertSame('yes', $fresh->clusters->get('is_verified'));
         $this->assertSame(30, $fresh->clusters->get('age'));
     }
 
-    // ==================== WHERE CLUSTER QUERY TESTS ====================
+    public function test_handles_boolean_values_throws_exception(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean values are not allowed');
+
+        $data = [
+            'is_active' => true,
+            'is_deleted' => false,
+            'is_verified' => true,
+            'age' => 30,
+        ];
+
+        TestCluster::create([
+            'name' => 'Ivy Wilson',
+            'email' => 'ivy@example.com',
+            'clusters' => $data,
+        ]);
+    }
 
     public function test_where_cluster_query_with_casted_column(): void
     {
@@ -411,8 +409,6 @@ final class ClusterCastTest extends IntegrationTestCase
         $this->assertNotContains('User 2', $results->pluck('name')->toArray());
     }
 
-    // ==================== UPDATE TESTS ====================
-
     public function test_update_cluster_via_array(): void
     {
         $model = TestCluster::create([
@@ -465,8 +461,6 @@ final class ClusterCastTest extends IntegrationTestCase
         $this->assertSame(35, $fresh->clusters->get('age'));
     }
 
-    // ==================== MULTIPLE RECORDS TESTS ====================
-
     public function test_handles_multiple_records_with_different_clusters(): void
     {
         TestCluster::create([
@@ -503,8 +497,6 @@ final class ClusterCastTest extends IntegrationTestCase
         $this->assertCount(1, $activeAdmins);
         $this->assertSame('User 1', $activeAdmins->first()->name);
     }
-
-    // ==================== PERFORMANCE TESTS ====================
 
     public function test_cast_performance_with_many_records(): void
     {

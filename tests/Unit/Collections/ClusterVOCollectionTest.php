@@ -8,19 +8,6 @@ use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use PHPUnit\Framework\TestCase;
 
-/**
- * Unit tests for ClusterVOCollection.
- *
- * Tests cover:
- * - Basic filtering methods (where, whereNot, whereTrue, whereFalse)
- * - Logical operators (AND, OR, group conditions)
- * - Comparison operators (>, >=, <, <=, between, in)
- * - Array operations (contains, containsAny, containsAll, empty, size)
- * - String operations (like, starts, ends, contains)
- * - Aggregate functions (COUNT, SUM, AVG, MIN, MAX, LENGTH, EXISTS, HAS, ALL)
- * - Query parsing with whereQuery
- * - Edge cases and error handling
- */
 final class ClusterVOCollectionTest extends TestCase
 {
     private ClusterVOCollection $collection;
@@ -37,9 +24,9 @@ final class ClusterVOCollectionTest extends TestCase
             'status' => 'active',
             'role' => 'admin',
             'age' => 30,
-            'verified' => 'true',
-            'lang_fr' => 'true',
-            'lang_en' => 'false',
+            'verified' => 'yes',
+            'lang_fr' => 'yes',
+            'lang_en' => 'no',
             'addresses' => [
                 ['city' => 'Kinshasa', 'street' => 'Avenue de la Paix', 'country' => 'RDC'],
                 ['city' => 'Lubumbashi', 'street' => 'Avenue Lumumba', 'country' => 'RDC'],
@@ -48,7 +35,7 @@ final class ClusterVOCollectionTest extends TestCase
             'tags' => ['php', 'js', 'docker'],
             'settings' => [
                 'notifications' => [
-                    ['email' => 'true', 'sms' => 'false', 'push' => 'true'],
+                    ['email' => 'yes', 'sms' => 'no', 'push' => 'yes'],
                 ],
                 'theme' => 'dark',
             ],
@@ -60,9 +47,9 @@ final class ClusterVOCollectionTest extends TestCase
             'status' => 'inactive',
             'role' => 'doctor',
             'age' => 25,
-            'verified' => 'true',
-            'lang_fr' => 'false',
-            'lang_en' => 'true',
+            'verified' => 'yes',
+            'lang_fr' => 'no',
+            'lang_en' => 'yes',
             'addresses' => [
                 ['city' => 'Paris', 'street' => 'Rue de Rivoli', 'country' => 'France'],
             ],
@@ -70,7 +57,7 @@ final class ClusterVOCollectionTest extends TestCase
             'tags' => ['python', 'react'],
             'settings' => [
                 'notifications' => [
-                    ['email' => 'false', 'sms' => 'true', 'push' => 'false'],
+                    ['email' => 'no', 'sms' => 'yes', 'push' => 'no'],
                 ],
                 'theme' => 'light',
             ],
@@ -82,9 +69,9 @@ final class ClusterVOCollectionTest extends TestCase
             'status' => 'active',
             'role' => 'doctor',
             'age' => 35,
-            'verified' => 'true',
-            'lang_fr' => 'true',
-            'lang_en' => 'false',
+            'verified' => 'yes',
+            'lang_fr' => 'yes',
+            'lang_en' => 'no',
             'addresses' => [
                 ['city' => 'Kinshasa', 'street' => 'Boulevard du 30 Juin', 'country' => 'RDC'],
                 ['city' => 'Paris', 'street' => 'Avenue des Champs-Élysées', 'country' => 'France'],
@@ -94,7 +81,7 @@ final class ClusterVOCollectionTest extends TestCase
             'tags' => ['php', 'laravel', 'vuejs'],
             'settings' => [
                 'notifications' => [
-                    ['email' => 'true', 'sms' => 'true', 'push' => 'true'],
+                    ['email' => 'yes', 'sms' => 'yes', 'push' => 'yes'],
                 ],
                 'theme' => 'dark',
             ],
@@ -106,15 +93,15 @@ final class ClusterVOCollectionTest extends TestCase
             'status' => 'pending',
             'role' => 'guest',
             'age' => 28,
-            'verified' => 'false',
-            'lang_fr' => 'false',
-            'lang_en' => 'true',
+            'verified' => 'no',
+            'lang_fr' => 'no',
+            'lang_en' => 'yes',
             'addresses' => [],
             'scores' => [85, 90, 88],
             'tags' => ['go', 'rust'],
             'settings' => [
                 'notifications' => [
-                    ['email' => 'false', 'sms' => 'false', 'push' => 'false'],
+                    ['email' => 'no', 'sms' => 'no', 'push' => 'no'],
                 ],
                 'theme' => 'light',
             ],
@@ -149,18 +136,18 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_true_returns_items_with_true_value(): void
     {
-        $result = $this->collection->whereTrue('verified');
+        $result = $this->collection->whereYes('verified');
 
         $this->assertCount(3, $result);
-        $this->assertEquals('true', $result->first()?->get('verified'));
+        $this->assertEquals('yes', $result->first()?->get('verified'));
     }
 
     public function test_where_false_returns_items_with_false_value(): void
     {
-        $result = $this->collection->whereFalse('verified');
+        $result = $this->collection->whereNo('verified');
 
         $this->assertCount(1, $result);
-        $this->assertEquals('false', $result->first()?->get('verified'));
+        $this->assertEquals('no', $result->first()?->get('verified'));
     }
 
     public function test_or_where_combines_filters_with_or_logic(): void
@@ -201,7 +188,7 @@ final class ClusterVOCollectionTest extends TestCase
     public function test_or_where_group_without_prior_filter_applies_or_group_to_full_collection(): void
     {
         $result = $this->collection
-            ->whereQuery('role=admin & verified=true');
+            ->whereQuery('role=admin & verified=yes');
 
         $this->assertCount(1, $result);
     }
@@ -209,7 +196,7 @@ final class ClusterVOCollectionTest extends TestCase
     public function test_or_where_group_with_prior_filter_combines_filters_with_or(): void
     {
         $result = $this->collection
-            ->whereQuery('status=active | (role=admin & verified=true)');
+            ->whereQuery('status=active | (role=admin & verified=yes)');
 
         $this->assertCount(2, $result);
     }
@@ -225,7 +212,7 @@ final class ClusterVOCollectionTest extends TestCase
     public function test_or_where_group_with_multiple_conditions_combines_multiple_or_groups(): void
     {
         $result = $this->collection
-            ->whereQuery('status=active | (role=admin & verified=true)');
+            ->whereQuery('status=active | (role=admin & verified=yes)');
 
         $this->assertCount(2, $result);
     }
@@ -233,7 +220,7 @@ final class ClusterVOCollectionTest extends TestCase
     public function test_nested_groups_support_deep_nesting_of_conditions(): void
     {
         $result = $this->collection
-            ->whereQuery('((status=active & role=admin) | (status=active & role=doctor)) & verified=true');
+            ->whereQuery('((status=active & role=admin) | (status=active & role=doctor)) & verified=yes');
 
         $this->assertCount(2, $result);
     }
@@ -241,7 +228,7 @@ final class ClusterVOCollectionTest extends TestCase
     public function test_complex_chaining_with_groups_supports_multiple_group_operations(): void
     {
         $result = $this->collection
-            ->whereQuery('(status=active | status=pending) & role=admin & verified=true & age>=25');
+            ->whereQuery('(status=active | status=pending) & role=admin & verified=yes & age>=25');
 
         $this->assertCount(1, $result);
     }
@@ -249,7 +236,7 @@ final class ClusterVOCollectionTest extends TestCase
     public function test_complex_chaining_with_or_groups_supports_or_groups_in_chain(): void
     {
         $result = $this->collection
-            ->whereQuery('(status=active | (status=pending & role=guest)) & verified=true');
+            ->whereQuery('(status=active | (status=pending & role=guest)) & verified=yes');
 
         $this->assertCount(2, $result);
     }
@@ -415,7 +402,7 @@ final class ClusterVOCollectionTest extends TestCase
         $result = $this->collection
             ->where('status', 'active')
             ->whereClosure(
-                fn (ClusterVO $cluster) => $cluster->get('age') >= 25 && $cluster->get('verified') === 'true'
+                fn (ClusterVO $cluster) => $cluster->get('age') >= 25 && $cluster->get('verified') === 'yes'
             );
 
         $this->assertCount(2, $result);
@@ -488,12 +475,12 @@ final class ClusterVOCollectionTest extends TestCase
     public function test_where_with_boolean_values_combines_true_and_false_filters(): void
     {
         $result = $this->collection
-            ->whereTrue('verified')
-            ->whereFalse('lang_en');
+            ->whereYes('verified')
+            ->whereNo('lang_en');
 
         $this->assertCount(2, $result);
-        $this->assertEquals('true', $result->first()?->get('verified'));
-        $this->assertEquals('false', $result->first()?->get('lang_en'));
+        $this->assertEquals('yes', $result->first()?->get('verified'));
+        $this->assertEquals('no', $result->first()?->get('lang_en'));
     }
 
     public function test_where_in_with_empty_array_returns_empty_result(): void
@@ -1266,8 +1253,6 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertContains($result->first()?->get('id'), [2, 3]);
     }
 
-    // ==================== LIKE PATTERN TESTS ====================
-
     public function test_where_like_pattern_contains(): void
     {
         $collection = new ClusterVOCollection;
@@ -1523,8 +1508,6 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(4, $result);
     }
 
-    // ==================== WHERE QUERY TESTS (SUB-CONDITIONS) ====================
-
     public function test_where_query_simple_subcondition(): void
     {
         $result = $this->collection->whereQuery('addresses[city=kinshasa]');
@@ -1584,7 +1567,7 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_subcondition_with_nested_path(): void
     {
-        $result = $this->collection->whereQuery('settings.notifications[email=true]');
+        $result = $this->collection->whereQuery('settings.notifications[email=yes]');
 
         $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
@@ -1652,7 +1635,7 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_query_subcondition_with_multiple_array_conditions(): void
     {
-        $result = $this->collection->whereQuery('addresses[city=kinshasa] & tags_php=true');
+        $result = $this->collection->whereQuery('addresses[city=kinshasa] & tags_php=yes');
 
         $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
@@ -1736,8 +1719,6 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertNotContains('Jane Smith', $names);
         $this->assertNotContains('Alice Wonder', $names);
     }
-
-    // ==================== AGGREGATE WHERE TESTS ====================
 
     public function test_where_aggregate_count_with_comparison(): void
     {
@@ -2320,7 +2301,7 @@ final class ClusterVOCollectionTest extends TestCase
 
     public function test_where_aggregate_with_nested_path_complex(): void
     {
-        $result = $this->collection->whereAggregate('{HAS(settings.notifications, email, true)}');
+        $result = $this->collection->whereAggregate('{HAS(settings.notifications, email, yes)}');
 
         $this->assertCount(2, $result);
         $names = array_map(fn ($c) => $c->get('name'), $result->get());
@@ -2367,8 +2348,6 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertCount(1, $result);
         $this->assertEquals('Bob Johnson', $result->first()?->get('name'));
     }
-
-    // ==================== SQL FUNCTION TESTS (NATIVE) ====================
 
     public function test_where_query_with_count_function(): void
     {
@@ -2564,8 +2543,6 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertContains('Alice Wonder', $names);
     }
 
-    // ==================== SQL FUNCTION COMPARISON WITH AGGREGATE ====================
-
     public function test_count_function_vs_aggregate_count(): void
     {
         $nativeResult = $this->collection->whereQuery('COUNT(addresses) > 2');
@@ -2573,8 +2550,7 @@ final class ClusterVOCollectionTest extends TestCase
 
         $this->assertEquals(
             $nativeResult->count(),
-            $aggregateResult->count(),
-            'Native COUNT et Aggregate COUNT devraient donner le même résultat'
+            $aggregateResult->count()
         );
     }
 
@@ -2595,8 +2571,7 @@ final class ClusterVOCollectionTest extends TestCase
 
         $this->assertEquals(
             $nativeResult->count(),
-            $aggregateResult->count(),
-            'Native SUM et Aggregate SUM devraient donner le même résultat'
+            $aggregateResult->count()
         );
     }
 
@@ -2617,8 +2592,7 @@ final class ClusterVOCollectionTest extends TestCase
 
         $this->assertEquals(
             $nativeResult->count(),
-            $aggregateResult->count(),
-            'Native AVG et Aggregate AVG devraient donner le même résultat'
+            $aggregateResult->count()
         );
     }
 
@@ -2629,8 +2603,7 @@ final class ClusterVOCollectionTest extends TestCase
 
         $this->assertEquals(
             $nativeResult->count(),
-            $aggregateResult->count(),
-            'Native LENGTH et Aggregate LENGTH devraient donner le même résultat'
+            $aggregateResult->count()
         );
     }
 
@@ -2646,8 +2619,6 @@ final class ClusterVOCollectionTest extends TestCase
         $this->assertContains('John Doe', $names);
         $this->assertContains('Bob Johnson', $names);
     }
-
-    // ==================== SQL FUNCTION EDGE CASES ====================
 
     public function test_where_query_with_function_invalid_path(): void
     {

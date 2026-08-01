@@ -19,7 +19,7 @@ Permet d'évaluer des conditions sur des tableaux d'objets stockés dans des col
 - **Conditions avec AND/OR** : `addresses[city=Kinshasa & country=RDC]`
 - **EXISTS / NOT_EXISTS** : `addresses[]` ou `addresses[#city]`
 - **LIKE / NOT_LIKE** : `addresses[city=~kin%]`
-- **Chemins imbriqués** : `settings.notifications[email=true]`
+- **Chemins imbriqués** : `settings.notifications[email=yes]`
 
 ---
 
@@ -134,7 +134,7 @@ Retourne les nœuds enfants de la sous-condition.
 Vérifie que le tableau n'est pas vide.
 
 ```php
-$node = new SubConditionNode('addresses', new ConditionNode('__empty__', ComparisonOperator::EQUAL, 'true'));
+$node = new SubConditionNode('addresses', new ConditionNode('__empty__', ComparisonOperator::EQUAL, 'yes'));
 // Vérifie que addresses n'est pas vide
 ```
 
@@ -233,21 +233,39 @@ $node = new SubConditionNode('addresses', $condition);
 // addresses[city=~kin%]
 ```
 
-### Cas 5 : Chemin imbriqué
+### Cas 5 : Chemin imbriqué avec valeurs booléennes
 
 ```php
-$condition = new ConditionNode('email', ComparisonOperator::EQUAL, 'true');
+$condition = new ConditionNode('email', ComparisonOperator::EQUAL, 'yes');
 $node = new SubConditionNode('settings.notifications', $condition);
-// settings.notifications[email=true]
+// settings.notifications[email=yes]
 ```
 
-### Cas 6 : Application Eloquent
+### Cas 6 : Application Eloquent avec valeurs booléennes
 
 ```php
 $query = User::query();
+
+// Utilisateurs avec une adresse à Kinshasa
+$node = new SubConditionNode(
+    'addresses',
+    new ConditionNode('city', ComparisonOperator::EQUAL, 'Kinshasa')
+);
 $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+
+// Utilisateurs avec une notification email=yes
+$nestedNode = new SubConditionNode(
+    'settings.notifications',
+    new ConditionNode('email', ComparisonOperator::EQUAL, 'yes')
+);
+$nestedNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+
+// Combinaison avec condition booléenne
+$verifiedNode = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
+$verifiedNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+
 $users = $query->get();
-// Utilisateurs ayant une adresse à Kinshasa
+// Utilisateurs avec une adresse à Kinshasa ET une notification email=yes ET verified=yes
 ```
 
 ---
@@ -303,19 +321,20 @@ use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
 // ==================== CRÉATION ====================
 
-// Simple
+// Simple avec valeur booléenne
 $simpleNode = new SubConditionNode(
     'addresses',
     new ConditionNode('city', ComparisonOperator::EQUAL, 'Kinshasa')
 );
 
-// Avec AND
+// Avec AND et booléen
 $andNode = new SubConditionNode(
     'addresses',
     new GroupNode(
         LogicalOperator::AND,
         new ConditionNode('city', ComparisonOperator::EQUAL, 'Kinshasa'),
-        new ConditionNode('country', ComparisonOperator::EQUAL, 'RDC')
+        new ConditionNode('country', ComparisonOperator::EQUAL, 'RDC'),
+        new ConditionNode('is_primary', ComparisonOperator::EQUAL, 'yes')
     )
 );
 
@@ -338,27 +357,34 @@ $likeNode = new SubConditionNode(
 // EXISTS (vide)
 $existsNode = new SubConditionNode(
     'addresses',
-    new ConditionNode('__empty__', ComparisonOperator::EQUAL, 'true')
+    new ConditionNode('__empty__', ComparisonOperator::EQUAL, 'yes')
 );
 
-// Chemin imbriqué
+// Chemin imbriqué avec booléen
 $nestedNode = new SubConditionNode(
     'settings.notifications',
-    new ConditionNode('email', ComparisonOperator::EQUAL, 'true')
+    new ConditionNode('email', ComparisonOperator::EQUAL, 'yes')
+);
+
+// NOT_EXISTS
+$notExistsNode = new SubConditionNode(
+    'addresses',
+    new ConditionNode('city', ComparisonOperator::NOT_EXISTS)
 );
 
 // ==================== ÉVALUATION ====================
 
 $cluster = new ClusterVO([
     'addresses' => [
-        ['city' => 'Kinshasa', 'country' => 'RDC'],
-        ['city' => 'Paris', 'country' => 'France'],
+        ['city' => 'Kinshasa', 'country' => 'RDC', 'is_primary' => 'yes'],
+        ['city' => 'Paris', 'country' => 'France', 'is_primary' => 'no'],
     ],
     'settings' => [
         'notifications' => [
-            ['email' => 'true', 'sms' => 'false'],
+            ['email' => 'yes', 'sms' => 'no'],
         ],
     ],
+    'verified' => 'yes',
 ]);
 
 var_dump($simpleNode->evaluate($cluster)); // true
@@ -367,6 +393,16 @@ var_dump($orNode->evaluate($cluster)); // true
 var_dump($likeNode->evaluate($cluster)); // true
 var_dump($existsNode->evaluate($cluster)); // true
 var_dump($nestedNode->evaluate($cluster)); // true
+var_dump($notExistsNode->evaluate($cluster)); // false (tous ont une ville)
+
+// Cluster avec une adresse sans ville
+$cluster2 = new ClusterVO([
+    'addresses' => [
+        ['country' => 'RDC', 'is_primary' => 'yes'],
+    ],
+]);
+
+var_dump($notExistsNode->evaluate($cluster2)); // true (au moins une adresse sans ville)
 
 // ==================== GÉNÉRATION SQL ====================
 
@@ -376,13 +412,17 @@ echo "Simple (SQLite):\n";
 echo $simpleNode->toSql($column, DatabaseDriver::SQLITE) . "\n";
 // EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE LOWER(json_extract(value, '$.city')) = LOWER('Kinshasa'))
 
-echo "\nAND (SQLite):\n";
+echo "\nAND with boolean (SQLite):\n";
 echo $andNode->toSql($column, DatabaseDriver::SQLITE) . "\n";
-// EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE LOWER(json_extract(value, '$.city')) = LOWER('Kinshasa') AND LOWER(json_extract(value, '$.country')) = LOWER('RDC'))
+// EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE LOWER(json_extract(value, '$.city')) = LOWER('Kinshasa') AND LOWER(json_extract(value, '$.country')) = LOWER('RDC') AND LOWER(json_extract(value, '$.is_primary')) = LOWER('yes'))
 
 echo "\nEXISTS (SQLite):\n";
 echo $existsNode->toSql($column, DatabaseDriver::SQLITE) . "\n";
 // json_array_length(clusters, '$.addresses') > 0
+
+echo "\nNOT_EXISTS (SQLite):\n";
+echo $notExistsNode->toSql($column, DatabaseDriver::SQLITE) . "\n";
+// NOT EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE LOWER(json_extract(value, '$.city')) = LOWER('yes'))
 
 // ==================== APPLICATION ELOQUENT ====================
 
@@ -391,11 +431,15 @@ $query = User::query();
 // Filtrer les utilisateurs avec une adresse à Kinshasa
 $simpleNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
-// Filtrer les utilisateurs avec une notification email=true
+// Filtrer les utilisateurs avec une notification email=yes
 $nestedNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
+// Filtrer les utilisateurs vérifiés
+$verifiedNode = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
+$verifiedNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+
 $users = $query->get();
-// Utilisateurs avec une adresse à Kinshasa ET une notification email=true
+// Utilisateurs avec une adresse à Kinshasa ET une notification email=yes ET verified=yes
 ```
 
 ---

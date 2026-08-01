@@ -1,4 +1,3 @@
-```markdown
 # Laravel Cluster - Documentation Complète
 
 ## Table des matières
@@ -123,7 +122,8 @@ Voici comment une requête textuelle est transformée en action concrète :
 ```php
 use AndyDefer\LaravelCluster\Lexer;
 use AndyDefer\LaravelCluster\Parser;
-use AndyDefer\LaravelCluster\ClusterQuery
+use AndyDefer\LaravelCluster\ClusterQuery;
+
 // 1. Vous écrivez une requête
 $query = 'status=active & age>25 & COUNT(addresses)>2';
 
@@ -435,7 +435,7 @@ $cluster = new ClusterVO([
     'id' => 1,
     'name' => 'John Doe',
     'age' => 30,
-    'is_active' => true,
+    'is_active' => 'yes',
     'address' => [
         'city' => 'Paris',
         'country' => 'France',
@@ -445,8 +445,8 @@ $cluster = new ClusterVO([
     'settings' => [
         'theme' => 'dark',
         'notifications' => [
-            'email' => true,
-            'sms' => false,
+            'email' => 'yes',
+            'sms' => 'no',
         ],
     ],
 ]);
@@ -460,11 +460,11 @@ $name = $cluster->get('name'); // 'John Doe'
 
 // Accès par notation pointée
 $city = $cluster->get('address.city'); // 'Paris'
-$email = $cluster->get('settings.notifications.email'); // 'true'
+$email = $cluster->get('settings.notifications.email'); // 'yes'
 
 // Accès aux tableaux aplatis
-$hasPhp = $cluster->get('tags_php'); // 'true'
-$hasJs = $cluster->get('tags_js'); // 'true'
+$hasPhp = $cluster->get('tags_php'); // 'yes'
+$hasJs = $cluster->get('tags_js'); // 'yes'
 
 // Vérification d'existence
 if ($cluster->has('address.city')) {
@@ -535,7 +535,7 @@ class UserService
 
 // 3. Dans une validation
 $cluster = new ClusterVO($input);
-if ($cluster->get('age') >= 18 && $cluster->get('verified') === 'true') {
+if ($cluster->get('age') >= 18 && $cluster->get('verified') === 'yes') {
     // Valider l'utilisateur
 }
 ```
@@ -575,7 +575,7 @@ $user = User::create([
         'role' => 'admin',
         'preferences' => [
             'theme' => 'dark',
-            'notifications' => true,
+            'notifications' => 'yes',
         ],
     ],
 ]);
@@ -651,11 +651,11 @@ $active = $collection->where('status', 'active');
 $notActive = $collection->whereNot('status', 'active');
 // Jane
 
-// whereTrue - Égal à 'true'
-$verified = $collection->whereTrue('verified');
+// whereYes - Égal à 'yes'
+$verified = $collection->whereYes('verified');
 
-// whereFalse - Égal à 'false'
-$unverified = $collection->whereFalse('verified');
+// whereNo - Égal à 'no'
+$unverified = $collection->whereNo('verified');
 
 // whereIn - Dans une liste
 $admins = $collection->whereIn('role', ['admin', 'super_admin']);
@@ -785,7 +785,7 @@ $complex = $collection->whereClosure(function (ClusterVO $cluster) {
 $result = $collection
     ->where('status', 'active')
     ->orWhereClosure(function (ClusterVO $cluster) {
-        return $cluster->get('age') > 30 && $cluster->get('verified') === 'true';
+        return $cluster->get('age') > 30 && $cluster->get('verified') === 'yes';
     });
 ```
 
@@ -910,7 +910,7 @@ $result = $clusters
 $result = $clusters
     ->whereQuery('status=active')
     ->whereQuery('age>25')
-    ->whereQuery('tags_php=true');
+    ->whereQuery('tags_php=yes');
 
 // Mélange des deux
 $result = $clusters
@@ -1439,11 +1439,11 @@ $users = User::whereCluster('clusters', 'addresses[#city]')->get();
 
 ```php
 // Structure : settings.notifications.email
-$result = $collection->whereQuery('settings.notifications[email=true]');
-// John, Bob (email=true)
+$result = $collection->whereQuery('settings.notifications[email=yes]');
+// John, Bob (email=yes)
 
-// Structure : settings.notifications[email=true & sms=false]
-$result = $collection->whereQuery('settings.notifications[email=true & sms=false]');
+// Structure : settings.notifications[email=yes & sms=no]
+$result = $collection->whereQuery('settings.notifications[email=yes & sms=no]');
 // John uniquement
 ```
 
@@ -1920,11 +1920,11 @@ $collection->where(string $key, mixed $value): self
 // whereNot - Différent
 $collection->whereNot(string $key, mixed $value): self
 
-// whereTrue - Égal à 'true'
-$collection->whereTrue(string $key): self
+// whereYes - Égal à 'yes'
+$collection->whereYes(string $key): self
 
-// whereFalse - Égal à 'false'
-$collection->whereFalse(string $key): self
+// whereNo - Égal à 'no'
+$collection->whereNo(string $key): self
 
 // orWhere - OR logique
 $collection->orWhere(string $key, mixed $value): self
@@ -2114,7 +2114,7 @@ class CustomerFilterService
             $conditions[] = "country=" . $criteria['country'];
         }
         if (isset($criteria['is_active'])) {
-            $conditions[] = "active=" . ($criteria['is_active'] ? 'true' : 'false');
+            $conditions[] = "active=" . ($criteria['is_active'] ? 'yes' : 'no');
         }
         if (isset($criteria['has_contract'])) {
             $conditions[] = "*contract_signed";
@@ -2173,7 +2173,7 @@ class ProductSearchService
         if (!empty($filters['categories'])) {
             $categoryConditions = [];
             foreach ($filters['categories'] as $category) {
-                $categoryConditions[] = "categories_{$category}=true";
+                $categoryConditions[] = "categories_{$category}=yes";
             }
             $conditions[] = '(' . implode(' OR ', $categoryConditions) . ')';
         }
@@ -2182,7 +2182,7 @@ class ProductSearchService
         if (!empty($filters['tags'])) {
             $tagConditions = [];
             foreach ($filters['tags'] as $tag) {
-                $tagConditions[] = "tags_{$tag}=true";
+                $tagConditions[] = "tags_{$tag}=yes";
             }
             $conditions[] = '(' . implode(' AND ', $tagConditions) . ')';
         }
@@ -2197,12 +2197,12 @@ class ProductSearchService
 
         // Disponibilité
         if (isset($filters['in_stock'])) {
-            $conditions[] = "in_stock=" . ($filters['in_stock'] ? 'true' : 'false');
+            $conditions[] = "in_stock=" . ($filters['in_stock'] ? 'yes' : 'no');
         }
 
         // Promotion
         if (isset($filters['on_promotion'])) {
-            $conditions[] = "promotion=" . ($filters['on_promotion'] ? 'true' : 'false');
+            $conditions[] = "promotion=" . ($filters['on_promotion'] ? 'yes' : 'no');
         }
 
         if (!empty($conditions)) {
@@ -2271,7 +2271,7 @@ class DeveloperFilterService
             // Union des résultats
             $collection = $collection->orWhereQuery(
                 '(' . implode(' OR ', array_map(
-                    fn($s) => "skills_{$s}=true",
+                    fn($s) => "skills_{$s}=yes",
                     $criteria['optional_skills']
                 )) . ')'
             );
@@ -2289,7 +2289,7 @@ class DeveloperFilterService
 
         // Disponibilité
         if (isset($criteria['available'])) {
-            $collection = $collection->where('available', $criteria['available'] ? 'true' : 'false');
+            $collection = $collection->where('available', $criteria['available'] ? 'yes' : 'no');
         }
 
         return $collection->get();
@@ -2355,7 +2355,7 @@ class ResourceController extends Controller
 
 // Exemples d'appels API
 // GET /api/resources?filter=status=active AND category=documents
-// GET /api/resources?filter=(status=active | status=pending) & tags_php=true
+// GET /api/resources?filter=(status=active | status=pending) & tags_php=yes
 // GET /api/resources?filter=COUNT(addresses) > 2
 // GET /api/resources?search=John&filter=role=admin
 ```
@@ -2612,4 +2612,3 @@ User::whereCluster('clusters', 'status=active')->chunk(100, function ($users) {
 ## 25. Licence
 
 MIT © [Andy Defer](https://github.com/andydefer)
-```

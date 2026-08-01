@@ -7,20 +7,6 @@ namespace AndyDefer\LaravelCluster\Tests\Unit\Services;
 use AndyDefer\LaravelCluster\Services\FlatArrayService;
 use PHPUnit\Framework\TestCase;
 
-/**
- * Unit tests for FlatArrayService.
- *
- * Tests cover:
- * - Flattening simple associative arrays
- * - Expanding indexed arrays to true keys
- * - Flattening nested arrays with dot notation
- * - Handling empty arrays as null
- * - JSON encoding of nested indexed arrays
- * - Boolean conversion to strings
- * - Unflattening dot notation back to nested structures
- * - Roundtrip tests (flatten + unflatten)
- * - Edge cases (mixed types, null values, complex nested structures)
- */
 final class FlatArrayServiceTest extends TestCase
 {
     private FlatArrayService $service;
@@ -57,10 +43,10 @@ final class FlatArrayServiceTest extends TestCase
 
         $expected = [
             'name' => 'Dupont',
-            'languages_fr' => 'true',
-            'languages_en' => 'true',
-            'languages_es' => 'true',
-            'languages_ln' => 'true',
+            'languages_fr' => 'yes',
+            'languages_en' => 'yes',
+            'languages_es' => 'yes',
+            'languages_ln' => 'yes',
         ];
 
         $this->assertSame($expected, $this->service->flatten($input));
@@ -75,9 +61,9 @@ final class FlatArrayServiceTest extends TestCase
 
         $expected = [
             'name' => 'John',
-            'scores_10' => 'true',
-            'scores_20' => 'true',
-            'scores_30' => 'true',
+            'scores_10' => 'yes',
+            'scores_20' => 'yes',
+            'scores_30' => 'yes',
         ];
 
         $this->assertSame($expected, $this->service->flatten($input));
@@ -92,9 +78,9 @@ final class FlatArrayServiceTest extends TestCase
 
         $expected = [
             'name' => 'John',
-            'codes_ABC' => 'true',
-            'codes_123' => 'true',
-            'codes_DEF' => 'true',
+            'codes_ABC' => 'yes',
+            'codes_123' => 'yes',
+            'codes_DEF' => 'yes',
         ];
 
         $this->assertSame($expected, $this->service->flatten($input));
@@ -172,9 +158,9 @@ final class FlatArrayServiceTest extends TestCase
 
         $expected = [
             'profile.name' => 'John',
-            'profile.tags_php' => 'true',
-            'profile.tags_js' => 'true',
-            'profile.tags_kotlin' => 'true',
+            'profile.tags_php' => 'yes',
+            'profile.tags_js' => 'yes',
+            'profile.tags_kotlin' => 'yes',
         ];
 
         $this->assertSame($expected, $this->service->flatten($input));
@@ -196,10 +182,10 @@ final class FlatArrayServiceTest extends TestCase
         $expected = [
             'user.name' => 'John',
             'user.settings.theme' => 'dark',
-            'user.settings.notifications_email' => 'true',
-            'user.settings.notifications_push' => 'true',
-            'user.tags_premium' => 'true',
-            'user.tags_verified' => 'true',
+            'user.settings.notifications_email' => 'yes',
+            'user.settings.notifications_push' => 'yes',
+            'user.tags_premium' => 'yes',
+            'user.tags_verified' => 'yes',
         ];
 
         $this->assertSame($expected, $this->service->flatten($input));
@@ -267,7 +253,7 @@ final class FlatArrayServiceTest extends TestCase
         $result = $this->service->flatten($input);
 
         $this->assertArrayHasKey('data.simple_a', $result);
-        $this->assertEquals('true', $result['data.simple_a']);
+        $this->assertEquals('yes', $result['data.simple_a']);
         $this->assertArrayHasKey('data.nested', $result);
         $this->assertIsString($result['data.nested']);
         $this->assertJson($result['data.nested']);
@@ -370,7 +356,6 @@ final class FlatArrayServiceTest extends TestCase
         $this->assertArrayHasKey('tags', $result['user']);
         $this->assertArrayHasKey('name', $result['user']);
         $this->assertEquals('John', $result['user']['name']);
-
         $this->assertEquals([['php', 'js'], ['kotlin', 'rust']], $result['user']['tags']);
     }
 
@@ -431,8 +416,8 @@ final class FlatArrayServiceTest extends TestCase
         $expected = [
             'user.name' => 'John',
             'user.address.city' => 'Paris',
-            'user.tags_php' => 'true',
-            'user.tags_js' => 'true',
+            'user.tags_php' => 'yes',
+            'user.tags_js' => 'yes',
         ];
 
         $this->assertSame($expected, $this->service->flatten($input, 'user'));
@@ -442,33 +427,31 @@ final class FlatArrayServiceTest extends TestCase
     {
         $input = [
             'status' => 'active',
-            'status_active' => 'true',
+            'status_active' => 'yes',
             'tags' => ['active', 'inactive'],
         ];
 
         $expected = [
             'status' => 'active',
-            'status_active' => 'true',
-            'tags_active' => 'true',
-            'tags_inactive' => 'true',
+            'status_active' => 'yes',
+            'tags_active' => 'yes',
+            'tags_inactive' => 'yes',
         ];
 
         $this->assertSame($expected, $this->service->flatten($input));
     }
 
-    public function test_handles_boolean_values(): void
+    public function test_handles_boolean_values_throws_exception(): void
     {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean values are not allowed');
+
         $input = [
             'active' => true,
             'verified' => false,
         ];
 
-        $expected = [
-            'active' => 'true',
-            'verified' => 'false',
-        ];
-
-        $this->assertSame($expected, $this->service->flatten($input));
+        $this->service->flatten($input);
     }
 
     public function test_handles_null_values_in_array(): void
@@ -478,9 +461,9 @@ final class FlatArrayServiceTest extends TestCase
         ];
 
         $expected = [
-            'tags_php' => 'true',
-            'tags_null' => 'true',
-            'tags_js' => 'true',
+            'tags_php' => 'yes',
+            'tags_null' => 'yes',
+            'tags_js' => 'yes',
         ];
 
         $this->assertSame($expected, $this->service->flatten($input));
@@ -489,42 +472,39 @@ final class FlatArrayServiceTest extends TestCase
     public function test_handles_mixed_types_in_indexed_array(): void
     {
         $input = [
-            'values' => ['string', 123, 45.67, true, false, null],
+            'values' => ['string', 123, 45.67, null],
         ];
 
         $result = $this->service->flatten($input);
 
         $this->assertArrayHasKey('values_string', $result);
-        $this->assertEquals('true', $result['values_string']);
+        $this->assertEquals('yes', $result['values_string']);
         $this->assertArrayHasKey('values_123', $result);
-        $this->assertEquals('true', $result['values_123']);
+        $this->assertEquals('yes', $result['values_123']);
         $this->assertArrayHasKey('values_45.67', $result);
-        $this->assertEquals('true', $result['values_45.67']);
-        $this->assertArrayHasKey('values_true', $result);
-        $this->assertEquals('true', $result['values_true']);
-        $this->assertArrayHasKey('values_false', $result);
-        $this->assertEquals('true', $result['values_false']);
+        $this->assertEquals('yes', $result['values_45.67']);
         $this->assertArrayHasKey('values_null', $result);
-        $this->assertEquals('true', $result['values_null']);
+        $this->assertEquals('yes', $result['values_null']);
     }
 
-    // ==================== BOOLEAN CONVERSION TESTS ====================
-
-    public function test_flatten_converts_simple_boolean_to_string(): void
+    public function test_flatten_converts_simple_boolean_throws_exception(): void
     {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean values are not allowed');
+
         $data = [
             'active' => true,
             'verified' => false,
         ];
 
-        $result = $this->service->flatten($data);
-
-        $this->assertSame('true', $result['active']);
-        $this->assertSame('false', $result['verified']);
+        $this->service->flatten($data);
     }
 
-    public function test_flatten_converts_nested_boolean_to_string(): void
+    public function test_flatten_converts_nested_boolean_throws_exception(): void
     {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean values are not allowed');
+
         $data = [
             'user' => [
                 'active' => true,
@@ -533,15 +513,14 @@ final class FlatArrayServiceTest extends TestCase
             ],
         ];
 
-        $result = $this->service->flatten($data);
-
-        $this->assertSame('true', $result['user.active']);
-        $this->assertSame('false', $result['user.verified']);
-        $this->assertSame('John', $result['user.name']);
+        $this->service->flatten($data);
     }
 
-    public function test_flatten_converts_deeply_nested_boolean_to_string(): void
+    public function test_flatten_converts_deeply_nested_boolean_throws_exception(): void
     {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean values are not allowed');
+
         $data = [
             'settings' => [
                 'notifications' => [
@@ -553,16 +532,14 @@ final class FlatArrayServiceTest extends TestCase
             ],
         ];
 
-        $result = $this->service->flatten($data);
-
-        $this->assertSame('true', $result['settings.notifications.email']);
-        $this->assertSame('false', $result['settings.notifications.sms']);
-        $this->assertSame('true', $result['settings.notifications.push']);
-        $this->assertSame('dark', $result['settings.theme']);
+        $this->service->flatten($data);
     }
 
-    public function test_flatten_converts_booleans_in_indexed_array_with_nested_arrays(): void
+    public function test_flatten_converts_booleans_in_indexed_array_throws_exception(): void
     {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean values are not allowed in arrays');
+
         $data = [
             'addresses' => [
                 [
@@ -578,21 +555,14 @@ final class FlatArrayServiceTest extends TestCase
             ],
         ];
 
-        $result = $this->service->flatten($data);
-
-        $this->assertArrayHasKey('addresses', $result);
-
-        $decoded = json_decode($result['addresses'], true);
-        $this->assertIsArray($decoded);
-
-        $this->assertSame('true', $decoded[0]['is_primary']);
-        $this->assertSame('false', $decoded[0]['active']);
-        $this->assertSame('false', $decoded[1]['is_primary']);
-        $this->assertSame('true', $decoded[1]['active']);
+        $this->service->flatten($data);
     }
 
-    public function test_flatten_converts_booleans_in_deeply_nested_indexed_array(): void
+    public function test_flatten_converts_booleans_in_deeply_nested_indexed_array_throws_exception(): void
     {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean values are not allowed in arrays');
+
         $data = [
             'settings' => [
                 'notifications' => [
@@ -611,25 +581,14 @@ final class FlatArrayServiceTest extends TestCase
             ],
         ];
 
-        $result = $this->service->flatten($data);
-
-        $this->assertArrayHasKey('settings.notifications', $result);
-        $this->assertArrayHasKey('settings.theme', $result);
-
-        $decoded = json_decode($result['settings.notifications'], true);
-        $this->assertIsArray($decoded);
-
-        $this->assertSame('true', $decoded[0]['email']);
-        $this->assertSame('false', $decoded[0]['sms']);
-        $this->assertSame('true', $decoded[0]['push']);
-        $this->assertSame('false', $decoded[1]['email']);
-        $this->assertSame('true', $decoded[1]['sms']);
-        $this->assertSame('false', $decoded[1]['push']);
-        $this->assertSame('dark', $result['settings.theme']);
+        $this->service->flatten($data);
     }
 
-    public function test_flatten_converts_booleans_in_mixed_array(): void
+    public function test_flatten_converts_booleans_in_mixed_array_throws_exception(): void
     {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean values are not allowed');
+
         $data = [
             'user' => [
                 'name' => 'John Doe',
@@ -654,24 +613,7 @@ final class FlatArrayServiceTest extends TestCase
             ],
         ];
 
-        $result = $this->service->flatten($data);
-
-        $this->assertSame('John Doe', $result['user.name']);
-        $this->assertSame('true', $result['user.active']);
-        $this->assertSame(30, $result['user.age']);
-        $this->assertSame('true', $result['user.preferences.notifications']);
-        $this->assertSame('dark', $result['user.preferences.theme']);
-        $this->assertSame('fr', $result['user.preferences.language']);
-
-        $this->assertSame('true', $result['user.tags_php']);
-        $this->assertSame('true', $result['user.tags_js']);
-        $this->assertSame('true', $result['user.tags_docker']);
-
-        $this->assertArrayHasKey('user.addresses', $result);
-        $this->assertIsString($result['user.addresses']);
-        $addressesDecoded = json_decode($result['user.addresses'], true);
-        $this->assertSame('true', $addressesDecoded[0]['is_primary']);
-        $this->assertSame('false', $addressesDecoded[1]['is_primary']);
+        $this->service->flatten($data);
     }
 
     public function test_flatten_preserves_non_boolean_values(): void
@@ -698,8 +640,11 @@ final class FlatArrayServiceTest extends TestCase
         $this->assertSame(3.14, $result['nested.float']);
     }
 
-    public function test_flatten_converts_booleans_in_empty_arrays(): void
+    public function test_flatten_converts_booleans_in_empty_arrays_throws_exception(): void
     {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean values are not allowed');
+
         $data = [
             'empty_array' => [],
             'nested_empty' => [
@@ -708,17 +653,14 @@ final class FlatArrayServiceTest extends TestCase
             ],
         ];
 
-        $result = $this->service->flatten($data);
-
-        $this->assertArrayHasKey('empty_array', $result);
-        $this->assertNull($result['empty_array']);
-        $this->assertArrayHasKey('nested_empty.empty', $result);
-        $this->assertNull($result['nested_empty.empty']);
-        $this->assertSame('true', $result['nested_empty.active']);
+        $this->service->flatten($data);
     }
 
-    public function test_flatten_converts_booleans_with_null_values(): void
+    public function test_flatten_converts_booleans_with_null_values_throws_exception(): void
     {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean values are not allowed');
+
         $data = [
             'user' => [
                 'name' => 'John',
@@ -731,32 +673,29 @@ final class FlatArrayServiceTest extends TestCase
             ],
         ];
 
-        $result = $this->service->flatten($data);
-
-        $this->assertSame('John', $result['user.name']);
-        $this->assertNull($result['user.email']);
-        $this->assertSame('true', $result['user.verified']);
-        $this->assertNull($result['user.settings.theme']);
-        $this->assertSame('false', $result['user.settings.notifications']);
+        $this->service->flatten($data);
     }
 
     public function test_unflatten_converts_string_true_false_to_booleans(): void
     {
         $data = [
-            'user.active' => 'true',
-            'user.verified' => 'false',
+            'user.active' => 'yes',
+            'user.verified' => 'no',
             'user.name' => 'John',
         ];
 
         $result = $this->service->unflatten($data);
 
-        $this->assertTrue($result['user']['active']);
-        $this->assertFalse($result['user']['verified']);
+        $this->assertSame('yes', $result['user']['active']);
+        $this->assertSame('no', $result['user']['verified']);
         $this->assertSame('John', $result['user']['name']);
     }
 
-    public function test_flatten_and_unflatten_roundtrip_with_booleans(): void
+    public function test_flatten_and_unflatten_roundtrip_with_booleans_throws_exception(): void
     {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean values are not allowed');
+
         $original = [
             'name' => 'John',
             'active' => true,
@@ -774,33 +713,14 @@ final class FlatArrayServiceTest extends TestCase
             ],
         ];
 
-        $flattened = $this->service->flatten($original);
-        $unflattened = $this->service->unflatten($flattened);
-
-        $this->assertSame('true', $flattened['active']);
-        $this->assertSame('true', $flattened['preferences.notifications']);
-        $this->assertSame('false', $flattened['preferences.email']);
-
-        $this->assertSame('true', $flattened['tags_php']);
-        $this->assertSame('true', $flattened['tags_js']);
-
-        $this->assertArrayHasKey('addresses', $flattened);
-        $this->assertIsString($flattened['addresses']);
-        $addressesDecoded = json_decode($flattened['addresses'], true);
-        $this->assertSame('true', $addressesDecoded[0]['is_primary']);
-
-        $this->assertTrue($unflattened['active']);
-        $this->assertTrue($unflattened['preferences']['notifications']);
-        $this->assertFalse($unflattened['preferences']['email']);
-
-        $this->assertSame(['php', 'js'], $unflattened['tags']);
-
-        $this->assertSame('Kinshasa', $unflattened['addresses'][0]['city']);
-        $this->assertTrue((bool) $unflattened['addresses'][0]['is_primary']);
+        $this->service->flatten($original);
     }
 
-    public function test_flatten_with_complex_nested_structures(): void
+    public function test_flatten_with_complex_nested_structures_throws_exception(): void
     {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean values are not allowed');
+
         $data = [
             'level1' => [
                 'level2' => [
@@ -819,20 +739,14 @@ final class FlatArrayServiceTest extends TestCase
             ],
         ];
 
-        $result = $this->service->flatten($data);
-
-        $this->assertSame('true', $result['level1.level2.level3.active']);
-        $this->assertSame('true', $result['level1.level2.level3.settings.notifications']);
-        $this->assertSame('light', $result['level1.level2.level3.settings.theme']);
-
-        $this->assertArrayHasKey('level1.level2.level3.items', $result);
-        $decoded = json_decode($result['level1.level2.level3.items'], true);
-        $this->assertSame('true', $decoded[0]['enabled']);
-        $this->assertSame('false', $decoded[1]['enabled']);
+        $this->service->flatten($data);
     }
 
-    public function test_flatten_converts_boolean_in_associative_array_inside_indexed_array(): void
+    public function test_flatten_converts_boolean_in_associative_array_inside_indexed_array_throws_exception(): void
     {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Boolean values are not allowed in arrays');
+
         $data = [
             'items' => [
                 [
@@ -856,16 +770,6 @@ final class FlatArrayServiceTest extends TestCase
             ],
         ];
 
-        $result = $this->service->flatten($data);
-
-        $this->assertArrayHasKey('items', $result);
-        $decoded = json_decode($result['items'], true);
-
-        $this->assertSame('true', $decoded[0]['active']);
-        $this->assertSame('true', $decoded[0]['meta']['public']);
-        $this->assertSame('false', $decoded[0]['meta']['hidden']);
-        $this->assertSame('false', $decoded[1]['active']);
-        $this->assertSame('false', $decoded[1]['meta']['public']);
-        $this->assertSame('true', $decoded[1]['meta']['hidden']);
+        $this->service->flatten($data);
     }
 }

@@ -8,15 +8,6 @@ use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
 use AndyDefer\LaravelCluster\Tests\IntegrationTestCase;
 use Illuminate\Support\Collection;
 
-/**
- * Integration tests for the Collection whereCluster macro.
- *
- * Tests cover:
- * - Simple and complex conditions on collections
- * - Aggregate functions (COUNT, SUM, AVG, MIN, MAX, HAS, EXISTS)
- * - Chaining with other collection methods
- * - Edge cases (empty collections, invalid queries, non-existent keys)
- */
 final class ClusterMacroCollectionTest extends IntegrationTestCase
 {
     private string $column = 'clusters';
@@ -30,9 +21,6 @@ final class ClusterMacroCollectionTest extends IntegrationTestCase
         $this->createTestData();
     }
 
-    /**
-     * Creates test data with various cluster configurations.
-     */
     private function createTestData(): void
     {
         $data = [
@@ -44,7 +32,7 @@ final class ClusterMacroCollectionTest extends IntegrationTestCase
                     'name' => 'John Doe',
                     'role' => 'admin',
                     'age' => 30,
-                    'verified' => 'true',
+                    'verified' => 'yes',
                     'addresses' => [
                         ['city' => 'Kinshasa', 'country' => 'RDC'],
                         ['city' => 'Paris', 'country' => 'France'],
@@ -60,7 +48,7 @@ final class ClusterMacroCollectionTest extends IntegrationTestCase
                     'status' => 'inactive',
                     'role' => 'doctor',
                     'age' => 25,
-                    'verified' => 'false',
+                    'verified' => 'no',
                     'addresses' => [
                         ['city' => 'Paris', 'country' => 'France'],
                     ],
@@ -75,7 +63,7 @@ final class ClusterMacroCollectionTest extends IntegrationTestCase
                     'status' => 'active',
                     'role' => 'doctor',
                     'age' => 35,
-                    'verified' => 'true',
+                    'verified' => 'yes',
                     'addresses' => [
                         ['city' => 'Kinshasa', 'country' => 'RDC'],
                         ['city' => 'London', 'country' => 'UK'],
@@ -92,7 +80,7 @@ final class ClusterMacroCollectionTest extends IntegrationTestCase
                     'status' => 'pending',
                     'role' => 'guest',
                     'age' => 28,
-                    'verified' => 'false',
+                    'verified' => 'no',
                     'addresses' => [],
                     'tags' => ['go', 'rust'],
                     'scores' => [60, 65, 70],
@@ -104,8 +92,6 @@ final class ClusterMacroCollectionTest extends IntegrationTestCase
             TestCluster::create($item);
         }
     }
-
-    // ==================== COLLECTION TESTS ====================
 
     public function test_where_cluster_on_collection_simple_condition(): void
     {
@@ -213,8 +199,6 @@ final class ClusterMacroCollectionTest extends IntegrationTestCase
         $this->assertNotContains('Alice Wonder', $names);
     }
 
-    // ==================== AGGREGATION TESTS ON COLLECTION ====================
-
     public function test_where_cluster_on_collection_with_count_aggregation(): void
     {
         $users = TestCluster::all();
@@ -310,8 +294,6 @@ final class ClusterMacroCollectionTest extends IntegrationTestCase
         $this->assertContains('Bob Johnson', $names);
     }
 
-    // ==================== CHAINING TESTS ====================
-
     public function test_where_cluster_on_collection_chained_with_other_collection_methods(): void
     {
         $users = TestCluster::all();
@@ -353,8 +335,6 @@ final class ClusterMacroCollectionTest extends IntegrationTestCase
         $this->assertArrayNotHasKey(1, $result->toArray());
         $this->assertArrayNotHasKey(3, $result->toArray());
     }
-
-    // ==================== EDGE CASES ====================
 
     public function test_where_cluster_on_empty_collection(): void
     {

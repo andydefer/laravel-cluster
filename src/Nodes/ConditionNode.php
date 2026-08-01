@@ -150,7 +150,7 @@ final class ConditionNode extends Node
         return match ($this->operator) {
             ComparisonOperator::EXISTS => false,
             ComparisonOperator::NOT_EXISTS => true,
-            ComparisonOperator::EQUAL => $this->value === 'false' || $this->value === 'null',
+            ComparisonOperator::EQUAL => $this->value === 'no' || $this->value === 'false' || $this->value === 'null',
             default => false,
         };
     }

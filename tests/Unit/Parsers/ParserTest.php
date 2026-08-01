@@ -160,10 +160,10 @@ final class ParserTest extends TestCase
 
         $this->assertInstanceOf(ConditionNode::class, $ast);
 
-        $cluster = new ClusterVO(['lang_fr' => 'true']);
+        $cluster = new ClusterVO(['lang_fr' => 'yes']);
         $this->assertTrue($ast->evaluate($cluster));
 
-        $cluster2 = new ClusterVO(['lang_fr' => 'false']);
+        $cluster2 = new ClusterVO(['lang_fr' => 'no']);
         $this->assertFalse($ast->evaluate($cluster2));
     }
 
@@ -173,10 +173,10 @@ final class ParserTest extends TestCase
 
         $this->assertInstanceOf(ConditionNode::class, $ast);
 
-        $cluster = new ClusterVO(['lang_fr' => 'false']);
+        $cluster = new ClusterVO(['lang_fr' => 'no']);
         $this->assertTrue($ast->evaluate($cluster));
 
-        $cluster2 = new ClusterVO(['lang_fr' => 'true']);
+        $cluster2 = new ClusterVO(['lang_fr' => 'yes']);
         $this->assertFalse($ast->evaluate($cluster2));
     }
 
@@ -210,27 +210,27 @@ final class ParserTest extends TestCase
 
     public function test_parse_multiple_and(): void
     {
-        $ast = $this->parser->parse('status=active & role=admin & verified=true');
+        $ast = $this->parser->parse('status=active & role=admin & verified=yes');
 
         $this->assertInstanceOf(GroupNode::class, $ast);
 
-        $cluster = new ClusterVO(['status' => 'active', 'role' => 'admin', 'verified' => 'true']);
+        $cluster = new ClusterVO(['status' => 'active', 'role' => 'admin', 'verified' => 'yes']);
         $this->assertTrue($ast->evaluate($cluster));
 
-        $cluster2 = new ClusterVO(['status' => 'active', 'role' => 'admin', 'verified' => 'false']);
+        $cluster2 = new ClusterVO(['status' => 'active', 'role' => 'admin', 'verified' => 'no']);
         $this->assertFalse($ast->evaluate($cluster2));
     }
 
     public function test_parse_multiple_or(): void
     {
-        $ast = $this->parser->parse('status=active | role=admin | verified=true');
+        $ast = $this->parser->parse('status=active | role=admin | verified=yes');
 
         $this->assertInstanceOf(GroupNode::class, $ast);
 
-        $cluster = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'verified' => 'true']);
+        $cluster = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'verified' => 'yes']);
         $this->assertTrue($ast->evaluate($cluster));
 
-        $cluster2 = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'verified' => 'false']);
+        $cluster2 = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'verified' => 'no']);
         $this->assertFalse($ast->evaluate($cluster2));
     }
 
@@ -242,13 +242,13 @@ final class ParserTest extends TestCase
 
         $this->assertInstanceOf(GroupNode::class, $ast);
 
-        $cluster = new ClusterVO(['status' => 'active', 'role' => 'admin', 'lang_fr' => 'false']);
+        $cluster = new ClusterVO(['status' => 'active', 'role' => 'admin', 'lang_fr' => 'no']);
         $this->assertTrue($ast->evaluate($cluster));
 
-        $cluster2 = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'lang_fr' => 'true']);
+        $cluster2 = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'lang_fr' => 'yes']);
         $this->assertTrue($ast->evaluate($cluster2));
 
-        $cluster3 = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'lang_fr' => 'false']);
+        $cluster3 = new ClusterVO(['status' => 'inactive', 'role' => 'guest', 'lang_fr' => 'no']);
         $this->assertFalse($ast->evaluate($cluster3));
     }
 
@@ -313,13 +313,13 @@ final class ParserTest extends TestCase
 
         $this->assertInstanceOf(GroupNode::class, $ast);
 
-        $cluster = new ClusterVO(['status' => 'active', 'lang_fr' => 'false', 'role' => 'admin']);
+        $cluster = new ClusterVO(['status' => 'active', 'lang_fr' => 'no', 'role' => 'admin']);
         $this->assertTrue($ast->evaluate($cluster));
 
-        $cluster2 = new ClusterVO(['status' => 'active', 'lang_fr' => 'true', 'role' => 'admin']);
+        $cluster2 = new ClusterVO(['status' => 'active', 'lang_fr' => 'yes', 'role' => 'admin']);
         $this->assertFalse($ast->evaluate($cluster2));
 
-        $cluster3 = new ClusterVO(['status' => 'active', 'lang_fr' => 'false', 'role' => 'guest']);
+        $cluster3 = new ClusterVO(['status' => 'active', 'lang_fr' => 'no', 'role' => 'guest']);
         $this->assertFalse($ast->evaluate($cluster3));
     }
 
@@ -329,16 +329,16 @@ final class ParserTest extends TestCase
 
         $this->assertInstanceOf(GroupNode::class, $ast);
 
-        $cluster = new ClusterVO(['status' => 'active', 'lang_fr' => 'true', 'lang_en' => 'false', 'age' => '30']);
+        $cluster = new ClusterVO(['status' => 'active', 'lang_fr' => 'yes', 'lang_en' => 'no', 'age' => '30']);
         $this->assertTrue($ast->evaluate($cluster));
 
-        $cluster2 = new ClusterVO(['status' => 'pending', 'lang_fr' => 'true', 'lang_en' => 'false', 'age' => '25']);
+        $cluster2 = new ClusterVO(['status' => 'pending', 'lang_fr' => 'yes', 'lang_en' => 'no', 'age' => '25']);
         $this->assertTrue($ast->evaluate($cluster2));
 
-        $cluster3 = new ClusterVO(['status' => 'inactive', 'lang_fr' => 'true', 'lang_en' => 'false', 'age' => '30']);
+        $cluster3 = new ClusterVO(['status' => 'inactive', 'lang_fr' => 'yes', 'lang_en' => 'no', 'age' => '30']);
         $this->assertFalse($ast->evaluate($cluster3));
 
-        $cluster4 = new ClusterVO(['status' => 'active', 'lang_fr' => 'true', 'lang_en' => 'true', 'age' => '30']);
+        $cluster4 = new ClusterVO(['status' => 'active', 'lang_fr' => 'yes', 'lang_en' => 'yes', 'age' => '30']);
         $this->assertFalse($ast->evaluate($cluster4));
     }
 
@@ -413,11 +413,11 @@ final class ParserTest extends TestCase
 
     public function test_parse_with_identifiers_hyphen(): void
     {
-        $ast = $this->parser->parse('lang-fr=true');
+        $ast = $this->parser->parse('lang-fr=yes');
 
         $this->assertInstanceOf(ConditionNode::class, $ast);
 
-        $cluster = new ClusterVO(['lang-fr' => 'true']);
+        $cluster = new ClusterVO(['lang-fr' => 'yes']);
         $this->assertTrue($ast->evaluate($cluster));
     }
 
@@ -461,13 +461,13 @@ final class ParserTest extends TestCase
 
         $this->assertInstanceOf(GroupNode::class, $ast);
 
-        $cluster = new ClusterVO(['verified' => 'true', 'status' => 'active']);
+        $cluster = new ClusterVO(['verified' => 'yes', 'status' => 'active']);
         $this->assertTrue($ast->evaluate($cluster));
 
         $cluster2 = new ClusterVO(['status' => 'active']);
         $this->assertFalse($ast->evaluate($cluster2));
 
-        $cluster3 = new ClusterVO(['verified' => 'true', 'status' => 'inactive']);
+        $cluster3 = new ClusterVO(['verified' => 'yes', 'status' => 'inactive']);
         $this->assertFalse($ast->evaluate($cluster3));
     }
 
@@ -483,7 +483,7 @@ final class ParserTest extends TestCase
         $cluster2 = new ClusterVO(['status' => 'inactive']);
         $this->assertTrue($ast->evaluate($cluster2));
 
-        $cluster3 = new ClusterVO(['lang_es' => 'true', 'status' => 'inactive']);
+        $cluster3 = new ClusterVO(['lang_es' => 'yes', 'status' => 'inactive']);
         $this->assertFalse($ast->evaluate($cluster3));
     }
 
@@ -493,13 +493,13 @@ final class ParserTest extends TestCase
 
         $this->assertInstanceOf(GroupNode::class, $ast);
 
-        $cluster = new ClusterVO(['lang_fr' => 'true', 'age' => '30']);
+        $cluster = new ClusterVO(['lang_fr' => 'yes', 'age' => '30']);
         $this->assertTrue($ast->evaluate($cluster));
 
         $cluster2 = new ClusterVO(['age' => '30']);
         $this->assertTrue($ast->evaluate($cluster2));
 
-        $cluster3 = new ClusterVO(['lang_en' => 'true', 'age' => '20']);
+        $cluster3 = new ClusterVO(['lang_en' => 'yes', 'age' => '20']);
         $this->assertFalse($ast->evaluate($cluster3));
     }
 
@@ -509,10 +509,10 @@ final class ParserTest extends TestCase
 
         $this->assertInstanceOf(GroupNode::class, $ast);
 
-        $cluster = new ClusterVO(['name' => 'John', 'lang_fr' => 'false']);
+        $cluster = new ClusterVO(['name' => 'John', 'lang_fr' => 'no']);
         $this->assertTrue($ast->evaluate($cluster));
 
-        $cluster2 = new ClusterVO(['name' => 'John', 'lang_fr' => 'true']);
+        $cluster2 = new ClusterVO(['name' => 'John', 'lang_fr' => 'yes']);
         $this->assertFalse($ast->evaluate($cluster2));
     }
 
@@ -648,14 +648,14 @@ final class ParserTest extends TestCase
     {
         $this->expectNotToPerformAssertions();
 
-        $this->parser->parse('settings.notifications[email=true]');
+        $this->parser->parse('settings.notifications[email=yes]');
     }
 
     public function test_parse_subcondition_with_complex_does_not_throw_error(): void
     {
         $this->expectNotToPerformAssertions();
 
-        $this->parser->parse('addresses[city=kinshasa & country=RDC & active=true]');
+        $this->parser->parse('addresses[city=kinshasa & country=RDC & active=yes]');
     }
 
     public function test_parse_subcondition_with_nested_path_and_condition_does_not_throw_error(): void
@@ -820,8 +820,8 @@ final class ParserTest extends TestCase
         $cluster = new ClusterVO([
             'settings' => [
                 'notifications' => [
-                    ['email' => 'true'],
-                    ['sms' => 'true'],
+                    ['email' => 'yes'],
+                    ['sms' => 'yes'],
                 ],
             ],
         ]);
@@ -830,7 +830,7 @@ final class ParserTest extends TestCase
         $cluster2 = new ClusterVO([
             'settings' => [
                 'notifications' => [
-                    ['email' => 'true'],
+                    ['email' => 'yes'],
                 ],
             ],
         ]);

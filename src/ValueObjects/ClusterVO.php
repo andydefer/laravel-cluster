@@ -24,7 +24,8 @@ use InvalidArgumentException;
  * @example
  * $cluster = new ClusterVO([
  *     'user' => ['name' => 'John', 'age' => 30],
- *     'roles' => ['admin', 'editor']
+ *     'roles' => ['admin', 'editor'],
+ *     'tags' => ['php', 'laravel', 'vue']  // Indexed array with numeric keys
  * ]);
  *
  * // Access flattened values
@@ -59,6 +60,8 @@ class ClusterVO extends AbstractValueObject implements ArrayAccess
         }
 
         $this->flatArrayService = new FlatArrayService;
+
+        // Validate that only string, int, float, null are used
         $this->validateInputData($data);
 
         $flattened = $this->flatArrayService->flatten($data);
@@ -239,22 +242,34 @@ class ClusterVO extends AbstractValueObject implements ArrayAccess
     /**
      * Validates the input data before flattening.
      *
-     * Ensures all keys are strings and values are of supported types.
-     * Objects (except stdClass) and resources are not allowed.
+     * Ensures all top-level keys are strings and values are of supported types.
+     * Supported types: string, int, float, null, array (with any keys).
+     * Objects, resources, and booleans are NOT allowed.
+     * Numeric keys are allowed in nested arrays.
      *
-     * @param  array<string, mixed>  $data  The input data to validate
+     * @param  array<mixed>  $data  The input data to validate
+     * @param  bool  $isNested  Whether we are validating a nested array
      *
      * @throws InvalidArgumentException If validation fails
      */
-    private function validateInputData(array $data): void
+    private function validateInputData(array $data, bool $isNested = false): void
     {
         foreach ($data as $key => $value) {
-            $this->validateKeyIsString($key);
+            // Only validate key type for top-level or associative arrays
+            if (! $isNested || is_string($key)) {
+                $this->validateKeyType($key, $isNested);
+            }
+
+            if (is_bool($value)) {
+                throw new InvalidArgumentException(
+                    sprintf('Boolean values are not allowed. Got bool for key "%s"', $key)
+                );
+            }
 
             if (is_object($value) && ! $value instanceof \stdClass) {
                 throw new InvalidArgumentException(
                     sprintf(
-                        'Cluster values must be string, int, float, bool, array or null. Got object for key "%s"',
+                        'Cluster values must be string, int, float, array or null. Got object for key "%s"',
                         $key
                     )
                 );
@@ -263,6 +278,47 @@ class ClusterVO extends AbstractValueObject implements ArrayAccess
             if (is_resource($value)) {
                 throw new InvalidArgumentException(
                     sprintf('Cluster values cannot be resources. Got resource for key "%s"', $key)
+                );
+            }
+
+            if (is_string($value) && $this->isBooleanString($value)) {
+                throw new InvalidArgumentException(
+                    sprintf(
+                        'Boolean strings "true" and "false" are not allowed. Got "%s" for key "%s". Use "yes" or "no" instead.',
+                        $value,
+                        $key
+                    )
+                );
+            }
+
+            if (is_array($value)) {
+                $this->validateInputData($value, true);
+            }
+        }
+    }
+
+    /**
+     * Validates the type of a key.
+     *
+     * @param  mixed  $key  The key to validate
+     * @param  bool  $isNested  Whether this is a nested array
+     *
+     * @throws InvalidArgumentException If the key type is invalid
+     */
+    private function validateKeyType(mixed $key, bool $isNested): void
+    {
+        if ($isNested) {
+            // In nested arrays, keys can be strings or integers
+            if (! is_string($key) && ! is_int($key)) {
+                throw new InvalidArgumentException(
+                    sprintf('Nested array keys must be strings or integers. Got %s', gettype($key))
+                );
+            }
+        } else {
+            // Top-level keys must be strings
+            if (! is_string($key)) {
+                throw new InvalidArgumentException(
+                    sprintf('Top-level cluster keys must be strings. Got %s', gettype($key))
                 );
             }
         }
@@ -280,22 +336,12 @@ class ClusterVO extends AbstractValueObject implements ArrayAccess
     private function validateFlattenedData(array $data): void
     {
         foreach ($data as $key => $value) {
-            $this->validateKeyIsString($key);
+            if (! is_string($key)) {
+                throw new InvalidArgumentException(
+                    sprintf('Flattened keys must be strings. Got %s', gettype($key))
+                );
+            }
             $this->validateFlattenedValueType($value, $key);
-        }
-    }
-
-    /**
-     * Validates that a key is a string.
-     *
-     * @param  mixed  $key  The key to validate
-     *
-     * @throws InvalidArgumentException If the key is not a string
-     */
-    private function validateKeyIsString(mixed $key): void
-    {
-        if (! is_string($key)) {
-            throw new InvalidArgumentException('Cluster keys must be strings');
         }
     }
 
@@ -320,5 +366,18 @@ class ClusterVO extends AbstractValueObject implements ArrayAccess
                 )
             );
         }
+    }
+
+    /**
+     * Checks if a string is a boolean string ('true' or 'false').
+     *
+     * @param  string  $value  The string to check
+     * @return bool True if the string is 'true' or 'false'
+     */
+    private function isBooleanString(string $value): bool
+    {
+        $lowerValue = strtolower(trim($value));
+
+        return $lowerValue === 'true' || $lowerValue === 'false';
     }
 }

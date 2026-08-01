@@ -17,18 +17,6 @@ use AndyDefer\LaravelCluster\Tests\IntegrationTestCase;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
-/**
- * Integration tests for the ClusterQuery service.
- *
- * Tests cover:
- * - Parsing queries into AST
- * - Filtering collections in memory
- * - Applying queries to Eloquent builders
- * - Matches on single clusters
- * - SQL generation for different drivers
- * - Sub-conditions and aggregate functions
- * - Edge cases and performance
- */
 final class ClusterQueryTest extends IntegrationTestCase
 {
     use RefreshDatabase;
@@ -49,9 +37,9 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'status' => 'active',
                 'role' => 'admin',
                 'age' => '25',
-                'lang_fr' => 'true',
-                'lang_en' => 'false',
-                'verified' => 'true',
+                'lang_fr' => 'yes',
+                'lang_en' => 'no',
+                'verified' => 'yes',
                 'score' => '85.5',
                 'scores' => [85, 90, 82],
                 'name' => 'john_doe',
@@ -67,9 +55,9 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'status' => 'inactive',
                 'role' => 'doctor',
                 'age' => '30',
-                'lang_fr' => 'false',
-                'lang_en' => 'true',
-                'verified' => 'false',
+                'lang_fr' => 'no',
+                'lang_en' => 'yes',
+                'verified' => 'no',
                 'score' => '92.0',
                 'scores' => [92, 88, 95],
                 'name' => 'jane_smith',
@@ -84,9 +72,9 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'status' => 'active',
                 'role' => 'doctor',
                 'age' => '35',
-                'lang_fr' => 'true',
-                'lang_en' => 'false',
-                'verified' => 'true',
+                'lang_fr' => 'yes',
+                'lang_en' => 'no',
+                'verified' => 'yes',
                 'score' => '78.0',
                 'scores' => [75, 80, 79],
                 'name' => 'bob_johnson',
@@ -103,9 +91,9 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'status' => 'pending',
                 'role' => 'guest',
                 'age' => '18',
-                'lang_fr' => 'false',
-                'lang_en' => 'true',
-                'verified' => 'false',
+                'lang_fr' => 'no',
+                'lang_en' => 'yes',
+                'verified' => 'no',
                 'score' => '30.5',
                 'scores' => [30, 35, 28],
                 'name' => 'alice_johanson',
@@ -118,9 +106,9 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'status' => 'active',
                 'role' => 'admin',
                 'age' => '40',
-                'lang_fr' => 'true',
-                'lang_en' => 'false',
-                'verified' => 'true',
+                'lang_fr' => 'yes',
+                'lang_en' => 'no',
+                'verified' => 'yes',
                 'score' => '95.0',
                 'scores' => [92, 98, 95],
                 'name' => 'charlie_doe',
@@ -136,9 +124,9 @@ final class ClusterQueryTest extends IntegrationTestCase
             'status' => 'active',
             'role' => 'admin',
             'age' => '25',
-            'lang_fr' => 'true',
-            'lang_en' => 'false',
-            'verified' => 'true',
+            'lang_fr' => 'yes',
+            'lang_en' => 'no',
+            'verified' => 'yes',
             'score' => '85.5',
             'scores' => [85, 90, 82],
             'name' => 'john_doe',
@@ -151,9 +139,9 @@ final class ClusterQueryTest extends IntegrationTestCase
             'status' => 'inactive',
             'role' => 'doctor',
             'age' => '30',
-            'lang_fr' => 'false',
-            'lang_en' => 'true',
-            'verified' => 'false',
+            'lang_fr' => 'no',
+            'lang_en' => 'yes',
+            'verified' => 'no',
             'score' => '92.0',
             'scores' => [92, 88, 95],
             'name' => 'jane_smith',
@@ -165,9 +153,9 @@ final class ClusterQueryTest extends IntegrationTestCase
             'status' => 'active',
             'role' => 'doctor',
             'age' => '35',
-            'lang_fr' => 'true',
-            'lang_en' => 'false',
-            'verified' => 'true',
+            'lang_fr' => 'yes',
+            'lang_en' => 'no',
+            'verified' => 'yes',
             'score' => '78.0',
             'scores' => [75, 80, 79],
             'name' => 'bob_johnson',
@@ -181,9 +169,9 @@ final class ClusterQueryTest extends IntegrationTestCase
             'status' => 'pending',
             'role' => 'guest',
             'age' => '18',
-            'lang_fr' => 'false',
-            'lang_en' => 'true',
-            'verified' => 'false',
+            'lang_fr' => 'no',
+            'lang_en' => 'yes',
+            'verified' => 'no',
             'score' => '30.5',
             'scores' => [30, 35, 28],
             'name' => 'alice_johanson',
@@ -193,9 +181,9 @@ final class ClusterQueryTest extends IntegrationTestCase
             'status' => 'active',
             'role' => 'admin',
             'age' => '40',
-            'lang_fr' => 'true',
-            'lang_en' => 'false',
-            'verified' => 'true',
+            'lang_fr' => 'yes',
+            'lang_en' => 'no',
+            'verified' => 'yes',
             'score' => '95.0',
             'scores' => [92, 98, 95],
             'name' => 'charlie_doe',
@@ -205,8 +193,6 @@ final class ClusterQueryTest extends IntegrationTestCase
             ],
         ]));
     }
-
-    // ==================== PARSE TESTS ====================
 
     public function test_parse_returns_node(): void
     {
@@ -230,8 +216,6 @@ final class ClusterQueryTest extends IntegrationTestCase
 
         $this->assertSame($ast1, $ast2);
     }
-
-    // ==================== FILTER TESTS (MEMORY) ====================
 
     public function test_filter_returns_filtered_collection(): void
     {
@@ -291,21 +275,21 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->assertCount(2, $result);
     }
 
-    public function test_filter_with_true_value(): void
+    public function test_filter_with_yes_value(): void
     {
         $result = $this->clusterQuery->filter(
             $this->collection,
-            'lang_fr=true'
+            'lang_fr=yes'
         );
 
         $this->assertCount(3, $result);
     }
 
-    public function test_filter_with_false_value(): void
+    public function test_filter_with_no_value(): void
     {
         $result = $this->clusterQuery->filter(
             $this->collection,
-            'lang_fr=false'
+            'lang_fr=no'
         );
 
         $this->assertCount(2, $result);
@@ -370,8 +354,6 @@ final class ClusterQueryTest extends IntegrationTestCase
 
         $this->assertCount(0, $result);
     }
-
-    // ==================== SUB CONDITION FILTER TESTS ====================
 
     public function test_filter_subcondition_simple(): void
     {
@@ -496,7 +478,7 @@ final class ClusterQueryTest extends IntegrationTestCase
             'name' => 'John',
             'settings' => [
                 'notifications' => [
-                    ['email' => 'true', 'sms' => 'false'],
+                    ['email' => 'yes', 'sms' => 'no'],
                 ],
             ],
         ]));
@@ -504,12 +486,12 @@ final class ClusterQueryTest extends IntegrationTestCase
             'name' => 'Jane',
             'settings' => [
                 'notifications' => [
-                    ['email' => 'false', 'sms' => 'true'],
+                    ['email' => 'no', 'sms' => 'yes'],
                 ],
             ],
         ]));
 
-        $result = $this->clusterQuery->filter($collection, 'settings.notifications[email=true]');
+        $result = $this->clusterQuery->filter($collection, 'settings.notifications[email=yes]');
 
         $this->assertCount(1, $result);
         $this->assertEquals('John', $result->get()[0]->get('name'));
@@ -565,7 +547,7 @@ final class ClusterQueryTest extends IntegrationTestCase
                     'city' => 'Kinshasa',
                     'details' => [
                         'postal_code' => '1000',
-                        'active' => 'true',
+                        'active' => 'yes',
                     ],
                 ],
             ],
@@ -577,13 +559,13 @@ final class ClusterQueryTest extends IntegrationTestCase
                     'city' => 'Paris',
                     'details' => [
                         'postal_code' => '75001',
-                        'active' => 'false',
+                        'active' => 'no',
                     ],
                 ],
             ],
         ]));
 
-        $result = $this->clusterQuery->filter($collection, 'addresses[details.active=true]');
+        $result = $this->clusterQuery->filter($collection, 'addresses[details.active=yes]');
 
         $this->assertCount(1, $result);
         $this->assertEquals('John', $result->get()[0]->get('name'));
@@ -649,8 +631,6 @@ final class ClusterQueryTest extends IntegrationTestCase
 
         $this->assertCount(2, $result);
     }
-
-    // ==================== SUB CONDITION FILTER TESTS (ELOQUENT) ====================
 
     public function test_apply_to_eloquent_subcondition_simple(): void
     {
@@ -723,7 +703,7 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'name' => 'John',
                 'settings' => [
                     'notifications' => [
-                        ['email' => 'true', 'sms' => 'false', 'push' => 'true'],
+                        ['email' => 'yes', 'sms' => 'no', 'push' => 'yes'],
                     ],
                     'theme' => 'dark',
                 ],
@@ -735,7 +715,7 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'name' => 'Jane',
                 'settings' => [
                     'notifications' => [
-                        ['email' => 'false', 'sms' => 'true', 'push' => 'false'],
+                        ['email' => 'no', 'sms' => 'yes', 'push' => 'no'],
                     ],
                     'theme' => 'light',
                 ],
@@ -747,14 +727,14 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'name' => 'Bob',
                 'settings' => [
                     'notifications' => [
-                        ['email' => 'true', 'sms' => 'true', 'push' => 'true'],
+                        ['email' => 'yes', 'sms' => 'yes', 'push' => 'yes'],
                     ],
                     'theme' => 'dark',
                 ],
             ],
         ]);
 
-        $condition = new ConditionNode('email', ComparisonOperator::EQUAL, 'true');
+        $condition = new ConditionNode('email', ComparisonOperator::EQUAL, 'yes');
         $node = new SubConditionNode('settings.notifications', $condition);
 
         $query = TestCluster::query();
@@ -807,8 +787,6 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->assertNotContains('jane_smith', $names);
         $this->assertNotContains('alice_johanson', $names);
     }
-
-    // ==================== FILTER TESTS (ELOQUENT) ====================
 
     public function test_apply_to_eloquent_simple(): void
     {
@@ -865,14 +843,14 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->assertCount(2, $results);
     }
 
-    public function test_apply_to_eloquent_with_true_value(): void
+    public function test_apply_to_eloquent_with_yes_value(): void
     {
         $query = TestCluster::query();
 
         $this->clusterQuery->applyToEloquent(
             $query,
             'clusters',
-            'lang_fr=true',
+            'lang_fr=yes',
             DatabaseDriver::SQLITE
         );
 
@@ -880,14 +858,14 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->assertCount(3, $results);
     }
 
-    public function test_apply_to_eloquent_with_false_value(): void
+    public function test_apply_to_eloquent_with_no_value(): void
     {
         $query = TestCluster::query();
 
         $this->clusterQuery->applyToEloquent(
             $query,
             'clusters',
-            'lang_fr=false',
+            'lang_fr=no',
             DatabaseDriver::SQLITE
         );
 
@@ -1000,8 +978,6 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->assertCount(0, $results);
     }
 
-    // ==================== MATCHES TESTS ====================
-
     public function test_matches_returns_true(): void
     {
         $cluster = new ClusterVO(['status' => 'active', 'role' => 'admin']);
@@ -1022,7 +998,7 @@ final class ClusterQueryTest extends IntegrationTestCase
 
     public function test_matches_with_presence(): void
     {
-        $cluster = new ClusterVO(['lang_fr' => 'true']);
+        $cluster = new ClusterVO(['lang_fr' => 'yes']);
 
         $result = $this->clusterQuery->matches($cluster, 'lang_fr');
 
@@ -1031,32 +1007,30 @@ final class ClusterQueryTest extends IntegrationTestCase
 
     public function test_matches_with_absence(): void
     {
-        $cluster = new ClusterVO(['lang_fr' => 'false']);
+        $cluster = new ClusterVO(['lang_fr' => 'no']);
 
         $result = $this->clusterQuery->matches($cluster, '!lang_fr');
 
         $this->assertTrue($result);
     }
 
-    public function test_matches_with_true_value(): void
+    public function test_matches_with_yes_value(): void
     {
-        $cluster = new ClusterVO(['lang_fr' => 'true']);
+        $cluster = new ClusterVO(['lang_fr' => 'yes']);
 
-        $result = $this->clusterQuery->matches($cluster, 'lang_fr=true');
+        $result = $this->clusterQuery->matches($cluster, 'lang_fr=yes');
 
         $this->assertTrue($result);
     }
 
-    public function test_matches_with_false_value(): void
+    public function test_matches_with_no_value(): void
     {
-        $cluster = new ClusterVO(['lang_fr' => 'false']);
+        $cluster = new ClusterVO(['lang_fr' => 'no']);
 
-        $result = $this->clusterQuery->matches($cluster, 'lang_fr=false');
+        $result = $this->clusterQuery->matches($cluster, 'lang_fr=no');
 
         $this->assertTrue($result);
     }
-
-    // ==================== TO SQL TESTS ====================
 
     public function test_to_sql_sqlite(): void
     {
@@ -1069,31 +1043,29 @@ final class ClusterQueryTest extends IntegrationTestCase
     {
         $sql = $this->clusterQuery->toSql('clusters', 'lang_fr', DatabaseDriver::SQLITE);
 
-        $this->assertStringContainsString("LOWER(json_extract(clusters, '$.lang_fr')) = LOWER('true')", $sql);
+        $this->assertStringContainsString("LOWER(json_extract(clusters, '$.lang_fr')) = LOWER('yes')", $sql);
     }
 
     public function test_to_sql_with_absence(): void
     {
         $sql = $this->clusterQuery->toSql('clusters', '!lang_fr', DatabaseDriver::SQLITE);
 
-        $this->assertStringContainsString("LOWER(json_extract(clusters, '$.lang_fr')) = LOWER('false')", $sql);
+        $this->assertStringContainsString("LOWER(json_extract(clusters, '$.lang_fr')) = LOWER('no')", $sql);
     }
 
-    public function test_to_sql_with_true_value(): void
+    public function test_to_sql_with_yes_value(): void
     {
-        $sql = $this->clusterQuery->toSql('clusters', 'lang_fr=true', DatabaseDriver::SQLITE);
+        $sql = $this->clusterQuery->toSql('clusters', 'lang_fr=yes', DatabaseDriver::SQLITE);
 
-        $this->assertStringContainsString("LOWER(json_extract(clusters, '$.lang_fr')) = LOWER('true')", $sql);
+        $this->assertStringContainsString("LOWER(json_extract(clusters, '$.lang_fr')) = LOWER('yes')", $sql);
     }
 
-    public function test_to_sql_with_false_value(): void
+    public function test_to_sql_with_no_value(): void
     {
-        $sql = $this->clusterQuery->toSql('clusters', 'lang_fr=false', DatabaseDriver::SQLITE);
+        $sql = $this->clusterQuery->toSql('clusters', 'lang_fr=no', DatabaseDriver::SQLITE);
 
-        $this->assertStringContainsString("LOWER(json_extract(clusters, '$.lang_fr')) = LOWER('false')", $sql);
+        $this->assertStringContainsString("LOWER(json_extract(clusters, '$.lang_fr')) = LOWER('no')", $sql);
     }
-
-    // ==================== EDGE CASES TESTS ====================
 
     public function test_filter_with_empty_collection(): void
     {
@@ -1135,8 +1107,6 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->clusterQuery->parse('status active');
     }
 
-    // ==================== PERFORMANCE TESTS ====================
-
     public function test_filter_large_collection_performance(): void
     {
         $collection = new ClusterVOCollection;
@@ -1156,8 +1126,6 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->assertCount(17, $result);
         $this->assertLessThan(0.1, $end - $start);
     }
-
-    // ==================== EXISTS / NOT_EXISTS FILTER TESTS ====================
 
     public function test_filter_with_exists_operator(): void
     {
@@ -1208,8 +1176,6 @@ final class ClusterQueryTest extends IntegrationTestCase
 
         $this->assertCount(4, $result);
     }
-
-    // ==================== LIKE / NOT_LIKE FILTER TESTS ====================
 
     public function test_filter_with_like_simple_contains(): void
     {
@@ -1350,8 +1316,6 @@ final class ClusterQueryTest extends IntegrationTestCase
 
         $this->assertTrue($result);
     }
-
-    // ==================== SQL FUNCTION FILTER TESTS ====================
 
     public function test_filter_with_count_function(): void
     {
@@ -1557,8 +1521,8 @@ final class ClusterQueryTest extends IntegrationTestCase
             'name' => 'John',
             'settings' => [
                 'notifications' => [
-                    ['email' => 'true'],
-                    ['sms' => 'true'],
+                    ['email' => 'yes'],
+                    ['sms' => 'yes'],
                 ],
             ],
         ]));
@@ -1566,7 +1530,7 @@ final class ClusterQueryTest extends IntegrationTestCase
             'name' => 'Jane',
             'settings' => [
                 'notifications' => [
-                    ['email' => 'true'],
+                    ['email' => 'yes'],
                 ],
             ],
         ]));
@@ -1642,8 +1606,6 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->assertCount(1, $result);
         $this->assertEquals('John', $result->get()[0]->get('name'));
     }
-
-    // ==================== SQL FUNCTION ELOQUENT TESTS ====================
 
     public function test_apply_to_eloquent_count_function(): void
     {
@@ -1789,8 +1751,6 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->assertNotContains('bob_johnson', $names);
     }
 
-    // ==================== SQL FUNCTION MATCHES TESTS ====================
-
     public function test_matches_with_count_function(): void
     {
         $cluster = new ClusterVO([
@@ -1846,8 +1806,6 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->assertTrue($result);
     }
 
-    // ==================== SQL FUNCTION TO SQL TESTS ====================
-
     public function test_to_sql_count_function_sqlite(): void
     {
         $sql = $this->clusterQuery->toSql('clusters', 'COUNT(addresses) > 2', DatabaseDriver::SQLITE);
@@ -1883,8 +1841,6 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->assertStringContainsString('LENGTH(json_extract(clusters, \'$.name\')) > 5', $sql);
     }
 
-    // ==================== NESTED DOT NOTATION FILTER TESTS ====================
-
     public function test_filter_with_dot_notation_simple(): void
     {
         $collection = new ClusterVOCollection;
@@ -1916,7 +1872,7 @@ final class ClusterQueryTest extends IntegrationTestCase
             'name' => 'John',
             'settings' => [
                 'notifications' => [
-                    ['email' => 'true', 'sms' => 'false'],
+                    ['email' => 'yes', 'sms' => 'no'],
                 ],
                 'theme' => 'dark',
             ],
@@ -1925,13 +1881,13 @@ final class ClusterQueryTest extends IntegrationTestCase
             'name' => 'Jane',
             'settings' => [
                 'notifications' => [
-                    ['email' => 'false', 'sms' => 'true'],
+                    ['email' => 'no', 'sms' => 'yes'],
                 ],
                 'theme' => 'light',
             ],
         ]));
 
-        $result = $this->clusterQuery->filter($collection, 'settings.notifications[email=true] & settings.theme=dark');
+        $result = $this->clusterQuery->filter($collection, 'settings.notifications[email=yes] & settings.theme=dark');
 
         $this->assertCount(1, $result);
         $this->assertEquals('John', $result->get()[0]->get('name'));
@@ -2101,8 +2057,6 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->assertCount(2, $result);
     }
 
-    // ==================== NESTED DOT NOTATION ELOQUENT TESTS ====================
-
     public function test_apply_to_eloquent_dot_notation_simple(): void
     {
         TestCluster::truncate();
@@ -2150,7 +2104,7 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'name' => 'John',
                 'settings' => [
                     'notifications' => [
-                        ['email' => 'true', 'sms' => 'false'],
+                        ['email' => 'yes', 'sms' => 'no'],
                     ],
                     'theme' => 'dark',
                 ],
@@ -2162,7 +2116,7 @@ final class ClusterQueryTest extends IntegrationTestCase
                 'name' => 'Jane',
                 'settings' => [
                     'notifications' => [
-                        ['email' => 'false', 'sms' => 'true'],
+                        ['email' => 'no', 'sms' => 'yes'],
                     ],
                     'theme' => 'light',
                 ],
@@ -2174,7 +2128,7 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->clusterQuery->applyToEloquent(
             $query,
             'clusters',
-            'settings.notifications[email=true] & settings.theme=dark',
+            'settings.notifications[email=yes] & settings.theme=dark',
             DatabaseDriver::SQLITE
         );
 
@@ -2228,8 +2182,6 @@ final class ClusterQueryTest extends IntegrationTestCase
         $this->assertCount(1, $results);
         $this->assertEquals('John', $results->first()->clusters['name']);
     }
-
-    // ==================== NESTED DOT NOTATION MATCHES TESTS ====================
 
     public function test_matches_dot_notation_true(): void
     {
