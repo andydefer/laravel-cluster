@@ -222,25 +222,6 @@ final class ClusterCastTest extends IntegrationTestCase
         $this->assertSame(30, $fresh->clusters->get('age'));
     }
 
-    public function test_handles_boolean_values_throws_exception(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Boolean values are not allowed');
-
-        $data = [
-            'is_active' => true,
-            'is_deleted' => false,
-            'is_verified' => true,
-            'age' => 30,
-        ];
-
-        TestCluster::create([
-            'name' => 'Ivy Wilson',
-            'email' => 'ivy@example.com',
-            'clusters' => $data,
-        ]);
-    }
-
     public function test_where_cluster_query_with_casted_column(): void
     {
         TestCluster::create([

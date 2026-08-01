@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelCluster\Casts;
 
+use AndyDefer\LaravelCluster\Proxies\ClusterVOProxy;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
 use Illuminate\Database\Eloquent\Model;
@@ -53,7 +54,7 @@ final class ClusterCast implements CastsAttributes
             return null;
         }
 
-        return new ClusterVO($value);
+        return ClusterVOProxy::make($value);
     }
 
     /**
@@ -75,7 +76,7 @@ final class ClusterCast implements CastsAttributes
             if (empty($value)) {
                 return null;
             }
-            new ClusterVO($value);
+            ClusterVOProxy::make($value);
 
             return json_encode($value);
         }
@@ -83,8 +84,8 @@ final class ClusterCast implements CastsAttributes
         if (is_string($value)) {
             $decoded = json_decode($value, true);
             if (json_last_error() === JSON_ERROR_NONE && ! empty($decoded)) {
-                // ClusterVO constructor will validate the data
-                new ClusterVO($decoded);
+                // ClusterVOProxy will normalize boolean values
+                ClusterVOProxy::make($decoded);
 
                 return $value;
             }

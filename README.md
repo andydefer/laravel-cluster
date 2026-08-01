@@ -539,7 +539,101 @@ if ($cluster->get('age') >= 18 && $cluster->get('verified') === 'yes') {
     // Valider l'utilisateur
 }
 ```
+## 5.5 Création simplifiée avec ClusterVOProxy
 
+`ClusterVOProxy` est un proxy qui simplifie la création de `ClusterVO` en normalisant automatiquement les valeurs booléennes. Il convertit récursivement les booléens PHP (`true`/`false`) et les chaînes booléennes (`'true'`/`'false'`) en `'yes'`/`'no'`, évitant ainsi les exceptions de `ClusterVO`.
+
+```php
+use AndyDefer\LaravelCluster\Proxies\ClusterVOProxy;
+
+// Création avec booléens PHP
+$cluster = ClusterVOProxy::make([
+    'id' => 1,
+    'name' => 'John Doe',
+    'age' => 30,
+    'is_active' => true,        // → 'yes'
+    'is_verified' => false,     // → 'no'
+    'address' => [
+        'city' => 'Paris',
+        'country' => 'France',
+        'postal_code' => 75000,
+    ],
+    'tags' => ['php', 'js', 'docker'],
+    'settings' => [
+        'theme' => 'dark',
+        'notifications' => [
+            'email' => true,    // → 'yes'
+            'sms' => false,     // → 'no'
+        ],
+    ],
+]);
+
+// Création avec chaînes booléennes
+$cluster = ClusterVOProxy::make([
+    'active' => 'true',         // → 'yes'
+    'verified' => 'false',      // → 'no'
+    'status' => 'active',       // Préservé
+]);
+
+// Accès normalisé
+$cluster->get('is_active'); // 'yes'
+$cluster->get('is_verified'); // 'no'
+$cluster->get('settings.notifications.email'); // 'yes'
+$cluster->get('settings.notifications.sms'); // 'no'
+```
+
+### Avantages du proxy
+
+- **Normalisation automatique** : Plus besoin de convertir manuellement les booléens
+- **Support récursif** : Traite les structures profondément imbriquées
+- **Préservation des valeurs** : Les chaînes 'yes'/'no' sont conservées
+- **Validation intégrée** : Hérite de la validation de `ClusterVO`
+
+### Utilisation dans un modèle
+
+```php
+class Doctor extends Model
+{
+    public function getIndexableCluster(): ClusterVO
+    {
+        return ClusterVOProxy::make([
+            'status' => $this->is_active,
+            'verified' => $this->email_verified_at !== null,
+            'has_patients' => $this->patients()->exists(),
+            'profile' => $this->profile ? [
+                'is_verified' => $this->profile->is_verified,
+                'is_accepting' => $this->profile->is_accepting_new_patients,
+                'years_experience' => $this->profile->years_of_experience,
+            ] : null,
+            'specialties' => $this->specialties->pluck('name')->toArray(),
+        ]);
+    }
+}
+```
+
+### ArrayAccess avec le proxy
+
+```php
+$cluster = ClusterVOProxy::make([
+    'active' => true,
+    'verified' => false,
+]);
+
+echo $cluster['active']; // 'yes'
+echo $cluster['verified']; // 'no'
+
+// Vérification d'existence
+if (isset($cluster['active'])) {
+    // La clé existe
+}
+
+// Immutable - modification bloquée
+try {
+    $cluster['active'] = 'inactive';
+} catch (RuntimeException $e) {
+    echo "ClusterVO is immutable";
+}
+```
 ---
 
 ## 6. Eloquent Cast : ClusterCast
