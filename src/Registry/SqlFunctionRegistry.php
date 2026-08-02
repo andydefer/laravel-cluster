@@ -15,6 +15,7 @@ use AndyDefer\LaravelCluster\SqlFunctions\MaxFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\MinFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\RegexpFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\SumFunction;
+use InvalidArgumentException;
 
 /**
  * Registry for SQL functions used in database queries.
@@ -43,14 +44,54 @@ final class SqlFunctionRegistry
     }
 
     /**
+     * Validates a function name against SCREAMING_SNAKE_CASE convention.
+     *
+     * Rules:
+     * - Must start with a letter (A-Z)
+     * - Can contain letters (A-Z), numbers (0-9), and underscores (_)
+     * - Must be in uppercase
+     *
+     * @param  string  $name  The function name to validate
+     * @return bool True if the name is valid
+     */
+    private function isValidFunctionName(string $name): bool
+    {
+        // Must start with a letter, can contain letters, numbers and underscores
+        // Must be all uppercase
+        return (bool) preg_match('/^[A-Z][A-Z0-9_]*$/', $name);
+    }
+
+    /**
      * Registers an SQL function in the registry.
      *
      * @param  SqlFunctionInterface  $function  The function to register
      * @return self Returns the registry instance for method chaining
+     *
+     * @throws InvalidArgumentException When a function with the same name is already registered
+     * @throws InvalidArgumentException When the function name is invalid
      */
     public function register(SqlFunctionInterface $function): self
     {
-        $this->functions[strtoupper($function->getName())] = $function;
+        $originalName = $function->getName();
+        $name = strtoupper($originalName);
+
+        // Validate function name format - check the ORIGINAL name (must already be uppercase)
+        if (! $this->isValidFunctionName($originalName)) {
+            throw new InvalidArgumentException(
+                sprintf(
+                    'Invalid function name "%s". Function names must be in SCREAMING_SNAKE_CASE format: start with a letter, contain only uppercase letters, numbers, and underscores.',
+                    $originalName
+                )
+            );
+        }
+
+        if ($this->has($name)) {
+            throw new InvalidArgumentException(
+                sprintf('Function "%s" is already registered. Cannot register duplicate.', $name)
+            );
+        }
+
+        $this->functions[$name] = $function;
 
         return $this;
     }
@@ -225,6 +266,8 @@ final class SqlFunctionRegistry
 
     /**
      * Registers the default set of SQL functions.
+     *
+     * @throws InvalidArgumentException If a default function is already registered
      */
     private function registerDefaultFunctions(): void
     {

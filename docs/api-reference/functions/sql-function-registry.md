@@ -2,7 +2,7 @@
 
 ## Description
 
-Registre central qui gère l'ensemble des fonctions SQL disponibles pour les requêtes Cluster, avec génération de SQL adaptée à chaque driver de base de données (SQLite, MySQL, PostgreSQL).
+Registre central qui gère l'ensemble des fonctions SQL disponibles pour les requêtes, avec génération de SQL adaptée à chaque driver de base de données (SQLite, MySQL, PostgreSQL).
 
 ## Hiérarchie / Implémentations
 
@@ -15,6 +15,7 @@ SqlFunctionRegistry (classe finale)
 Le `SqlFunctionRegistry` est le point d'entrée pour toutes les fonctions SQL dans Laravel Cluster. Il :
 
 - **Enregistre** les fonctions SQL (COUNT, SUM, AVG, MIN, MAX, LENGTH, JSON_LENGTH, REGEXP, CONTAINS)
+- **Valide** les noms de fonctions selon la convention SCREAMING_SNAKE_CASE
 - **Génère** le SQL approprié selon le driver de base de données
 - **Exécute** les fonctions en mémoire pour l'évaluation des clusters
 - **Valide** les arguments des fonctions
@@ -30,10 +31,15 @@ Le `SqlFunctionRegistry` est le point d'entrée pour toutes les fonctions SQL da
 
 **Retourne :** `self` - L'instance du registre pour le chaînage
 
+**Exceptions :** 
+- `InvalidArgumentException` - Si une fonction du même nom est déjà enregistrée
+- `InvalidArgumentException` - Si le nom de la fonction est invalide
+
 **Exemple :**
 ```php
 $registry = new SqlFunctionRegistry();
-$registry->register(new CustomFunction());
+$customFunction = new CustomFunction();
+$registry->register($customFunction);
 ```
 
 ---
@@ -98,7 +104,7 @@ $sql = $registry->toSql('CONTAINS', 'clusters', 'languages', DatabaseDriver::SQL
 
 // PostgreSQL
 $sql = $registry->toSql('SUM', 'clusters', 'prices', DatabaseDriver::PGSQL);
-// '(clusters->>'prices')::numeric'
+// '(SELECT SUM((value->>'$')::numeric) FROM json_array_elements(clusters->'prices') AS value)'
 ```
 
 ---
@@ -119,7 +125,7 @@ $registry = new SqlFunctionRegistry();
 
 $result = $registry->execute('COUNT', ['a', 'b', 'c']); // 3
 $result = $registry->execute('SUM', [10, 20, 30]); // 60.0
-$result = $registry->execute('CONTAINS', ['fr', 'en'], ['fr']); // true
+$result = $registry->execute('CONTAINS', ['fr', 'en'], ['languages', 'fr']); // true
 ```
 
 ---
@@ -245,6 +251,7 @@ $names = $registry->getNames();
 ## Cas d'utilisation
 
 ### Cas 1 : Utiliser une fonction dans une requête Cluster
+
 ```php
 use AndyDefer\LaravelCluster\ClusterQuery;
 use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
@@ -258,6 +265,7 @@ $result = $engine->filter($collection, 'CONTAINS(languages, fr)');
 ```
 
 ### Cas 2 : Générer du SQL pour différents drivers
+
 ```php
 use AndyDefer\LaravelCluster\Registry\SqlFunctionRegistry;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
@@ -278,9 +286,11 @@ $pgsqlSql = $registry->toSql('COUNT', 'clusters', 'addresses', DatabaseDriver::P
 ```
 
 ### Cas 3 : Ajouter une fonction personnalisée
+
 ```php
 use AndyDefer\LaravelCluster\Registry\SqlFunctionRegistry;
 use AndyDefer\LaravelCluster\SqlFunctions\AbstractSqlFunction;
+use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 
 class CustomFunction extends AbstractSqlFunction
 {
@@ -301,6 +311,9 @@ class CustomFunction extends AbstractSqlFunction
     }
     
     public function getReturnType(): string { return 'int'; }
+    public function getMinArgs(): int { return 1; }
+    public function getMaxArgs(): int { return PHP_INT_MAX; }
+    public function validateArgs(array $args): bool { return count($args) === 1; }
 }
 
 $registry = new SqlFunctionRegistry();
@@ -310,15 +323,32 @@ $registry->register(new CustomFunction());
 $sql = $registry->toSql('CUSTOM', 'clusters', 'name', DatabaseDriver::MYSQL);
 ```
 
+### Cas 4 : Utiliser CONTAINS avec Eloquent
+
+```php
+use App\Models\User;
+
+// Utilisateurs qui parlent français
+$users = User::whereCluster('clusters', 'CONTAINS(languages, fr)')->get();
+
+// Utilisateurs qui parlent français ET anglais
+$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) & CONTAINS(languages, en)')->get();
+
+// Utilisateurs qui parlent français = false (ne parlent pas français)
+$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) = false')->get();
+```
+
 ## Gestion des erreurs
 
-| Situation | Comportement |
-|-----------|--------------|
-| Fonction non enregistrée | `has()` retourne `false`, `get()` retourne `null` |
-| `toSql()` sur fonction non enregistrée | Retourne `null` |
-| `execute()` sur fonction non enregistrée | Retourne la valeur d'origine |
-| `validateArgs()` sur fonction non enregistrée | Retourne `false` |
-| Arguments invalides | `validateArgs()` retourne `false` |
+| Situation | Exception | Message |
+|-----------|-----------|---------|
+| Fonction déjà enregistrée | `InvalidArgumentException` | `Function "X" is already registered. Cannot register duplicate.` |
+| Nom de fonction invalide | `InvalidArgumentException` | `Invalid function name "X". Function names must be in SCREAMING_SNAKE_CASE format: start with a letter, contain only uppercase letters, numbers, and underscores.` |
+| Fonction non enregistrée | `has()` retourne `false`, `get()` retourne `null` | - |
+| `toSql()` sur fonction non enregistrée | - | Retourne `null` |
+| `execute()` sur fonction non enregistrée | - | Retourne la valeur d'origine |
+| `validateArgs()` sur fonction non enregistrée | - | Retourne `false` |
+| Arguments invalides | - | `validateArgs()` retourne `false` |
 
 ## Intégration
 
@@ -327,11 +357,12 @@ Le `SqlFunctionRegistry` est utilisé par :
 - **`Parser`** : Pour valider les fonctions et leurs arguments pendant l'analyse syntaxique
 - **`FunctionNode`** : Pour générer le SQL et exécuter les fonctions en mémoire
 - **`ClusterQuery`** : Pour le filtrage des collections
+- **`ClusterMacroRegistrar`** : Pour enregistrer les macros `whereCluster`
 
 ### Cycle de vie d'une fonction
 
 ```
-1. Fonction enregistrée dans le registre
+1. Fonction enregistrée dans le registre (register)
    ↓
 2. Parser détecte la fonction dans la requête
    ↓
@@ -348,6 +379,7 @@ Le `SqlFunctionRegistry` est utilisé par :
 
 - **Recherche** : O(1) via tableau associatif
 - **Enregistrement** : O(1)
+- **Génération SQL** : O(1)
 - **Mémoire** : Une instance par fonction enregistrée
 - **Initialisation** : Les 9 fonctions par défaut sont enregistrées à la construction
 
@@ -357,6 +389,12 @@ Le `SqlFunctionRegistry` est utilisé par :
 |-------------|---------|
 | PHP 8.1+ | ✅ Complet |
 | PHP 8.0 | ✅ Complet |
+
+| Driver | Support |
+|--------|---------|
+| SQLite | ✅ Complet |
+| MySQL | ✅ Complet |
+| PostgreSQL | ✅ Complet |
 
 ## Exemple complet
 
@@ -394,11 +432,15 @@ $result = $registry->execute('COUNT', ['a', 'b', 'c']);
 var_dump($result); // 3
 
 // 6. CONTAINS avec arguments
-$result = $registry->execute('CONTAINS', ['fr', 'en', 'es'], ['fr']);
+$result = $registry->execute('CONTAINS', ['fr', 'en', 'es'], ['languages', 'fr']);
 var_dump($result); // true
 
 $sql = $registry->toSql('CONTAINS', 'clusters', 'languages', DatabaseDriver::SQLITE, ['languages', 'fr']);
 var_dump($sql); // "EXISTS (SELECT 1 FROM json_each(clusters, '$.languages') WHERE value = 'fr')"
+
+// 7. REGEXP avec arguments
+$sql = $registry->toSql('REGEXP', 'clusters', 'name', DatabaseDriver::MYSQL, ['name', '^John.*']);
+var_dump($sql); // "JSON_EXTRACT(clusters, '$.name') REGEXP '^John.*'"
 ```
 
 ## Voir aussi
@@ -415,3 +457,5 @@ var_dump($sql); // "EXISTS (SELECT 1 FROM json_each(clusters, '$.languages') WHE
 - [`JsonLengthFunction`](SqlFunctions/JsonLengthFunction.md) - Fonction JSON_LENGTH
 - [`RegexpFunction`](SqlFunctions/RegexpFunction.md) - Fonction REGEXP
 - [`Parser`](Parser.md) - Analyseur syntaxique utilisant le registre
+- [`FunctionNode`](Nodes/FunctionNode.md) - Nœud de fonction dans l'AST
+- [`DatabaseDriver`](Enums/DatabaseDriver.md) - Énumération des drivers supportés

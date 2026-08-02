@@ -4,20 +4,10 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelCluster\Tests\Unit\Parser;
 
+use AndyDefer\LaravelCluster\Contracts\AggregateFunctionInterface;
 use AndyDefer\LaravelCluster\Enums\AggregateOperator;
-use AndyDefer\LaravelCluster\Functions\AllFunction;
-use AndyDefer\LaravelCluster\Functions\AvgFunction;
-use AndyDefer\LaravelCluster\Functions\CountFunction;
-use AndyDefer\LaravelCluster\Functions\ExistsFunction;
-use AndyDefer\LaravelCluster\Functions\HasFunction;
-use AndyDefer\LaravelCluster\Functions\IsEmptyFunction;
-use AndyDefer\LaravelCluster\Functions\LengthFunction;
-use AndyDefer\LaravelCluster\Functions\MaxFunction;
-use AndyDefer\LaravelCluster\Functions\MinFunction;
-use AndyDefer\LaravelCluster\Functions\SumFunction;
 use AndyDefer\LaravelCluster\Parser\AggregateExpressionParser;
 use AndyDefer\LaravelCluster\Registry\AggregateFunctionRegistry;
-use AndyDefer\LaravelCluster\Tests\Fixtures\Functions\CustomFunction;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -43,20 +33,28 @@ final class AggregateExpressionParserTest extends TestCase
 
         $this->registry = new AggregateFunctionRegistry;
 
-        $this->registry->register(new CountFunction);
-        $this->registry->register(new SumFunction);
-        $this->registry->register(new AvgFunction);
-        $this->registry->register(new MinFunction);
-        $this->registry->register(new MaxFunction);
-        $this->registry->register(new LengthFunction);
-        $this->registry->register(new ExistsFunction);
-        $this->registry->register(new HasFunction);
-        $this->registry->register(new AllFunction);
-        $this->registry->register(new IsEmptyFunction);
-
-        $this->registry->register(new CustomFunction);
+        // Enregistrer une fonction CUSTOM pour les tests
+        $this->registerCustomFunction();
 
         $this->parser = new AggregateExpressionParser($this->registry);
+    }
+
+    /**
+     * Enregistre une fonction CUSTOM personnalisée pour les tests.
+     */
+    private function registerCustomFunction(): void
+    {
+        $mockFunction = $this->createStub(AggregateFunctionInterface::class);
+        $mockFunction->method('getName')->willReturn('CUSTOM');
+        $mockFunction->method('getMinArgs')->willReturn(0);
+        $mockFunction->method('getMaxArgs')->willReturn(PHP_INT_MAX);
+        $mockFunction->method('validateArgs')->willReturn(true);
+        $mockFunction->method('execute')->willReturn(0);
+        $mockFunction->method('getDefaultValue')->willReturn(0);
+        $mockFunction->method('getReturnType')->willReturn('int');
+        $mockFunction->method('returnsBoolean')->willReturn(false);
+
+        $this->registry->register($mockFunction);
     }
 
     // ==================== PARSE TESTS ====================

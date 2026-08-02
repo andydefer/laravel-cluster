@@ -1040,7 +1040,6 @@ final class ConditionNodeTest extends IntegrationTestCase
         $node = new ConditionNode('test_key', ComparisonOperator::EQUAL, 'value');
         $reflection = new \ReflectionClass($node);
         $method = $reflection->getMethod('getJsonPath');
-        $method->setAccessible(true);
 
         $result = $method->invoke($node);
         $this->assertEquals('$."test_key"', $result);

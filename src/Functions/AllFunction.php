@@ -83,8 +83,28 @@ final class AllFunction extends AbstractAggregateFunction
         return count($args) === 3;
     }
 
-    private function itemMatchesCondition(array $item, ?string $key, mixed $expectedValue): bool
+    /**
+     * Checks if an item matches a key-value condition.
+     *
+     * @param  array|string  $item  The item to check
+     * @param  string|null  $key  The key to look for
+     * @param  mixed  $expectedValue  The expected value
+     * @return bool True if the item matches the condition
+     */
+    private function itemMatchesCondition(array|string $item, ?string $key, mixed $expectedValue): bool
     {
-        return is_array($item) && array_key_exists($key, $item) && $item[$key] == $expectedValue;
+        if (is_string($item)) {
+            return $item == $expectedValue;
+        }
+
+        if (is_array($item)) {
+            if ($key === null) {
+                return $item == $expectedValue;
+            }
+
+            return array_key_exists($key, $item) && $item[$key] == $expectedValue;
+        }
+
+        return false;
     }
 }

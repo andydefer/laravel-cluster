@@ -9,7 +9,6 @@ use AndyDefer\LaravelCluster\Registry\AggregateFunctionRegistry;
 use AndyDefer\LaravelCluster\Services\AggregateEvaluatorService;
 use AndyDefer\LaravelCluster\Tests\Fixtures\Functions\DoubleCountFunction;
 use AndyDefer\LaravelCluster\Tests\Fixtures\Functions\WeightedAvgFunction;
-use AndyDefer\LaravelCluster\Tests\Fixtures\TestRegistryFactory;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -33,8 +32,8 @@ final class AggregateEvaluatorServiceTest extends TestCase
     {
         parent::setUp();
 
-        $registry = TestRegistryFactory::create();
-        $this->evaluator = new AggregateEvaluatorService($registry);
+        $this->evaluator = new AggregateEvaluatorService;
+
     }
 
     // ==================== EVALUATE TESTS ====================

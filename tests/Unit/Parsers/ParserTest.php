@@ -1199,8 +1199,46 @@ final class ParserTest extends TestCase
 
     public function test_parse_contains_function_with_extra_arguments(): void
     {
-        $this->expectException(\RuntimeException::class);
+        // Avec la nouvelle logique, CONTAINS accepte plusieurs valeurs
         $node = $this->parser->parse('CONTAINS(languages, fr, en)');
+
+        $this->assertInstanceOf(FunctionNode::class, $node);
+
+        // Utiliser la réflexion pour accéder aux propriétés privées
+        $reflection = new \ReflectionClass($node);
+
+        $functionNameProp = $reflection->getProperty('functionName');
+        $this->assertEquals('CONTAINS', $functionNameProp->getValue($node));
+
+        $pathProp = $reflection->getProperty('path');
+        $this->assertEquals('languages', $pathProp->getValue($node));
+
+        $argsProp = $reflection->getProperty('args');
+        $this->assertEquals(['languages', 'fr', 'en'], $argsProp->getValue($node));
+
+        // Test avec les deux valeurs présentes
+        $cluster = new ClusterVO(['languages' => ['fr', 'en', 'es']]);
+        $this->assertTrue($node->evaluate($cluster));
+
+        // Test avec une seule valeur présente
+        $cluster2 = new ClusterVO(['languages' => ['fr', 'es']]);
+        $this->assertFalse($node->evaluate($cluster2));
+
+        // Test avec aucune valeur présente
+        $cluster3 = new ClusterVO(['languages' => ['de', 'it']]);
+        $this->assertFalse($node->evaluate($cluster3));
+
+        // Test avec 4 arguments
+        $node4 = $this->parser->parse('CONTAINS(languages, fr, en, es)');
+
+        $argsProp4 = $reflection->getProperty('args');
+        $this->assertEquals(['languages', 'fr', 'en', 'es'], $argsProp4->getValue($node4));
+
+        $cluster4 = new ClusterVO(['languages' => ['fr', 'en', 'es']]);
+        $this->assertTrue($node4->evaluate($cluster4));
+
+        $cluster5 = new ClusterVO(['languages' => ['fr', 'en']]);
+        $this->assertFalse($node4->evaluate($cluster5));
     }
 
     public function test_parse_contains_function_with_spaces(): void

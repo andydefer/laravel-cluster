@@ -26,20 +26,40 @@ final class MatchesFunction extends AbstractAggregateFunction
         $key = $args[1] ?? null;
         $pattern = $args[2] ?? null;
 
-        // ✅ Utiliser une méthode personnalisée pour extraire les valeurs avec support des tableaux indexés
+        if ($path === null) {
+            return false;
+        }
+
         $items = $this->extractValueWithIndexedSupport($data, $path);
+
+        // Si on a 2 arguments, le deuxième est le pattern
+        if ($pattern === null && $key !== null) {
+            $pattern = $key;
+            $key = null;
+        }
+
+        // Si items est une string, la traiter comme un seul élément
+        if (is_string($items)) {
+            return $this->matchRegex($items, $pattern ?? '');
+        }
 
         if (! is_array($items)) {
             return false;
         }
 
-        // Cas 1: 2 arguments - pattern sur les valeurs du tableau
-        if ($pattern === null) {
-            return $this->searchValuesWithRegex($items, $key);
+        // Vérifier si on a un tableau indexé de strings ou un tableau d'objets
+        if (isset($items[0]) && is_string($items[0])) {
+            // Tableau de strings
+            return $this->searchValuesWithRegex($items, $pattern ?? '');
         }
 
-        // Cas 2: 3 arguments - pattern sur une clé spécifique
-        return $this->searchKeyValueWithRegex($items, $key, $pattern);
+        // Tableau d'objets/arrays
+        if ($key !== null && $pattern !== null) {
+            return $this->searchKeyValueWithRegex($items, $key, $pattern);
+        }
+
+        // Recherche dans les valeurs du tableau
+        return $this->searchValuesWithRegex($items, $pattern ?? '');
     }
 
     /**
@@ -154,12 +174,12 @@ final class MatchesFunction extends AbstractAggregateFunction
      * Searches for a regex match in an array of values.
      *
      * @param  array<mixed>  $items  The array to search
-     * @param  string|null  $pattern  The regex pattern to match
+     * @param  string  $pattern  The regex pattern to match
      * @return bool True if any value matches the pattern
      */
-    private function searchValuesWithRegex(array $items, ?string $pattern): bool
+    private function searchValuesWithRegex(array $items, string $pattern): bool
     {
-        if ($pattern === null) {
+        if (empty($pattern)) {
             return false;
         }
 
@@ -176,13 +196,13 @@ final class MatchesFunction extends AbstractAggregateFunction
      * Searches for a regex match on a specific key in an array of objects/arrays.
      *
      * @param  array<mixed>  $items  The array to search
-     * @param  string|null  $key  The key to check
-     * @param  string|null  $pattern  The regex pattern to match
+     * @param  string  $key  The key to check
+     * @param  string  $pattern  The regex pattern to match
      * @return bool True if any item has the key with a value matching the pattern
      */
-    private function searchKeyValueWithRegex(array $items, ?string $key, ?string $pattern): bool
+    private function searchKeyValueWithRegex(array $items, string $key, string $pattern): bool
     {
-        if ($key === null || $pattern === null) {
+        if (empty($key) || empty($pattern)) {
             return false;
         }
 
@@ -216,6 +236,7 @@ final class MatchesFunction extends AbstractAggregateFunction
     {
         $pattern = trim($pattern, '"\' ');
 
+        // Vérifier que le pattern est valide
         if (@preg_match($pattern, '') === false) {
             return false;
         }

@@ -1,51 +1,28 @@
-```markdown
-# AggregateFunctionRegistry - Technical Reference
+# AggregateFunctionRegistry - Référence Technique
 
 ## Description
 
-Le registre des fonctions d'agrégation gère l'ensemble des fonctions disponibles pour les expressions de requête sur les données en mémoire. Il assure l'enregistrement, la résolution et l'exécution des fonctions d'agrégation comme COUNT, SUM, AVG, MIN, MAX, HAS, ALL, MATCHES, etc.
+Registre central qui gère l'ensemble des fonctions d'agrégation disponibles pour les requêtes. Il permet d'enregistrer, rechercher et exécuter des fonctions comme COUNT, SUM, AVG, MIN, MAX, ainsi que des fonctions booléennes comme EXISTS, HAS, ALL, IS_EMPTY et MATCHES.
 
-## Hiérarchie
+## Hiérarchie / Implémentations
 
 ```
-AggregateFunctionRegistry
-    └── Implémente le pattern Registry
+AggregateFunctionRegistry (classe finale)
 ```
 
 ## Rôle principal
 
-Centralise l'accès aux fonctions d'agrégation et fournit une interface unifiée pour :
-- L'exécution des fonctions sur des données
-- La validation des arguments
-- La découverte des types de retour
-- La classification des fonctions (booléennes vs numériques)
+L'`AggregateFunctionRegistry` est le point d'entrée pour toutes les fonctions d'agrégation dans Laravel Cluster. Il :
 
----
+- **Enregistre** les fonctions d'agrégation (COUNT, SUM, AVG, MIN, MAX, LENGTH, EXISTS, HAS, ALL, IS_EMPTY, MATCHES)
+- **Valide** les noms de fonctions selon la convention SCREAMING_SNAKE_CASE
+- **Exécute** les fonctions sur des données en mémoire
+- **Fournit** les métadonnées des fonctions (type de retour, valeur par défaut, etc.)
+- **Filtre** les fonctions par type (booléennes vs numériques)
 
-## API
-
-### `__construct()`
-
-Initialise le registre et enregistre les fonctions par défaut.
-
-**Fonctions par défaut :**
-- `CountFunction` - Compte les éléments
-- `SumFunction` - Somme des valeurs
-- `AvgFunction` - Moyenne des valeurs
-- `MinFunction` - Valeur minimale
-- `MaxFunction` - Valeur maximale
-- `LengthFunction` - Longueur d'une chaîne ou d'un tableau
-- `ExistsFunction` - Vérifie l'existence d'une valeur non vide
-- `HasFunction` - Recherche une valeur ou une paire clé-valeur
-- `AllFunction` - Vérifie que tous les éléments satisfont une condition
-- `IsEmptyFunction` - Vérifie si une valeur est vide
-- `MatchesFunction` - Vérifie si une valeur correspond à une expression régulière
-
----
+## API / Méthodes publiques
 
 ### `register(AggregateFunctionInterface $function): self`
-
-Enregistre une fonction d'agrégation dans le registre.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -53,17 +30,20 @@ Enregistre une fonction d'agrégation dans le registre.
 
 **Retourne :** `self` - L'instance du registre pour le chaînage
 
+**Exceptions :** 
+- `InvalidArgumentException` - Si une fonction du même nom est déjà enregistrée
+- `InvalidArgumentException` - Si le nom de la fonction est invalide
+
 **Exemple :**
 ```php
 $registry = new AggregateFunctionRegistry();
-$registry->register(new CustomFunction());
+$customFunction = new CustomFunction();
+$registry->register($customFunction);
 ```
 
 ---
 
 ### `has(string $name): bool`
-
-Vérifie si une fonction est enregistrée.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -73,35 +53,31 @@ Vérifie si une fonction est enregistrée.
 
 **Exemple :**
 ```php
-$registry->has('COUNT'); // true
-$registry->has('UNKNOWN'); // false
+$registry = new AggregateFunctionRegistry();
+$exists = $registry->has('COUNT'); // true
+$exists = $registry->has('UNKNOWN'); // false
 ```
 
 ---
 
 ### `get(string $name): ?AggregateFunctionInterface`
 
-Récupère une fonction enregistrée.
-
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$name` | `string` | Le nom de la fonction (insensible à la casse) |
 
-**Retourne :** `AggregateFunctionInterface|null` - L'instance de la fonction ou `null`
+**Retourne :** `AggregateFunctionInterface|null` - L'instance de la fonction, ou `null` si non trouvée
 
 **Exemple :**
 ```php
+$registry = new AggregateFunctionRegistry();
 $function = $registry->get('COUNT');
-if ($function) {
-    $result = $function->execute($data, ['addresses']);
-}
+// Retourne une instance de CountFunction
 ```
 
 ---
 
 ### `execute(string $name, array $data, array $args): mixed`
-
-Exécute une fonction enregistrée avec les données et arguments fournis.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -115,19 +91,24 @@ Exécute une fonction enregistrée avec les données et arguments fournis.
 
 **Exemple :**
 ```php
+$registry = new AggregateFunctionRegistry();
+
+// COUNT
 $data = ['addresses' => ['a', 'b', 'c']];
 $result = $registry->execute('COUNT', $data, ['addresses']); // 3
 
-// Avec MATCHES
-$data = ['tags' => ['php', 'javascript', 'css']];
-$result = $registry->execute('MATCHES', $data, ['tags', '/^ja.*/']); // true
+// SUM
+$data = ['prices' => [10, 20, 30]];
+$result = $registry->execute('SUM', $data, ['prices']); // 60.0
+
+// HAS
+$data = ['tags' => ['php', 'js', 'docker']];
+$result = $registry->execute('HAS', $data, ['tags', 'php']); // true
 ```
 
 ---
 
 ### `getDefaultValue(string $name): mixed`
-
-Retourne la valeur par défaut pour une fonction.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -137,132 +118,131 @@ Retourne la valeur par défaut pour une fonction.
 
 **Exemple :**
 ```php
+$registry = new AggregateFunctionRegistry();
+
 $default = $registry->getDefaultValue('COUNT'); // 0
-$default = $registry->getDefaultValue('AVG'); // 0.0
 $default = $registry->getDefaultValue('EXISTS'); // false
-$default = $registry->getDefaultValue('MATCHES'); // false
 ```
 
 ---
 
 ### `all(): array`
 
-Retourne toutes les fonctions enregistrées.
+**Retourne :** `array<string, AggregateFunctionInterface>` - Toutes les fonctions enregistrées
 
-**Retourne :** `array<string, AggregateFunctionInterface>` - Tableau des fonctions indexées par nom
+**Exemple :**
+```php
+$registry = new AggregateFunctionRegistry();
+$functions = $registry->all();
+// ['COUNT' => CountFunction, 'SUM' => SumFunction, ...]
+```
 
 ---
 
 ### `getBooleanFunctions(): array`
 
-Retourne les fonctions qui retournent des résultats booléens.
-
-**Retourne :** `array<string, AggregateFunctionInterface>` - Tableau des fonctions booléennes
+**Retourne :** `array<string, AggregateFunctionInterface>` - Les fonctions qui retournent des booléens
 
 **Exemple :**
 ```php
+$registry = new AggregateFunctionRegistry();
 $booleanFunctions = $registry->getBooleanFunctions();
-// ['EXISTS' => ExistsFunction, 'HAS' => HasFunction, 'MATCHES' => MatchesFunction, ...]
+// ['EXISTS', 'HAS', 'ALL', 'IS_EMPTY', 'MATCHES']
 ```
 
 ---
 
 ### `getNumericFunctions(): array`
 
-Retourne les fonctions qui retournent des résultats numériques.
-
-**Retourne :** `array<string, AggregateFunctionInterface>` - Tableau des fonctions numériques
+**Retourne :** `array<string, AggregateFunctionInterface>` - Les fonctions qui retournent des nombres
 
 **Exemple :**
 ```php
+$registry = new AggregateFunctionRegistry();
 $numericFunctions = $registry->getNumericFunctions();
-// ['COUNT' => CountFunction, 'SUM' => SumFunction, ...]
+// ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'LENGTH']
 ```
 
 ---
 
+### `getNames(): array`
+
+**Retourne :** `array<string>` - Les noms de toutes les fonctions enregistrées
+
+**Exemple :**
+```php
+$registry = new AggregateFunctionRegistry();
+$names = $registry->getNames();
+// ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'LENGTH', 'EXISTS', 'HAS', 'ALL', 'IS_EMPTY', 'MATCHES']
+```
+
 ## Cas d'utilisation
 
-### Cas 1 : Exécution d'une fonction sur des données
+### Cas 1 : Utiliser les fonctions d'agrégation dans une requête
 
 ```php
-<?php
-
-declare(strict_types=1);
-
 use AndyDefer\LaravelCluster\Registry\AggregateFunctionRegistry;
+use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
 $registry = new AggregateFunctionRegistry();
-
-$data = [
+$collection = new ClusterVOCollection();
+$collection->add(new ClusterVO([
+    'name' => 'John Doe',
     'addresses' => ['a', 'b', 'c'],
-    'scores' => [80, 90, 100],
-    'prices' => [100, 200, 300],
-    'tags' => ['php', 'javascript', 'css'],
-];
+    'scores' => [80, 90, 85],
+]));
 
-// Comptage
+// Utiliser COUNT
+$data = $collection->first()->getUnflattened()->toArray();
 $count = $registry->execute('COUNT', $data, ['addresses']); // 3
 
-// Somme
-$sum = $registry->execute('SUM', $data, ['prices']); // 600.0
-
-// Moyenne
-$avg = $registry->execute('AVG', $data, ['scores']); // 90.0
-
-// Minimum
-$min = $registry->execute('MIN', $data, ['scores']); // 80.0
-
-// Maximum
-$max = $registry->execute('MAX', $data, ['scores']); // 100.0
-
-// Regex - trouve les tags commençant par "ja"
-$matches = $registry->execute('MATCHES', $data, ['tags', '/^ja.*/']); // true
+// Utiliser AVG
+$avg = $registry->execute('AVG', $data, ['scores']); // 85.0
 ```
 
-### Cas 2 : Fonctions booléennes
+### Cas 2 : Filtrer une collection avec des fonctions booléennes
 
 ```php
-// Vérification d'existence
-$exists = $registry->execute('EXISTS', $data, ['addresses']);
-// true (addresses existe et n'est pas vide)
+use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
-// Recherche d'une valeur
-$has = $registry->execute('HAS', $data, ['tags', 'php']);
-// Vérifie si 'php' est dans le tableau 'tags'
+$collection = new ClusterVOCollection();
+$collection->add(new ClusterVO([
+    'name' => 'John',
+    'tags' => ['php', 'js', 'docker'],
+]));
+$collection->add(new ClusterVO([
+    'name' => 'Jane',
+    'tags' => ['python', 'react'],
+]));
 
-// Vérification que tous les éléments satisfont une condition
-$all = $registry->execute('ALL', $data, ['items', 'status', 'active']);
-// Vérifie si tous les items ont status='active'
-
-// Vérification de vacuité
-$isEmpty = $registry->execute('IS_EMPTY', $data, ['cart']);
-// Vérifie si 'cart' est vide
-
-// Regex sur un tableau de valeurs
-$matches = $registry->execute('MATCHES', $data, ['tags', '/^ja.*/']);
-// true (javascript commence par "ja")
-
-// Regex sur une clé spécifique dans un tableau d'objets
-$data = ['addresses' => [['city' => 'Kinshasa'], ['city' => 'Paris']]];
-$matches = $registry->execute('MATCHES', $data, ['addresses', 'city', '/^Kin.*/']);
-// true (Kinshasa commence par "Kin")
+// Filtrer les clusters qui contiennent 'php' dans leurs tags
+$filtered = $collection->whereAggregate('{HAS(tags, php)}');
+// John uniquement
 ```
 
-### Cas 3 : Enregistrement d'une fonction personnalisée
+### Cas 3 : Ajouter une fonction personnalisée
 
 ```php
-use AndyDefer\LaravelCluster\Contracts\AggregateFunctionInterface;
+use AndyDefer\LaravelCluster\Registry\AggregateFunctionRegistry;
+use AndyDefer\LaravelCluster\Functions\AbstractAggregateFunction;
 
-final class CustomFunction extends AbstractAggregateFunction
+class DoubleCountFunction extends AbstractAggregateFunction
 {
-    public function execute(array $data, array $args): mixed
+    public function execute(array $data, array $args): int
     {
-        // Logique personnalisée...
-        return $result;
+        $path = $args[0] ?? null;
+        $items = $this->resolvePath($data, $path);
+        
+        if (!is_array($items)) {
+            return 0;
+        }
+        
+        return count($items) * 2;
     }
     
-    public function getName(): string { return 'CUSTOM'; }
+    public function getName(): string { return 'DOUBLE_COUNT'; }
     public function getDefaultValue(): mixed { return 0; }
     public function getReturnType(): string { return 'int'; }
     public function returnsBoolean(): bool { return false; }
@@ -272,79 +252,52 @@ final class CustomFunction extends AbstractAggregateFunction
 }
 
 $registry = new AggregateFunctionRegistry();
-$registry->register(new CustomFunction());
+$registry->register(new DoubleCountFunction());
 
-$result = $registry->execute('CUSTOM', $data, ['path']);
+// Utilisation
+$data = ['addresses' => ['a', 'b', 'c']];
+$result = $registry->execute('DOUBLE_COUNT', $data, ['addresses']); // 6
 ```
 
-### Cas 4 : Classification des fonctions
+## Gestion des erreurs
 
-```php
-// Obtenir toutes les fonctions booléennes
-$booleanFunctions = $registry->getBooleanFunctions();
-foreach ($booleanFunctions as $name => $function) {
-    echo "$name : booléenne\n";
-}
-// EXISTS : booléenne
-// HAS : booléenne
-// ALL : booléenne
-// IS_EMPTY : booléenne
-// MATCHES : booléenne
-
-// Obtenir toutes les fonctions numériques
-$numericFunctions = $registry->getNumericFunctions();
-foreach ($numericFunctions as $name => $function) {
-    echo "$name : numérique\n";
-}
-// COUNT : numérique
-// SUM : numérique
-// AVG : numérique
-// MIN : numérique
-// MAX : numérique
-// LENGTH : numérique
-```
-
-### Cas 5 : Utilisation de MATCHES avec des regex complexes
-
-```php
-// Regex insensible à la casse
-$result = $registry->execute('MATCHES', $data, ['tags', '/^ja.*/i']);
-
-// Regex avec caractères spéciaux
-$data = ['codes' => ['ABC-123', 'DEF-456', 'GHI-789']];
-$result = $registry->execute('MATCHES', $data, ['codes', '/^[A-Z]{3}-\d{3}$/']);
-
-// Regex sur un chemin imbriqué
-$data = [
-    'users' => [
-        ['profile' => ['username' => 'john_doe']],
-        ['profile' => ['username' => 'jane_smith']],
-    ],
-];
-$result = $registry->execute('MATCHES', $data, ['users.profile', 'username', '/^john.*/']);
-```
-
----
+| Situation | Exception | Message |
+|-----------|-----------|---------|
+| Fonction déjà enregistrée | `InvalidArgumentException` | `Function "X" is already registered. Cannot register duplicate.` |
+| Nom de fonction invalide | `InvalidArgumentException` | `Invalid function name "X". Function names must be in SCREAMING_SNAKE_CASE format: start with a letter, contain only uppercase letters, numbers, and underscores.` |
+| Fonction non enregistrée | `InvalidArgumentException` | `Function "X" not registered` |
+| Arguments invalides | Erreur spécifique à la fonction | Dépend de l'implémentation de la fonction |
 
 ## Intégration
 
-Le registre est utilisé par :
+L'`AggregateFunctionRegistry` est utilisé par :
 
-- **`AggregateEvaluatorService`** : Évaluation des expressions d'agrégation
-- **`AggregateExpressionParser`** : Parsing des expressions
-- **`ClusterVOCollection`** : Méthodes `whereAggregate()`, `whereAggregateDirect()`, etc.
-- **`ClusterServiceProvider`** : Enregistrement dans le conteneur Laravel
+- **`AggregateEvaluatorService`** : Pour évaluer les expressions d'agrégation
+- **`AggregateExpressionParser`** : Pour parser les expressions d'agrégation
+- **`ClusterVOCollection`** : Pour les méthodes `whereAggregate`, `matchesAggregate`, etc.
+- **`ClusterQuery`** : Pour le filtrage des collections avec des fonctions d'agrégation
 
----
+### Cycle de vie d'une fonction
+
+```
+1. Fonction enregistrée dans le registre (register)
+   ↓
+2. Parser détecte la fonction dans l'expression
+   ↓
+3. Parser valide les arguments via validateArgs()
+   ↓
+4. Évaluation : execute() pour les clusters en mémoire
+   ↓
+5. Résultat retourné à l'appelant
+```
 
 ## Performance
 
-- **Complexité :** O(1) pour l'accès aux fonctions via tableau associatif
-- **Mémoire :** Les fonctions sont instanciées une seule fois
-- **Cache :** Les résultats d'exécution ne sont pas mis en cache
-- **MATCHES :** Les regex sont compilées à chaque exécution, utilisez avec parcimonie sur de grands ensembles de données
-
----
+- **Recherche** : O(1) via tableau associatif
+- **Enregistrement** : O(1)
+- **Exécution** : O(n) où n est la taille des données traitées
+- **Mémoire** : Une instance par fonction enregistrée
+- **Initialisation** : Les 11 fonctions par défaut sont enregistrées à la construction
 
 ## Compatibilité
 
@@ -352,8 +305,6 @@ Le registre est utilisé par :
 |-------------|---------|
 | PHP 8.1+ | ✅ Complet |
 | PHP 8.0 | ✅ Complet |
-
----
 
 ## Exemple complet
 
@@ -364,63 +315,68 @@ declare(strict_types=1);
 
 use AndyDefer\LaravelCluster\Registry\AggregateFunctionRegistry;
 
-// Création du registre
 $registry = new AggregateFunctionRegistry();
 
-// Vérification des fonctions disponibles
-$available = $registry->getNames();
+// 1. Vérifier les fonctions disponibles
+var_dump($registry->getNames());
 // ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'LENGTH', 'EXISTS', 'HAS', 'ALL', 'IS_EMPTY', 'MATCHES']
 
-// Vérification d'une fonction
-if ($registry->has('COUNT')) {
-    $data = ['addresses' => ['a', 'b', 'c']];
-    
-    // Exécution
-    $result = $registry->execute('COUNT', $data, ['addresses']);
-    echo "Result: $result\n"; // Result: 3
-    
-    // Valeur par défaut
-    $default = $registry->getDefaultValue('COUNT');
-    echo "Default: $default\n"; // Default: 0
-}
+// 2. Vérifier les fonctions booléennes
+var_dump($registry->getBooleanFunctions());
+// ['EXISTS', 'HAS', 'ALL', 'IS_EMPTY', 'MATCHES']
 
-// Utilisation de MATCHES
-if ($registry->has('MATCHES')) {
-    $data = ['tags' => ['php', 'javascript', 'css']];
-    
-    // Regex simple
-    $result = $registry->execute('MATCHES', $data, ['tags', '/^ja.*/']);
-    echo "Result: " . ($result ? 'true' : 'false') . "\n"; // true
-    
-    // Regex sur une clé spécifique
-    $data = ['addresses' => [['city' => 'Kinshasa'], ['city' => 'Paris']]];
-    $result = $registry->execute('MATCHES', $data, ['addresses', 'city', '/^Kin.*/']);
-    echo "Result: " . ($result ? 'true' : 'false') . "\n"; // true
-}
+// 3. Exécuter COUNT
+$data = ['addresses' => ['a', 'b', 'c']];
+$result = $registry->execute('COUNT', $data, ['addresses']);
+var_dump($result); // 3
 
-// Toutes les fonctions
-$allFunctions = $registry->all();
-foreach ($allFunctions as $name => $function) {
-    echo "$name: " . get_class($function) . "\n";
-}
+// 4. Exécuter HAS
+$data = ['tags' => ['php', 'js', 'docker']];
+$result = $registry->execute('HAS', $data, ['tags', 'php']);
+var_dump($result); // true
 
-// Classification des fonctions
-$booleanFunctions = $registry->getBooleanFunctions();
-echo "Boolean functions: " . implode(', ', array_keys($booleanFunctions)) . "\n";
-// EXISTS, HAS, ALL, IS_EMPTY, MATCHES
+// 5. Exécuter ALL
+$data = [
+    'items' => [
+        ['status' => 'active'],
+        ['status' => 'active'],
+        ['status' => 'active'],
+    ],
+];
+$result = $registry->execute('ALL', $data, ['items', 'status', 'active']);
+var_dump($result); // true
 
-$numericFunctions = $registry->getNumericFunctions();
-echo "Numeric functions: " . implode(', ', array_keys($numericFunctions)) . "\n";
-// COUNT, SUM, AVG, MIN, MAX, LENGTH
+// 6. Exécuter MATCHES
+$data = ['name' => 'John Doe'];
+$result = $registry->execute('MATCHES', $data, ['name', '/^John/']);
+var_dump($result); // true
+
+// 7. Exécuter IS_EMPTY
+$data = ['empty_array' => []];
+$result = $registry->execute('IS_EMPTY', $data, ['empty_array']);
+var_dump($result); // true
+
+// 8. Exécuter EXISTS
+$data = ['present' => 'value'];
+$result = $registry->execute('EXISTS', $data, ['present']);
+var_dump($result); // true
 ```
-
----
 
 ## Voir aussi
 
-- `AggregateFunctionInterface` - Interface des fonctions d'agrégation
-- `AbstractAggregateFunction` - Classe abstraite de base
-- `AggregateEvaluatorService` - Service d'évaluation
-- `AggregateExpressionParser` - Analyseur d'expressions
-- `MatchesFunction` - Fonction d'agrégation pour les expressions régulières
-```
+- [`AggregateFunctionInterface`](Contracts/AggregateFunctionInterface.md) - Interface des fonctions d'agrégation
+- [`AbstractAggregateFunction`](Functions/AbstractAggregateFunction.md) - Classe abstraite pour les fonctions d'agrégation
+- [`AggregateEvaluatorService`](Services/AggregateEvaluatorService.md) - Service d'évaluation des expressions
+- [`AggregateExpressionParser`](Parser/AggregateExpressionParser.md) - Parser des expressions d'agrégation
+- [`ClusterVOCollection`](Collections/ClusterVOCollection.md) - Collection de clusters avec méthodes d'agrégation
+- [`CountFunction`](Functions/CountFunction.md) - Fonction COUNT
+- [`SumFunction`](Functions/SumFunction.md) - Fonction SUM
+- [`AvgFunction`](Functions/AvgFunction.md) - Fonction AVG
+- [`MinFunction`](Functions/MinFunction.md) - Fonction MIN
+- [`MaxFunction`](Functions/MaxFunction.md) - Fonction MAX
+- [`LengthFunction`](Functions/LengthFunction.md) - Fonction LENGTH
+- [`ExistsFunction`](Functions/ExistsFunction.md) - Fonction EXISTS
+- [`HasFunction`](Functions/HasFunction.md) - Fonction HAS
+- [`AllFunction`](Functions/AllFunction.md) - Fonction ALL
+- [`IsEmptyFunction`](Functions/IsEmptyFunction.md) - Fonction IS_EMPTY
+- [`MatchesFunction`](Functions/MatchesFunction.md) - Fonction MATCHES

@@ -24,7 +24,7 @@ AggregateFunctionInterface
 
 ## Rôle principal
 
-Les fonctions d'agrégation sont utilisées dans les expressions de requête pour filtrer les clusters en fonction de propriétés calculées. Elles s'exécutent aussi bien en mémoire (évaluation sur les collections) qu'en SQL (génération de requêtes) grâce au registre `SqlFunctionRegistry`.
+Les fonctions d'agrégation sont utilisées dans les expressions de requête pour filtrer les clusters en fonction de propriétés calculées. Elles s'exécutent en mémoire sur les collections via le `AggregateEvaluatorService` et le registre `AggregateFunctionRegistry`.
 
 ---
 
@@ -465,6 +465,70 @@ $result = $collection->whereAggregate('{MATCHES(addresses, city, "/^Kin.*/")}');
 $result = $collection->whereAggregate('{MATCHES(codes, "/^[A-Z]{3}-\\d{3}$/")}');
 ```
 
+### Cas 7 : Combinaison d'expressions complexes
+
+```php
+// Combinaison avec AND
+$result = $collection->whereAggregate(
+    '{COUNT(addresses) > 1} & {AVG(scores) >= 80}'
+);
+
+// Combinaison avec OR
+$result = $collection->whereAggregate(
+    '{HAS(tags, "php")} | {HAS(tags, "python")}'
+);
+
+// Combinaison de fonctions booléennes
+$result = $collection->whereAggregate(
+    '{EXISTS(profile)} & {IS_EMPTY(cart)}'
+);
+
+// Combinaison avec regex
+$result = $collection->whereAggregate(
+    '{MATCHES(tags, "/^ja.*/")} & {COUNT(addresses) > 2}'
+);
+
+// Nested complexe
+$result = $collection->whereAggregate(
+    '({COUNT(addresses) > 1} & {AVG(scores) >= 80}) | {HAS(tags, "php")}'
+);
+```
+
+### Cas 8 : Utilisation avec `whereAggregateDirect`
+
+```php
+// Exécution directe sans parsing
+$result = $collection->whereAggregateDirect('COUNT', ['addresses']);
+// Retourne les clusters où COUNT(addresses) > 0
+
+$result = $collection->whereAggregateDirect('EXISTS', ['profile']);
+// Retourne les clusters où profile existe
+
+$result = $collection->whereAggregateDirect('HAS', ['tags', 'php']);
+// Retourne les clusters où tags contient 'php'
+```
+
+### Cas 9 : Utilisation avec `matchesAggregate`
+
+```php
+// Vérifier si un cluster spécifique correspond
+$cluster = $collection->first();
+$matches = $collection->matchesAggregate($cluster, '{COUNT(addresses) > 2}');
+
+// Utilisation directe
+$matches = $collection->matchesAggregateDirect($cluster, 'COUNT', ['addresses']);
+```
+
+### Cas 10 : Utilisation avec `getAggregateValue`
+
+```php
+// Obtenir la valeur d'agrégation pour un cluster
+$cluster = $collection->first();
+$count = $collection->getAggregateValue($cluster, 'COUNT', ['addresses']);
+$avg = $collection->getAggregateValue($cluster, 'AVG', ['scores']);
+$exists = $collection->getAggregateValue($cluster, 'EXISTS', ['profile']);
+```
+
 ---
 
 ## Gestion des erreurs
@@ -485,7 +549,23 @@ Les fonctions d'agrégation sont utilisées par :
 - **`ClusterVOCollection`** : via les méthodes `whereAggregate()`, `whereAggregateDirect()`, `matchesAggregate()`, `getAggregateValue()`
 - **`AggregateEvaluatorService`** : pour l'évaluation des expressions
 - **`AggregateFunctionRegistry`** : pour l'enregistrement et la résolution des fonctions
-- **`SqlFunctionRegistry`** : pour la génération SQL des fonctions
+- **`ClusterQuery`** : pour le filtrage des collections
+
+### Cycle de vie d'une expression d'agrégation
+
+```
+1. Expression textuelle: '{COUNT(addresses) > 2}'
+   ↓
+2. AggregateExpressionParser parse l'expression
+   ↓
+3. Détection de la fonction COUNT
+   ↓
+4. Validation des arguments via validateArgs()
+   ↓
+5. Exécution via AggregateFunctionRegistry::execute()
+   ↓
+6. Résultat retourné à l'appelant
+```
 
 ---
 
@@ -530,6 +610,8 @@ $collection->add(new ClusterVO([
         ['city' => 'Kinshasa', 'country' => 'RDC'],
         ['city' => 'Paris', 'country' => 'France'],
     ],
+    'profile' => ['age' => 30, 'verified' => true],
+    'cart' => ['item1', 'item2'],
 ]));
 
 $collection->add(new ClusterVO([
@@ -541,43 +623,91 @@ $collection->add(new ClusterVO([
     'addresses_detail' => [
         ['city' => 'Paris', 'country' => 'France'],
     ],
+    'profile' => ['age' => 25, 'verified' => false],
+    'cart' => [],
 ]));
 
-// Filtrer les clusters avec plus de 2 adresses
+$collection->add(new ClusterVO([
+    'name' => 'Bob',
+    'addresses' => ['a'],
+    'scores' => [95, 98, 92],
+    'prices' => [500, 600, 700],
+    'tags' => ['php', 'laravel', 'vuejs'],
+    'addresses_detail' => [
+        ['city' => 'Kinshasa', 'country' => 'RDC'],
+        ['city' => 'London', 'country' => 'UK'],
+        ['city' => 'Paris', 'country' => 'France'],
+    ],
+    'profile' => ['age' => 35, 'verified' => true],
+    'cart' => ['item3'],
+]));
+
+// 1. Filtrer avec COUNT
 $result = $collection->whereAggregate('{COUNT(addresses) > 2}');
-// John
+// John, Bob
 
-// Filtrer les clusters avec une moyenne >= 85
+// 2. Filtrer avec AVG
 $result = $collection->whereAggregate('{AVG(scores) >= 85}');
+// John, Bob
+
+// 3. Filtrer avec SUM
+$result = $collection->whereAggregate('{SUM(prices) > 500}');
+// John, Bob
+
+// 4. Filtrer avec MIN
+$result = $collection->whereAggregate('{MIN(scores) > 75}');
+// John, Bob
+
+// 5. Filtrer avec MAX
+$result = $collection->whereAggregate('{MAX(scores) < 95}');
+// John, Jane
+
+// 6. Filtrer avec EXISTS
+$result = $collection->whereAggregate('{EXISTS(profile)}');
+// John, Jane, Bob
+
+// 7. Filtrer avec IS_EMPTY
+$result = $collection->whereAggregate('{IS_EMPTY(cart)}');
+// Jane
+
+// 8. Filtrer avec HAS
+$result = $collection->whereAggregate('{HAS(tags, "php")}');
+// John, Bob
+
+// 9. Filtrer avec ALL
+$result = $collection->whereAggregate('{ALL(addresses_detail, country, "RDC")}');
 // John
 
-// Filtrer les clusters avec un tag commençant par "ja"
+// 10. Filtrer avec MATCHES
 $result = $collection->whereAggregate('{MATCHES(tags, "/^ja.*/")}');
 // John (javascript)
 
-// Filtrer les clusters dont toutes les adresses sont en RDC
-$result = $collection->whereAggregate('{ALL(addresses_detail, country, "RDC")}');
-// John (Jane a Paris)
-
-// Combinaison d'expressions
+// 11. Combinaison complexe
 $result = $collection->whereAggregate(
-    '{COUNT(addresses) > 1} & {AVG(scores) >= 80}'
+    '{COUNT(addresses) > 1} & {AVG(scores) >= 80} & {HAS(tags, "php")}'
 );
-// John
+// John, Bob
 
-// Combinaison avec regex
-$result = $collection->whereAggregate(
-    '{MATCHES(tags, "/^ja.*/")} & {COUNT(addresses) > 2}'
-);
-// John
+// 12. Utilisation directe avec getAggregateValue
+$cluster = $collection->first();
+$count = $collection->getAggregateValue($cluster, 'COUNT', ['addresses']);
+$avg = $collection->getAggregateValue($cluster, 'AVG', ['scores']);
+$hasPhp = $collection->getAggregateValue($cluster, 'HAS', ['tags', 'php']);
+$matches = $collection->getAggregateValue($cluster, 'MATCHES', ['tags', '/^ja.*/']);
+
+echo "John: COUNT={$count}, AVG={$avg}, HAS_PHP=" . ($hasPhp ? 'yes' : 'no') . ", MATCHES=" . ($matches ? 'yes' : 'no') . "\n";
+// John: COUNT=3, AVG=85, HAS_PHP=yes, MATCHES=yes
 ```
 
 ---
 
 ## Voir aussi
 
-- `AggregateEvaluatorService` - Service d'évaluation des expressions
-- `AggregateFunctionRegistry` - Registre des fonctions d'agrégation
-- `SqlFunctionRegistry` - Registre des fonctions SQL
-- `ClusterVOCollection::whereAggregate()` - Filtrage par expression d'agrégation
-- `MatchesFunction` - Fonction d'agrégation pour les expressions régulières
+- [`AggregateEvaluatorService`](Services/AggregateEvaluatorService.md) - Service d'évaluation des expressions
+- [`AggregateFunctionRegistry`](Registry/AggregateFunctionRegistry.md) - Registre des fonctions d'agrégation
+- [`AggregateExpressionParser`](Parser/AggregateExpressionParser.md) - Parser des expressions d'agrégation
+- [`ClusterVOCollection::whereAggregate()`](Collections/ClusterVOCollection.md#whereaggregate) - Filtrage par expression d'agrégation
+- [`ClusterVOCollection::whereAggregateDirect()`](Collections/ClusterVOCollection.md#whereaggregatedirect) - Exécution directe
+- [`ClusterVOCollection::matchesAggregate()`](Collections/ClusterVOCollection.md#matchesaggregate) - Vérification de cluster
+- [`ClusterVOCollection::getAggregateValue()`](Collections/ClusterVOCollection.md#getaggregatevalue) - Obtention de valeur
+- [`MatchesFunction`](Functions/MatchesFunction.md) - Fonction d'agrégation pour les expressions régulières
