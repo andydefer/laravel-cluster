@@ -1307,37 +1307,26 @@ User::whereCluster('clusters', 'status=active')->get();
 ```
 
 ---
+`
+## 13. Les fonctions SQL
 
-## 13. Les fonctions SQL d'agrégation
+Les fonctions SQL permettent d'effectuer des opérations de calcul et d'analyse sur les données JSON directement au niveau de la base de données. Elles génèrent du SQL adapté à chaque driver (SQLite, MySQL, PostgreSQL) et s'exécutent aussi bien en mémoire que dans les requêtes Eloquent.
 
-### 13.1 Fonctions disponibles
+### 13.1 Fonctions d'agrrégation
+
+Les fonctions d'agrégation effectuent des calculs sur des ensembles de valeurs (tableaux JSON) et retournent un résultat unique.
 
 | Fonction | Description | Exemple |
 |----------|-------------|---------|
-| `COUNT(path)` | Nombre d'éléments | `COUNT(addresses) > 2` |
-| `SUM(path)` | Somme des valeurs | `SUM(prices) > 500` |
-| `AVG(path)` | Moyenne | `AVG(scores) >= 85` |
+| `COUNT(path)` | Nombre d'éléments dans un tableau | `COUNT(addresses) > 2` |
+| `SUM(path)` | Somme des valeurs numériques | `SUM(prices) > 500` |
+| `AVG(path)` | Moyenne des valeurs numériques | `AVG(scores) >= 85` |
 | `MIN(path)` | Valeur minimale | `MIN(scores) > 75` |
 | `MAX(path)` | Valeur maximale | `MAX(scores) < 95` |
 | `LENGTH(path)` | Longueur d'une chaîne | `LENGTH(name) > 5` |
 | `JSON_LENGTH(path)` | Longueur d'un tableau JSON | `JSON_LENGTH(addresses) > 2` |
 
-### 13.2 Syntaxe
-
-Les fonctions SQL doivent être entourées d'accolades `{...}` :
-
-```php
-// En mémoire (ClusterVOCollection)
-$result = $collection->whereAggregate('{COUNT(addresses) > 2}');
-
-// En base de données (Eloquent)
-$query->whereCluster('clusters', 'COUNT(addresses) > 2');
-
-// Sans accolades (auto-détection)
-$result = $collection->whereQuery('COUNT(addresses) > 2');
-```
-
-### 13.3 Exemples en mémoire
+#### Utilisation en mémoire
 
 ```php
 use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
@@ -1349,39 +1338,31 @@ $collection->add(new ClusterVO([
     'addresses' => ['a', 'b', 'c'],
     'scores' => [80, 90, 85],
     'prices' => [100, 200, 300],
-    'name' => 'John Doe',
 ]));
 
 // COUNT - Compter les éléments
-$result = $collection->whereAggregate('{COUNT(addresses) > 2}');
-// John uniquement
+$result = $collection->whereQuery('COUNT(addresses) > 2');
 
 // SUM - Somme des valeurs
-$result = $collection->whereAggregate('{SUM(prices) > 500}');
-// John uniquement
+$result = $collection->whereQuery('SUM(prices) > 500');
 
 // AVG - Moyenne
-$result = $collection->whereAggregate('{AVG(scores) >= 85}');
-// John uniquement
+$result = $collection->whereQuery('AVG(scores) >= 85');
 
 // MIN - Valeur minimale
-$result = $collection->whereAggregate('{MIN(scores) > 75}');
-// John uniquement
+$result = $collection->whereQuery('MIN(scores) > 75');
 
 // MAX - Valeur maximale
-$result = $collection->whereAggregate('{MAX(scores) < 95}');
-// John uniquement
+$result = $collection->whereQuery('MAX(scores) < 95');
 
 // LENGTH - Longueur d'une chaîne
-$result = $collection->whereAggregate('{LENGTH(name) > 5}');
-// John Doe (8 caractères)
+$result = $collection->whereQuery('LENGTH(name) > 5');
 
 // JSON_LENGTH - Longueur d'un tableau JSON
-$result = $collection->whereAggregate('{JSON_LENGTH(addresses) > 2}');
-// John uniquement
+$result = $collection->whereQuery('JSON_LENGTH(addresses) > 2');
 ```
 
-### 13.4 Exemples en base de données
+#### Utilisation avec Eloquent
 
 ```php
 use App\Models\User;
@@ -1395,42 +1376,242 @@ $users = User::whereCluster('clusters', 'SUM(prices) > 500')->get();
 // AVG
 $users = User::whereCluster('clusters', 'AVG(scores) >= 85')->get();
 
+// MIN
+$users = User::whereCluster('clusters', 'MIN(scores) > 75')->get();
+
+// MAX
+$users = User::whereCluster('clusters', 'MAX(scores) < 95')->get();
+
 // LENGTH
 $users = User::whereCluster('clusters', 'LENGTH(name) > 5')->get();
 
-// Combinaison
+// JSON_LENGTH
+$users = User::whereCluster('clusters', 'JSON_LENGTH(addresses) > 2')->get();
+
+// Combinaison avec d'autres conditions
 $users = User::whereCluster('clusters', 'status=active & COUNT(addresses) > 1')->get();
 ```
 
-### 13.5 Fonctions booléennes
+#### SQL généré par driver
+
+| Fonction | SQLite | MySQL | PostgreSQL |
+|----------|--------|-------|------------|
+| `COUNT` | `json_array_length(clusters, '$.addresses')` | `JSON_LENGTH(clusters, '$.addresses')` | `jsonb_array_length(clusters->'addresses')` |
+| `SUM` | `(SELECT SUM(json_extract(value, '$')) FROM json_each(clusters, '$.prices'))` | `(SELECT SUM(JSON_EXTRACT(value, '$')) FROM JSON_TABLE(...))` | `(SELECT SUM((value->>'$')::numeric) FROM json_array_elements(...))` |
+| `AVG` | `(SELECT AVG(json_extract(value, '$')) FROM json_each(clusters, '$.scores'))` | `(SELECT AVG(JSON_EXTRACT(value, '$')) FROM JSON_TABLE(...))` | `(SELECT AVG((value->>'$')::numeric) FROM json_array_elements(...))` |
+| `MIN` | `(SELECT MIN(json_extract(value, '$')) FROM json_each(clusters, '$.scores'))` | `(SELECT MIN(JSON_EXTRACT(value, '$')) FROM JSON_TABLE(...))` | `(SELECT MIN((value->>'$')::numeric) FROM json_array_elements(...))` |
+| `MAX` | `(SELECT MAX(json_extract(value, '$')) FROM json_each(clusters, '$.scores'))` | `(SELECT MAX(JSON_EXTRACT(value, '$')) FROM JSON_TABLE(...))` | `(SELECT MAX((value->>'$')::numeric) FROM json_array_elements(...))` |
+| `LENGTH` | `LENGTH(json_extract(clusters, '$.name'))` | `LENGTH(JSON_EXTRACT(clusters, '$.name'))` | `LENGTH(clusters->>'name')` |
+| `JSON_LENGTH` | `json_array_length(clusters, '$.addresses')` | `JSON_LENGTH(clusters, '$.addresses')` | `jsonb_array_length(clusters->'addresses')` |
+
+---
+
+### 13.2 Fonctions booléennes
+
+Les fonctions booléennes retournent `true` ou `false` et peuvent être utilisées avec des opérateurs de comparaison (`=`, `!=`, etc.).
+
+| Fonction | Description | Exemple |
+|----------|-------------|---------|
+| `CONTAINS(path, value)` | Vérifie si un tableau contient une valeur | `CONTAINS(languages, fr)` |
+| `REGEXP(path, pattern)` | Vérifie si une chaîne correspond à une regex | `REGEXP(name, "^John.*")` |
+
+#### 13.2.1 Fonction CONTAINS
+
+La fonction `CONTAINS` vérifie si un tableau JSON contient une valeur spécifique.
+
+**Syntaxe :**
+```php
+CONTAINS(path, value)
+```
+
+**Paramètres :**
+- `path` : Le chemin vers le tableau dans les données JSON
+- `value` : La valeur à rechercher dans le tableau
+
+**Utilisation en mémoire :**
+```php
+$filtered = $collection->whereQuery('CONTAINS(languages, fr)');
+// Retourne les clusters dont le tableau 'languages' contient 'fr'
+
+// Avec opérateur de comparaison
+$filtered = $collection->whereQuery('CONTAINS(languages, fr) = true');
+$filtered = $collection->whereQuery('CONTAINS(languages, fr) = false');
+
+// Combinaison avec AND
+$filtered = $collection->whereQuery('CONTAINS(languages, fr) & status=active');
+
+// Combinaison avec OR
+$filtered = $collection->whereQuery('CONTAINS(languages, fr) | CONTAINS(languages, en)');
+```
+
+**Utilisation avec Eloquent :**
+```php
+use App\Models\User;
+
+// Utilisateurs qui parlent français
+$users = User::whereCluster('clusters', 'CONTAINS(languages, fr)')->get();
+
+// Utilisateurs qui parlent français ET anglais
+$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) & CONTAINS(languages, en)')->get();
+
+// Utilisateurs qui parlent français OU anglais
+$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) | CONTAINS(languages, en)')->get();
+
+// Utilisateurs qui parlent français ET sont actifs
+$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) & status=active')->get();
+
+// Utilisateurs qui parlent français = true
+$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) = true')->get();
+
+// Utilisateurs qui parlent français = false (ne parlent pas français)
+$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) = false')->get();
+```
+
+**SQL généré :**
+| Driver | SQL |
+|--------|-----|
+| SQLite | `EXISTS (SELECT 1 FROM json_each(clusters, '$.languages') WHERE value = 'fr')` |
+| MySQL | `JSON_SEARCH(clusters, 'one', 'fr', NULL, '$."languages"') IS NOT NULL` |
+| PostgreSQL | `EXISTS (SELECT 1 FROM json_array_elements_text(clusters->'languages') AS elem WHERE elem = 'fr')` |
+
+**Exemples de requêtes complexes avec CONTAINS :**
+```php
+// Docteurs qui parlent français ET ont plus de 5 ans d'expérience
+$results = $collection->whereQuery('CONTAINS(languages, fr) & experience > 5');
+
+// Produits avec le tag "promo" OU "new"
+$results = $collection->whereQuery('CONTAINS(tags, promo) | CONTAINS(tags, new)');
+
+// Utilisateurs qui parlent français ET sont vérifiés
+$results = $collection->whereQuery('CONTAINS(languages, fr) & verified=yes');
+```
+
+#### 13.2.2 Fonction REGEXP
+
+La fonction `REGEXP` vérifie si une chaîne correspond à une expression régulière.
+
+**Syntaxe :**
+```php
+REGEXP(path, pattern)
+```
+
+**Paramètres :**
+- `path` : Le chemin vers la chaîne dans les données JSON
+- `pattern` : L'expression régulière à tester
+
+**Utilisation en mémoire :**
+```php
+// Noms commençant par "John"
+$filtered = $collection->whereQuery('REGEXP(name, "^John.*")');
+
+// Noms contenant "Smith"
+$filtered = $collection->whereQuery('REGEXP(name, "Smith")');
+
+// Noms se terminant par "son"
+$filtered = $collection->whereQuery('REGEXP(name, "son$")');
+
+// Noms commençant par "J" et contenant "e"
+$filtered = $collection->whereQuery('REGEXP(name, "^J.*e.*")');
+
+// Combinaison avec d'autres conditions
+$filtered = $collection->whereQuery('REGEXP(name, "^John.*") & status=active');
+```
+
+**Utilisation avec Eloquent :**
+```php
+use App\Models\User;
+
+// Noms commençant par "John"
+$users = User::whereCluster('clusters', 'REGEXP(name, "^John.*")')->get();
+
+// Noms contenant "Smith"
+$users = User::whereCluster('clusters', 'REGEXP(name, "Smith")')->get();
+
+// Noms se terminant par "son"
+$users = User::whereCluster('clusters', 'REGEXP(name, "son$")')->get();
+
+// Noms commençant par "J" et contenant "e"
+$users = User::whereCluster('clusters', 'REGEXP(name, "^J.*e.*")')->get();
+
+// Combinaison avec d'autres conditions
+$users = User::whereCluster('clusters', 'REGEXP(name, "^John.*") & status=active')->get();
+
+// Utilisateurs avec email Gmail
+$users = User::whereCluster('clusters', 'REGEXP(email, ".*@gmail\.com$")')->get();
+
+// Utilisateurs avec un nom contenant des lettres uniquement
+$users = User::whereCluster('clusters', 'REGEXP(name, "^[A-Za-z]+$")')->get();
+```
+
+**SQL généré :**
+| Driver | SQL |
+|--------|-----|
+| SQLite | `json_extract(clusters, '$.name') REGEXP '^John.*'` |
+| MySQL | `JSON_EXTRACT(clusters, '$.name') REGEXP '^John.*'` |
+| PostgreSQL | `clusters->>'name' ~ '^John.*'` |
+
+**Note sur SQLite :** La fonction `REGEXP` n'est pas native dans SQLite. Le package l'enregistre automatiquement via `SqliteFunctionRegistrar`. Si vous utilisez SQLite, assurez-vous que la fonction est bien enregistrée.
+
+---
+
+### 13.3 Combinaison de fonctions
+
+Les fonctions SQL peuvent être combinées entre elles et avec d'autres conditions :
 
 ```php
-use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
-use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
+// Combinaison de fonctions d'agrégation
+$result = $collection->whereQuery('COUNT(addresses) > 2 & AVG(scores) >= 85 & SUM(prices) > 400');
 
-$collection = new ClusterVOCollection();
-$collection->add(new ClusterVO([
-    'name' => 'John',
-    'addresses' => ['a', 'b', 'c'],
-    'tags' => ['php', 'js', 'docker'],
-    'cart' => ['item1', 'item2'],
-]));
+// Combinaison de fonctions booléennes
+$result = $collection->whereQuery('CONTAINS(languages, fr) & REGEXP(name, "^J.*")');
 
-// EXISTS - Vérification d'existence
-$result = $collection->whereAggregate('{EXISTS(addresses)}');
-// John (addresses existe)
+// Combinaison de fonctions d'agrégation et booléennes
+$result = $collection->whereQuery('CONTAINS(languages, fr) & COUNT(addresses) > 1 & AVG(scores) >= 85');
 
-// HAS - Recherche dans un tableau
-$result = $collection->whereAggregate('{HAS(tags, "php")}');
-// John (php est dans tags)
+// Avec des conditions classiques
+$result = $collection->whereQuery('COUNT(addresses) > 2 & status=active & verified=yes');
 
-// ALL - Tous les éléments satisfont une condition
-$result = $collection->whereAggregate('{ALL(addresses, country, "RDC")}');
-// Vérifie si toutes les adresses sont en RDC
+// Avec des parenthèses pour la priorité
+$result = $collection->whereQuery('(COUNT(addresses) > 2 | SUM(prices) > 500) & status=active');
+```
 
-// IS_EMPTY - Vérification de vacuité
-$result = $collection->whereAggregate('{IS_EMPTY(cart)}');
-// Vérifie si le panier est vide
+---
+
+### 13.4 Comparaison des fonctions
+
+| Fonction | Type | Arguments | Retourne | Utilisation typique |
+|----------|------|-----------|----------|---------------------|
+| `COUNT` | Agrégation | 1 | `int` | Nombre d'éléments |
+| `SUM` | Agrégation | 1 | `float` | Somme des valeurs |
+| `AVG` | Agrégation | 1 | `float` | Moyenne des valeurs |
+| `MIN` | Agrégation | 1 | `float` | Valeur minimale |
+| `MAX` | Agrégation | 1 | `float` | Valeur maximale |
+| `LENGTH` | Agrégation | 1 | `int` | Longueur d'une chaîne |
+| `JSON_LENGTH` | Agrégation | 1 | `int` | Longueur d'un tableau |
+| `CONTAINS` | Booléenne | 2 | `bool` | Présence dans un tableau |
+| `REGEXP` | Booléenne | 2 | `bool` | Correspondance regex |
+
+---
+
+### 13.5 Bonnes pratiques
+
+```php
+// ✅ Utiliser des index pour les champs JSON fréquemment filtrés
+// Migration :
+DB::statement('ALTER TABLE users ADD INDEX idx_clusters_status ((JSON_EXTRACT(clusters, "$.status")))');
+
+// ✅ Préférer les fonctions booléennes pour les vérifications d'existence
+$users = User::whereCluster('clusters', 'CONTAINS(languages, fr)')->get();
+
+// ✅ Combiner les fonctions avec des conditions classiques pour des filtres précis
+$users = User::whereCluster('clusters', 'status=active & COUNT(addresses) > 1')->get();
+
+// ❌ Éviter les fonctions d'agrégation sur de grandes collections en mémoire
+$allUsers = User::all(); // ❌
+$filtered = $allUsers->whereCluster('clusters', 'COUNT(addresses) > 2'); // ❌
+
+// ✅ Utiliser le filtrage en base de données pour les grandes collections
+$filtered = User::whereCluster('clusters', 'COUNT(addresses) > 2')->get(); // ✅
 ```
 
 ---
