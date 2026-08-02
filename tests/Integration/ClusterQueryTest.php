@@ -1824,14 +1824,28 @@ final class ClusterQueryTest extends IntegrationTestCase
     {
         $sql = $this->clusterQuery->toSql('clusters', 'SUM(prices) > 500', DatabaseDriver::SQLITE);
 
-        $this->assertStringContainsString('CAST(json_extract(clusters, \'$.prices\') AS NUMERIC) > 500', $sql);
+        $this->assertStringContainsString('(SELECT SUM(json_extract(value, \'$\')) FROM json_each(clusters, \'$.prices\')) > 500', $sql);
     }
 
     public function test_to_sql_avg_function_sqlite(): void
     {
         $sql = $this->clusterQuery->toSql('clusters', 'AVG(scores) >= 85', DatabaseDriver::SQLITE);
 
-        $this->assertStringContainsString('AVG(CAST(json_extract(clusters, \'$.scores\') AS NUMERIC)) >= 85', $sql);
+        $this->assertStringContainsString('(SELECT AVG(json_extract(value, \'$\')) FROM json_each(clusters, \'$.scores\')) >= 85', $sql);
+    }
+
+    public function test_to_sql_min_function_sqlite(): void
+    {
+        $sql = $this->clusterQuery->toSql('clusters', 'MIN(scores) > 75', DatabaseDriver::SQLITE);
+
+        $this->assertStringContainsString('(SELECT MIN(json_extract(value, \'$\')) FROM json_each(clusters, \'$.scores\')) > 75', $sql);
+    }
+
+    public function test_to_sql_max_function_sqlite(): void
+    {
+        $sql = $this->clusterQuery->toSql('clusters', 'MAX(scores) < 95', DatabaseDriver::SQLITE);
+
+        $this->assertStringContainsString('(SELECT MAX(json_extract(value, \'$\')) FROM json_each(clusters, \'$.scores\')) < 95', $sql);
     }
 
     public function test_to_sql_length_function_sqlite(): void

@@ -27,7 +27,7 @@ final class JsonLengthFunction extends AbstractSqlFunction
         return 'JSON_LENGTH';
     }
 
-    public function toSql(string $column, string $path, DatabaseDriver $driver): string
+    public function toSql(string $column, string $path, DatabaseDriver $driver, array $args = []): string
     {
         return match ($driver) {
             DatabaseDriver::SQLITE => sprintf(
@@ -53,7 +53,7 @@ final class JsonLengthFunction extends AbstractSqlFunction
         return 'int';
     }
 
-    public function execute(mixed $value): int
+    public function execute(mixed $value, array $args = []): int
     {
         if (is_array($value)) {
             return count($value);

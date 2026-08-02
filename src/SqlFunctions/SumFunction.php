@@ -24,21 +24,21 @@ final class SumFunction extends AbstractSqlFunction
         return 'SUM';
     }
 
-    public function toSql(string $column, string $path, DatabaseDriver $driver): string
+    public function toSql(string $column, string $path, DatabaseDriver $driver, array $args = []): string
     {
         return match ($driver) {
             DatabaseDriver::SQLITE => sprintf(
-                "CAST(json_extract(%s, '$.%s') AS NUMERIC)",
+                "(SELECT SUM(json_extract(value, '$')) FROM json_each(%s, '$.%s'))",
                 $column,
                 $path
             ),
             DatabaseDriver::MYSQL => sprintf(
-                "CAST(JSON_EXTRACT(%s, '$.%s') AS DECIMAL(10,2))",
+                "(SELECT SUM(JSON_EXTRACT(value, '$')) FROM JSON_TABLE(%s, '$.\"%s\"[*]' COLUMNS(value JSON PATH '$')) AS jt)",
                 $column,
                 $path
             ),
             DatabaseDriver::PGSQL => sprintf(
-                "(%s->>'%s')::numeric",
+                "(SELECT SUM((value->>'$')::numeric) FROM json_array_elements(%s->'%s') AS value)",
                 $column,
                 $path
             ),
@@ -50,7 +50,7 @@ final class SumFunction extends AbstractSqlFunction
         return 'float';
     }
 
-    public function execute(mixed $value): float
+    public function execute(mixed $value, array $args = []): float
     {
         if (! is_array($value) || empty($value)) {
             return 0.0;

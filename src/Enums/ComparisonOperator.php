@@ -94,6 +94,7 @@ enum ComparisonOperator: string
 
     public function evaluate(mixed $actual, ?string $value): bool|int
     {
+        // 🔥 NORMALISATION : Booléens → 'yes'/'no'
         $actualNormalized = $this->normalizeValue($actual);
         $valueNormalized = $this->normalizeValue($value);
 
@@ -115,12 +116,34 @@ enum ComparisonOperator: string
         };
     }
 
+    /**
+     * Normalise une valeur pour la comparaison.
+     * - Booléens → 'yes'/'no'
+     * - Strings 'true'/'false' → 'yes'/'no'
+     * - Strings → minuscules
+     * - Tableaux → JSON
+     */
     private function normalizeValue(mixed $value): mixed
     {
+        // Booléens → 'yes'/'no'
+        if (is_bool($value)) {
+            return $value ? 'yes' : 'no';
+        }
+
+        // Strings 'true'/'false' → 'yes'/'no'
+        if (is_string($value) && strtolower($value) === 'true') {
+            return 'yes';
+        }
+        if (is_string($value) && strtolower($value) === 'false') {
+            return 'no';
+        }
+
+        // Strings → minuscules
         if (is_string($value)) {
             return strtolower($value);
         }
 
+        // Tableaux → JSON
         if (is_array($value)) {
             return json_encode($value);
         }

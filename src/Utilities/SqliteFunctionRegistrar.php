@@ -37,6 +37,7 @@ final class SqliteFunctionRegistrar
             self::registerJsonSum($pdo);
             self::registerJsonMin($pdo);
             self::registerJsonMax($pdo);
+            self::registerRegexp($pdo);
 
         } catch (\Throwable $e) {
             report($e);
@@ -200,6 +201,47 @@ final class SqliteFunctionRegistrar
             $numbers = array_filter($current, 'is_numeric');
 
             return ! empty($numbers) ? max($numbers) : null;
+        });
+    }
+
+    /**
+     * Register REGEXP function for SQLite.
+     *
+     * SQLite does not have a native REGEXP function. This implements
+     * a simple version using preg_match.
+     */
+    private static function registerRegexp(PDO $pdo): void
+    {
+        $pdo->sqliteCreateFunction('REGEXP', function ($pattern, $value) {
+            if ($pattern === null || $value === null) {
+                return 0;
+            }
+
+            // SQLite passe les arguments dans l'ordre: pattern, value
+            // Mais parfois c'est l'inverse, on vérifie les deux
+            if (is_string($pattern) && is_string($value)) {
+                try {
+                    // Ajouter les délimiteurs si nécessaire
+                    $pattern = '/'.str_replace('/', '\/', $pattern).'/';
+
+                    return preg_match($pattern, $value) === 1 ? 1 : 0;
+                } catch (\Exception $e) {
+                    return 0;
+                }
+            }
+
+            // Si les arguments sont inversés
+            if (is_string($value) && is_string($pattern)) {
+                try {
+                    $pattern = '/'.str_replace('/', '\/', $pattern).'/';
+
+                    return preg_match($pattern, $value) === 1 ? 1 : 0;
+                } catch (\Exception $e) {
+                    return 0;
+                }
+            }
+
+            return 0;
         });
     }
 }

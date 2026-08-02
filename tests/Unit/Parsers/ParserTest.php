@@ -949,7 +949,7 @@ final class ParserTest extends TestCase
     public function test_parse_function_with_missing_arguments(): void
     {
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Expected path argument for function');
+        $this->expectExceptionMessage('Function "COUNT" expects at least 1 argument, 0 given');
 
         $this->parser->parse('COUNT() > 2');
     }
@@ -1016,5 +1016,275 @@ final class ParserTest extends TestCase
 
         $cluster = new ClusterVO(['addresses' => ['a', 'b', 'c']]);
         $this->assertEquals($ast1->evaluate($cluster), $ast2->evaluate($cluster));
+    }
+
+    // ==================== CONTAINS FUNCTION TESTS ====================
+
+    public function test_parse_contains_function(): void
+    {
+        $ast = $this->parser->parse('CONTAINS(languages, fr)');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['languages' => ['fr', 'en', 'es']]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['languages' => ['en', 'es']]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_contains_function_with_operator(): void
+    {
+        $ast = $this->parser->parse('CONTAINS(languages, fr) = true');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['languages' => ['fr', 'en']]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['languages' => ['en', 'es']]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_contains_function_with_equals_false(): void
+    {
+        $ast = $this->parser->parse('CONTAINS(languages, fr) = false');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['languages' => ['en', 'es']]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['languages' => ['fr', 'en']]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_contains_function_with_not_equals(): void
+    {
+        $ast = $this->parser->parse('CONTAINS(languages, fr) != true');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['languages' => ['en', 'es']]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['languages' => ['fr', 'en']]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_contains_function_with_nested_path(): void
+    {
+        $ast = $this->parser->parse('CONTAINS(profile.languages, fr)');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO([
+            'profile' => [
+                'languages' => ['fr', 'en', 'es'],
+            ],
+        ]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO([
+            'profile' => [
+                'languages' => ['en', 'es'],
+            ],
+        ]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_contains_function_with_condition(): void
+    {
+        $ast = $this->parser->parse('status=active & CONTAINS(languages, fr)');
+
+        $this->assertInstanceOf(GroupNode::class, $ast);
+
+        $cluster = new ClusterVO([
+            'status' => 'active',
+            'languages' => ['fr', 'en'],
+        ]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO([
+            'status' => 'active',
+            'languages' => ['en', 'es'],
+        ]);
+        $this->assertFalse($ast->evaluate($cluster2));
+
+        $cluster3 = new ClusterVO([
+            'status' => 'inactive',
+            'languages' => ['fr', 'en'],
+        ]);
+        $this->assertFalse($ast->evaluate($cluster3));
+    }
+
+    public function test_parse_contains_function_with_or(): void
+    {
+        $ast = $this->parser->parse('CONTAINS(languages, fr) | CONTAINS(languages, en)');
+
+        $this->assertInstanceOf(GroupNode::class, $ast);
+
+        $cluster = new ClusterVO(['languages' => ['fr']]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['languages' => ['en']]);
+        $this->assertTrue($ast->evaluate($cluster2));
+
+        $cluster3 = new ClusterVO(['languages' => ['es']]);
+        $this->assertFalse($ast->evaluate($cluster3));
+    }
+
+    public function test_parse_contains_function_with_multiple_contains_and(): void
+    {
+        $ast = $this->parser->parse('CONTAINS(languages, fr) & CONTAINS(languages, en)');
+
+        $this->assertInstanceOf(GroupNode::class, $ast);
+
+        $cluster = new ClusterVO(['languages' => ['fr', 'en']]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['languages' => ['fr']]);
+        $this->assertFalse($ast->evaluate($cluster2));
+
+        $cluster3 = new ClusterVO(['languages' => ['en']]);
+        $this->assertFalse($ast->evaluate($cluster3));
+    }
+
+    public function test_parse_contains_function_with_parentheses(): void
+    {
+        $ast = $this->parser->parse('(CONTAINS(languages, fr) | CONTAINS(languages, en)) & status=active');
+
+        $this->assertInstanceOf(GroupNode::class, $ast);
+
+        $cluster = new ClusterVO([
+            'languages' => ['fr'],
+            'status' => 'active',
+        ]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO([
+            'languages' => ['en'],
+            'status' => 'active',
+        ]);
+        $this->assertTrue($ast->evaluate($cluster2));
+
+        $cluster3 = new ClusterVO([
+            'languages' => ['es'],
+            'status' => 'active',
+        ]);
+        $this->assertFalse($ast->evaluate($cluster3));
+
+        $cluster4 = new ClusterVO([
+            'languages' => ['fr'],
+            'status' => 'inactive',
+        ]);
+        $this->assertFalse($ast->evaluate($cluster4));
+    }
+
+    public function test_parse_contains_function_with_empty_array(): void
+    {
+        $ast = $this->parser->parse('CONTAINS(languages, fr)');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['languages' => []]);
+        $this->assertFalse($ast->evaluate($cluster));
+    }
+
+    public function test_parse_contains_function_with_missing_arguments(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->parser->parse('CONTAINS(languages)');
+    }
+
+    public function test_parse_contains_function_with_extra_arguments(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $node = $this->parser->parse('CONTAINS(languages, fr, en)');
+    }
+
+    public function test_parse_contains_function_with_spaces(): void
+    {
+        $ast1 = $this->parser->parse('CONTAINS(languages, fr)');
+        $ast2 = $this->parser->parse('CONTAINS( languages , fr )');
+
+        $cluster = new ClusterVO(['languages' => ['fr', 'en']]);
+        $this->assertEquals($ast1->evaluate($cluster), $ast2->evaluate($cluster));
+    }
+
+    public function test_parse_contains_function_with_string_value(): void
+    {
+        $ast = $this->parser->parse('CONTAINS(languages, "fr")');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['languages' => ['fr', 'en']]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['languages' => ['en', 'es']]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_contains_function_with_single_quotes(): void
+    {
+        $ast = $this->parser->parse("CONTAINS(languages, 'fr')");
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO(['languages' => ['fr', 'en']]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO(['languages' => ['en', 'es']]);
+        $this->assertFalse($ast->evaluate($cluster2));
+    }
+
+    public function test_parse_contains_function_with_count(): void
+    {
+        $ast = $this->parser->parse('CONTAINS(languages, fr) & COUNT(addresses) > 1');
+
+        $this->assertInstanceOf(GroupNode::class, $ast);
+
+        $cluster = new ClusterVO([
+            'languages' => ['fr', 'en'],
+            'addresses' => ['a', 'b'],
+        ]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO([
+            'languages' => ['fr', 'en'],
+            'addresses' => ['a'],
+        ]);
+        $this->assertFalse($ast->evaluate($cluster2));
+
+        $cluster3 = new ClusterVO([
+            'languages' => ['en', 'es'],
+            'addresses' => ['a', 'b'],
+        ]);
+        $this->assertFalse($ast->evaluate($cluster3));
+    }
+
+    public function test_parse_contains_function_with_complex_path(): void
+    {
+        $ast = $this->parser->parse('CONTAINS(user.preferences.languages, fr)');
+
+        $this->assertInstanceOf(FunctionNode::class, $ast);
+
+        $cluster = new ClusterVO([
+            'user' => [
+                'preferences' => [
+                    'languages' => ['fr', 'en'],
+                ],
+            ],
+        ]);
+        $this->assertTrue($ast->evaluate($cluster));
+
+        $cluster2 = new ClusterVO([
+            'user' => [
+                'preferences' => [
+                    'languages' => ['en', 'es'],
+                ],
+            ],
+        ]);
+        $this->assertFalse($ast->evaluate($cluster2));
     }
 }

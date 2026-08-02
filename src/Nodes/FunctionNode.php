@@ -11,40 +11,20 @@ use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Builder;
 use InvalidArgumentException;
 
-/**
- * Represents a SQL function node in the query AST.
- *
- * This node handles aggregate functions (COUNT, SUM, AVG, MIN, MAX) and
- * JSON functions (JSON_LENGTH) applied to JSON data paths.
- *
- * @example
- * $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
- * $node->evaluate($cluster); // true if addresses count > 2
- * @example
- * $node = new FunctionNode('AVG', 'scores', ComparisonOperator::GREATER_THAN_OR_EQUAL, '85');
- * $node->toSql('clusters', DatabaseDriver::MYSQL);
- */
 final class FunctionNode extends Node
 {
     private string $functionName;
-
-    private array $aggregateFunctions = ['SUM', 'AVG', 'MIN', 'MAX'];
 
     public function __construct(
         string $functionName,
         private readonly string $path,
         private readonly ComparisonOperator $operator,
-        private readonly ?string $value = null
+        private readonly ?string $value = null,
+        private readonly array $args = []
     ) {
         $this->functionName = strtoupper($functionName);
     }
 
-    /**
-     * Evaluates the function against a cluster data object.
-     *
-     * @param  ClusterVO  $cluster  The cluster data to evaluate against
-     * @return bool True if the function condition matches
-     */
     public function evaluate(ClusterVO $cluster): bool
     {
         $registry = app(SqlFunctionRegistry::class);
@@ -60,20 +40,11 @@ final class FunctionNode extends Node
             return false;
         }
 
-        $result = $registry->execute($this->functionName, $actual);
+        $result = $registry->execute($this->functionName, $actual, $this->args);
 
         return $this->operator->evaluate($result, $this->value);
     }
 
-    /**
-     * Generates the SQL expression for this function.
-     *
-     * @param  string  $column  The database column containing JSON data
-     * @param  DatabaseDriver  $driver  The database driver to use
-     * @return string The SQL expression
-     *
-     * @throws InvalidArgumentException When the operator is unsupported
-     */
     public function toSql(string $column, DatabaseDriver $driver = DatabaseDriver::MYSQL): string
     {
         $registry = app(SqlFunctionRegistry::class);
@@ -86,13 +57,51 @@ final class FunctionNode extends Node
             return $this->buildSqliteJsonLength($column);
         }
 
-        $sqlExpression = $registry->toSql($this->functionName, $column, $this->path, $driver);
+        $sqlExpression = $registry->toSql($this->functionName, $column, $this->path, $driver, $this->args);
 
         if ($sqlExpression === null) {
             return '1=0';
         }
 
         $returnType = $registry->getReturnType($this->functionName);
+
+        // 🔥 Pour les fonctions booléennes (CONTAINS, REGEXP), gérer les comparaisons
+        if ($returnType === 'bool') {
+            // Si la valeur de comparaison est 'false', 'no', '0' ou 'f' (pour CONTAINS = false)
+            $falseValues = ['false', 'no', '0', 'f'];
+            $trueValues = ['true', 'yes', '1', 't'];
+
+            if ($this->value !== null) {
+                $valueLower = strtolower($this->value);
+
+                // Si on compare avec false
+                if (in_array($valueLower, $falseValues, true)) {
+                    return match ($this->operator) {
+                        ComparisonOperator::EQUAL,
+                        ComparisonOperator::EQUAL_LOOSE,
+                        ComparisonOperator::EQUAL_STRICT => sprintf('NOT (%s)', $sqlExpression),
+                        ComparisonOperator::NOT_EQUAL,
+                        ComparisonOperator::NOT_EQUAL_STRICT => $sqlExpression,
+                        default => $sqlExpression,
+                    };
+                }
+
+                // Si on compare avec true
+                if (in_array($valueLower, $trueValues, true)) {
+                    return match ($this->operator) {
+                        ComparisonOperator::EQUAL,
+                        ComparisonOperator::EQUAL_LOOSE,
+                        ComparisonOperator::EQUAL_STRICT => $sqlExpression,
+                        ComparisonOperator::NOT_EQUAL,
+                        ComparisonOperator::NOT_EQUAL_STRICT => sprintf('NOT (%s)', $sqlExpression),
+                        default => $sqlExpression,
+                    };
+                }
+            }
+
+            // Par défaut, retourner l'expression telle quelle
+            return $sqlExpression;
+        }
 
         if ($this->value === null) {
             return match ($this->operator) {
@@ -120,100 +129,17 @@ final class FunctionNode extends Node
         };
     }
 
-    /**
-     * Applies this function to an Eloquent query builder.
-     *
-     * @param  Builder  $query  The Eloquent query builder
-     * @param  string  $column  The database column containing JSON data
-     * @param  DatabaseDriver  $driver  The database driver to use
-     */
     public function toEloquent(Builder $query, string $column, DatabaseDriver $driver): void
     {
-        if ($this->isAggregateFunction()) {
-            $sql = $this->buildAggregateSql($column, $driver);
-            $query->whereRaw($sql);
-
-            return;
-        }
-
         $sql = $this->toSql($column, $driver);
         $query->whereRaw($sql);
     }
 
-    /**
-     * Returns the children nodes (empty for leaf nodes).
-     *
-     * @return array<self> An empty array
-     */
     public function getChildren(): array
     {
         return [];
     }
 
-    /**
-     * Determines if the current function is an aggregate function.
-     */
-    private function isAggregateFunction(): bool
-    {
-        return in_array($this->functionName, $this->aggregateFunctions, true);
-    }
-
-    /**
-     * Builds a SQL subquery for aggregate functions.
-     */
-    private function buildAggregateSql(string $column, DatabaseDriver $driver): string
-    {
-        $registry = app(SqlFunctionRegistry::class);
-        $returnType = $registry->getReturnType($this->functionName);
-        $function = strtolower($this->functionName);
-
-        if ($driver === DatabaseDriver::SQLITE) {
-            $castedValue = $this->castValue($this->value ?? '0', $returnType);
-            $operatorMap = [
-                '=' => '=',
-                '!=' => '!=',
-                '>' => '>',
-                '>=' => '>=',
-                '<' => '<',
-                '<=' => '<=',
-            ];
-            $sqlOperator = $operatorMap[$this->operator->value] ?? '=';
-
-            return sprintf(
-                "(SELECT %s(json_extract(value, '$')) FROM json_each(%s, '$.%s')) %s %s",
-                $function,
-                $column,
-                $this->path,
-                $sqlOperator,
-                $castedValue
-            );
-        }
-
-        $sqlExpression = $registry->toSql($this->functionName, $column, $this->path, $driver);
-
-        if ($sqlExpression === null) {
-            return '1=0';
-        }
-
-        $castedValue = $this->castValue($this->value ?? '0', $returnType);
-
-        return match ($this->operator) {
-            ComparisonOperator::EQUAL,
-            ComparisonOperator::EQUAL_LOOSE,
-            ComparisonOperator::EQUAL_STRICT => sprintf('%s = %s', $sqlExpression, $castedValue),
-            ComparisonOperator::NOT_EQUAL,
-            ComparisonOperator::NOT_EQUAL_STRICT => sprintf('%s != %s', $sqlExpression, $castedValue),
-            ComparisonOperator::GREATER_THAN => sprintf('%s > %s', $sqlExpression, $castedValue),
-            ComparisonOperator::GREATER_THAN_OR_EQUAL => sprintf('%s >= %s', $sqlExpression, $castedValue),
-            ComparisonOperator::LESS_THAN => sprintf('%s < %s', $sqlExpression, $castedValue),
-            ComparisonOperator::LESS_THAN_OR_EQUAL => sprintf('%s <= %s', $sqlExpression, $castedValue),
-            default => sprintf('%s IS NOT NULL', $sqlExpression),
-        };
-    }
-
-    /**
-     * Builds a SQLite JSON_LENGTH expression.
-     */
     private function buildSqliteJsonLength(string $column): string
     {
         $castedValue = $this->castValue($this->value ?? '0', 'int');
@@ -238,13 +164,6 @@ final class FunctionNode extends Node
         };
     }
 
-    /**
-     * Extracts a value from the data array using a dot-notation path.
-     *
-     * @param  array<string, mixed>  $data  The source data
-     * @param  string  $path  The dot-notation path to extract
-     * @return mixed The extracted value, or null if not found
-     */
     private function extractValue(array $data, string $path): mixed
     {
         if (empty($path)) {
@@ -268,13 +187,6 @@ final class FunctionNode extends Node
         return $current;
     }
 
-    /**
-     * Casts a value to the appropriate SQL type.
-     *
-     * @param  string  $value  The value to cast
-     * @param  string|null  $returnType  The target type ('int', 'float', 'bool')
-     * @return string The casted value as a SQL string
-     */
     private function castValue(string $value, ?string $returnType): string
     {
         if ($returnType === null) {

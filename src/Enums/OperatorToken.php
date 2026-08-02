@@ -30,6 +30,8 @@ enum OperatorToken: string
     case SUB_OPEN = '[';
     case SUB_CLOSE = ']';
 
+    case COMMA = ',';
+
     public function getValue(): string
     {
         return match ($this) {
@@ -52,6 +54,7 @@ enum OperatorToken: string
             self::NOT_LIKE => ComparisonOperator::NOT_LIKE->value,
             self::SUB_OPEN => '[',
             self::SUB_CLOSE => ']',
+            self::COMMA => ',',
         };
     }
 
@@ -148,6 +151,7 @@ enum OperatorToken: string
             '!~' => self::NOT_LIKE,
             '[' => self::SUB_OPEN,
             ']' => self::SUB_CLOSE,
+            ',' => self::COMMA,
             default => null,
         };
     }

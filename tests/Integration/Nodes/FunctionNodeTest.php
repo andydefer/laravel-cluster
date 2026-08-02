@@ -303,7 +303,7 @@ final class FunctionNodeTest extends IntegrationTestCase
 
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "CAST(json_extract(clusters, '$.prices') AS NUMERIC) > 500";
+        $expected = "(SELECT SUM(json_extract(value, '$')) FROM json_each(clusters, '$.prices')) > 500";
         $this->assertEquals($expected, $sql);
     }
 
@@ -313,7 +313,7 @@ final class FunctionNodeTest extends IntegrationTestCase
 
         $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "CAST(JSON_EXTRACT(clusters, '$.prices') AS DECIMAL(10,2)) > 500";
+        $expected = "(SELECT SUM(JSON_EXTRACT(value, '$')) FROM JSON_TABLE(clusters, '$.\"prices\"[*]' COLUMNS(value JSON PATH '$')) AS jt) > 500";
         $this->assertEquals($expected, $sql);
     }
 
@@ -323,7 +323,7 @@ final class FunctionNodeTest extends IntegrationTestCase
 
         $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
 
-        $expected = "(clusters->>'prices')::numeric > 500";
+        $expected = "(SELECT SUM((value->>'$')::numeric) FROM json_array_elements(clusters->'prices') AS value) > 500";
         $this->assertEquals($expected, $sql);
     }
 
@@ -333,7 +333,7 @@ final class FunctionNodeTest extends IntegrationTestCase
 
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "AVG(CAST(json_extract(clusters, '$.scores') AS NUMERIC)) >= 85";
+        $expected = "(SELECT AVG(json_extract(value, '$')) FROM json_each(clusters, '$.scores')) >= 85";
         $this->assertEquals($expected, $sql);
     }
 
@@ -343,7 +343,7 @@ final class FunctionNodeTest extends IntegrationTestCase
 
         $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "AVG(CAST(JSON_EXTRACT(clusters, '$.scores') AS DECIMAL(10,2))) >= 85";
+        $expected = "(SELECT AVG(JSON_EXTRACT(value, '$')) FROM JSON_TABLE(clusters, '$.\"scores\"[*]' COLUMNS(value JSON PATH '$')) AS jt) >= 85";
         $this->assertEquals($expected, $sql);
     }
 
@@ -353,7 +353,7 @@ final class FunctionNodeTest extends IntegrationTestCase
 
         $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
 
-        $expected = "AVG((clusters->>'scores')::numeric) >= 85";
+        $expected = "(SELECT AVG((value->>'$')::numeric) FROM json_array_elements(clusters->'scores') AS value) >= 85";
         $this->assertEquals($expected, $sql);
     }
 
@@ -363,7 +363,7 @@ final class FunctionNodeTest extends IntegrationTestCase
 
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "MIN(CAST(json_extract(clusters, '$.scores') AS NUMERIC)) < 75";
+        $expected = "(SELECT MIN(json_extract(value, '$')) FROM json_each(clusters, '$.scores')) < 75";
         $this->assertEquals($expected, $sql);
     }
 
@@ -373,7 +373,7 @@ final class FunctionNodeTest extends IntegrationTestCase
 
         $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "MAX(CAST(json_extract(clusters, '$.scores') AS NUMERIC)) > 95";
+        $expected = "(SELECT MAX(json_extract(value, '$')) FROM json_each(clusters, '$.scores')) > 95";
         $this->assertEquals($expected, $sql);
     }
 

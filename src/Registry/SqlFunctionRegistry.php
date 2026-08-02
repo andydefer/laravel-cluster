@@ -7,6 +7,7 @@ namespace AndyDefer\LaravelCluster\Registry;
 use AndyDefer\LaravelCluster\Contracts\SqlFunctionInterface;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 use AndyDefer\LaravelCluster\SqlFunctions\AvgFunction;
+use AndyDefer\LaravelCluster\SqlFunctions\ContainsFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\CountFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\JsonLengthFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\LengthFunction;
@@ -18,7 +19,7 @@ use AndyDefer\LaravelCluster\SqlFunctions\SumFunction;
 /**
  * Registry for SQL functions used in database queries.
  *
- * This registry manages SQL functions (COUNT, SUM, AVG, MIN, MAX, LENGTH, JSON_LENGTH, REGEXP)
+ * This registry manages SQL functions (COUNT, SUM, AVG, MIN, MAX, LENGTH, JSON_LENGTH, REGEXP, CONTAINS)
  * that can be used in SQL queries across different database drivers.
  * Each function provides driver-specific SQL generation.
  *
@@ -29,6 +30,8 @@ use AndyDefer\LaravelCluster\SqlFunctions\SumFunction;
  * // 'JSON_LENGTH(clusters, '$.addresses')'
  * @example
  * $result = $registry->execute('COUNT', ['a', 'b', 'c']); // 3
+ * @example
+ * $result = $registry->execute('CONTAINS', ['fr', 'en'], ['fr']); // true
  */
 final class SqlFunctionRegistry
 {
@@ -81,9 +84,10 @@ final class SqlFunctionRegistry
      * @param  string  $column  The database column containing JSON data
      * @param  string  $path  The JSON path within the column
      * @param  DatabaseDriver  $driver  The database driver to use
+     * @param  array  $args  Additional arguments for the function
      * @return string|null The SQL expression, or null if the function is not registered
      */
-    public function toSql(string $name, string $column, string $path, DatabaseDriver $driver): ?string
+    public function toSql(string $name, string $column, string $path, DatabaseDriver $driver, array $args = []): ?string
     {
         $function = $this->get($name);
 
@@ -91,7 +95,7 @@ final class SqlFunctionRegistry
             return null;
         }
 
-        return $function->toSql($column, $path, $driver);
+        return $function->toSql($column, $path, $driver, $args);
     }
 
     /**
@@ -99,9 +103,10 @@ final class SqlFunctionRegistry
      *
      * @param  string  $name  The function name
      * @param  mixed  $value  The value to process
+     * @param  array  $args  Additional arguments for the function
      * @return mixed The result of the function, or the original value if not registered
      */
-    public function execute(string $name, mixed $value): mixed
+    public function execute(string $name, mixed $value, array $args = []): mixed
     {
         $function = $this->get($name);
 
@@ -109,7 +114,7 @@ final class SqlFunctionRegistry
             return $value;
         }
 
-        return $function->execute($value);
+        return $function->execute($value, $args);
     }
 
     /**
@@ -145,6 +150,40 @@ final class SqlFunctionRegistry
         }
 
         return $function->validateArgs($args);
+    }
+
+    /**
+     * Returns the minimum number of arguments required for a function.
+     *
+     * @param  string  $name  The function name
+     * @return int|null The minimum number of arguments, or null if not found
+     */
+    public function getMinArgs(string $name): ?int
+    {
+        $function = $this->get($name);
+
+        if ($function === null) {
+            return null;
+        }
+
+        return $function->getMinArgs();
+    }
+
+    /**
+     * Returns the maximum number of arguments allowed for a function.
+     *
+     * @param  string  $name  The function name
+     * @return int|null The maximum number of arguments, or null if not found
+     */
+    public function getMaxArgs(string $name): ?int
+    {
+        $function = $this->get($name);
+
+        if ($function === null) {
+            return null;
+        }
+
+        return $function->getMaxArgs();
     }
 
     /**
@@ -197,5 +236,6 @@ final class SqlFunctionRegistry
         $this->register(new LengthFunction);
         $this->register(new JsonLengthFunction);
         $this->register(new RegexpFunction);
+        $this->register(new ContainsFunction);
     }
 }

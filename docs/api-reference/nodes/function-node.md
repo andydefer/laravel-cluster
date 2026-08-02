@@ -1,63 +1,63 @@
-# FunctionNode - Technical Reference
+# FunctionNode - Référence Technique
 
 ## Description
 
-Représente un nœud de fonction SQL dans l'arbre syntaxique abstrait (AST). Il gère les fonctions d'agrégation (COUNT, SUM, AVG, MIN, MAX) et les fonctions JSON (JSON_LENGTH) appliquées aux chemins de données JSON.
+Nœud de l'AST représentant une fonction SQL appliquée à un chemin JSON. Gère les fonctions d'agrégation (COUNT, SUM, AVG, MIN, MAX) et les fonctions JSON (JSON_LENGTH, CONTAINS).
 
-## Hiérarchie
+## Hiérarchie / Implémentations
 
 ```
-Node
-    └── FunctionNode
+Node (classe abstraite)
+    └── FunctionNode (classe finale)
 ```
 
 ## Rôle principal
 
-Évalue les fonctions SQL sur un cluster et génère le SQL correspondant pour différents drivers. Il supporte :
+Le `FunctionNode` est le composant qui exécute et génère le SQL pour les fonctions SQL dans Laravel Cluster. Il :
 
-- **Fonctions d'agrégation** : `COUNT`, `SUM`, `AVG`, `MIN`, `MAX`
-- **Fonctions JSON** : `JSON_LENGTH`
-- **Fonctions de chaîne** : `LENGTH`
-- **Évaluation en mémoire** : Sur les données du cluster
-- **Génération SQL** : Adaptée à chaque driver
+- **Évalue** les fonctions en mémoire sur des données `ClusterVO`
+- **Génère** le SQL adapté à chaque driver (SQLite, MySQL, PostgreSQL)
+- **Applique** les fonctions aux requêtes Eloquent
+- **Gère** les différents types de fonctions (agrégation, JSON, booléennes)
 
----
+## API / Méthodes publiques
 
-## API
-
-### `__construct(string $functionName, string $path, ComparisonOperator $operator, ?string $value = null)`
+### `__construct(string $functionName, string $path, ComparisonOperator $operator, ?string $value = null, array $args = [])`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$functionName` | `string` | Le nom de la fonction (COUNT, SUM, AVG, etc.) |
-| `$path` | `string` | Le chemin JSON |
-| `$operator` | `ComparisonOperator` | L'opérateur de comparaison |
-| `$value` | `string|null` | La valeur de comparaison |
+| `$functionName` | `string` | Nom de la fonction (COUNT, SUM, AVG, MIN, MAX, LENGTH, JSON_LENGTH, CONTAINS) |
+| `$path` | `string` | Chemin JSON (ex: 'addresses', 'profile.languages') |
+| `$operator` | `ComparisonOperator` | Opérateur de comparaison |
+| `$value` | `string|null` | Valeur de comparaison (ex: '2', 'true') |
+| `$args` | `array` | Arguments supplémentaires (ex: ['languages', 'fr'] pour CONTAINS) |
 
 **Exemple :**
 ```php
+use AndyDefer\LaravelCluster\Nodes\FunctionNode;
+use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
+
+// COUNT avec opérateur >
 $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
-$node = new FunctionNode('AVG', 'scores', ComparisonOperator::GREATER_THAN_OR_EQUAL, '85');
-$node = new FunctionNode('LENGTH', 'name', ComparisonOperator::EQUAL, '5');
-$node = new FunctionNode('JSON_LENGTH', 'addresses', ComparisonOperator::GREATER_THAN, '2');
+
+// CONTAINS avec opérateur =
+$node = new FunctionNode('CONTAINS', 'languages', ComparisonOperator::EQUAL, 'true', ['languages', 'fr']);
 ```
 
 ---
 
 ### `evaluate(ClusterVO $cluster): bool`
 
-Évalue la fonction contre un cluster.
-
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$cluster` | `ClusterVO` | Le cluster à évaluer |
+| `$cluster` | `ClusterVO` | Les données du cluster à évaluer |
 
 **Retourne :** `bool` - `true` si la condition est satisfaite
 
 **Exemple :**
 ```php
-$cluster = new ClusterVO(['addresses' => ['a', 'b', 'c']]);
 $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
+$cluster = new ClusterVO(['addresses' => ['a', 'b', 'c']]);
 $result = $node->evaluate($cluster); // true
 ```
 
@@ -65,200 +65,163 @@ $result = $node->evaluate($cluster); // true
 
 ### `toSql(string $column, DatabaseDriver $driver = DatabaseDriver::MYSQL): string`
 
-Génère l'expression SQL pour la fonction.
-
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$column` | `string` | La colonne JSON en base de données |
+| `$column` | `string` | La colonne JSON contenant les données |
 | `$driver` | `DatabaseDriver` | Le driver de base de données |
 
 **Retourne :** `string` - L'expression SQL
 
+**Exceptions :** `InvalidArgumentException` - Si l'opérateur n'est pas supporté
+
 **Exemple :**
 ```php
 $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
+
+// MySQL
+$sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
+// "JSON_LENGTH(clusters, '$.addresses') > 2"
+
+// SQLite
 $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-// json_array_length(clusters, '$.addresses') > 2
+// "json_array_length(clusters, '$.addresses') > 2"
+
+// PostgreSQL
+$sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
+// "jsonb_array_length(clusters->'addresses') > 2"
 ```
 
 ---
 
 ### `toEloquent(Builder $query, string $column, DatabaseDriver $driver): void`
 
-Applique la fonction à un builder Eloquent.
-
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$query` | `Builder` | Le builder Eloquent |
-| `$column` | `string` | La colonne JSON |
+| `$query` | `Builder` | Le query builder Eloquent |
+| `$column` | `string` | La colonne JSON contenant les données |
 | `$driver` | `DatabaseDriver` | Le driver de base de données |
 
 **Exemple :**
 ```php
+use App\Models\User;
+
 $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
 $query = User::query();
-$node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+$node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 $users = $query->get();
+// SELECT * FROM users WHERE JSON_LENGTH(clusters, '$.addresses') > 2
 ```
 
 ---
 
 ### `getChildren(): array`
 
-Retourne les nœuds enfants (vide pour les feuilles).
+**Retourne :** `array` - Tableau vide (nœud feuille)
 
-**Retourne :** `array` - Un tableau vide
-
----
-
-## Fonctions supportées
-
-| Fonction | Description | Type de retour | SQL généré |
-|----------|-------------|----------------|------------|
-| `COUNT` | Nombre d'éléments | `int` | `json_array_length` (SQLite), `JSON_LENGTH` (MySQL), `jsonb_array_length` (PostgreSQL) |
-| `SUM` | Somme des valeurs | `float` | `CAST(... AS NUMERIC)` (SQLite), `CAST(... AS DECIMAL)` (MySQL), `::numeric` (PostgreSQL) |
-| `AVG` | Moyenne des valeurs | `float` | `AVG(CAST(... AS NUMERIC))` |
-| `MIN` | Valeur minimale | `float` | `MIN(CAST(... AS NUMERIC))` |
-| `MAX` | Valeur maximale | `float` | `MAX(CAST(... AS NUMERIC))` |
-| `LENGTH` | Longueur d'une chaîne | `int` | `LENGTH(json_extract(...))` |
-| `JSON_LENGTH` | Longueur d'un tableau JSON | `int` | `json_array_length` (SQLite), `JSON_LENGTH` (MySQL), `jsonb_array_length` (PostgreSQL) |
-
----
+**Exemple :**
+```php
+$node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
+$children = $node->getChildren(); // []
+```
 
 ## Cas d'utilisation
 
-### Cas 1 : COUNT avec comparaison
-
+### Cas 1 : Fonction COUNT avec Eloquent
 ```php
-<?php
-
 use AndyDefer\LaravelCluster\Nodes\FunctionNode;
 use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
+use App\Models\User;
 
-// Plus de 2 adresses
 $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
-
-// Évaluation
-$cluster = new ClusterVO(['addresses' => ['a', 'b', 'c']]);
-$result = $node->evaluate($cluster); // true
-
-// SQL SQLite
-$sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-// json_array_length(clusters, '$.addresses') > 2
+$query = User::query();
+$node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+$users = $query->get();
+// Utilisateurs avec plus de 2 adresses
 ```
 
-### Cas 2 : AVG avec comparaison
+### Cas 2 : Fonction CONTAINS avec ClusterVO
+```php
+use AndyDefer\LaravelCluster\Nodes\FunctionNode;
+use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
+$node = new FunctionNode('CONTAINS', 'languages', ComparisonOperator::EQUAL, 'true', ['languages', 'fr']);
+$cluster = new ClusterVO(['languages' => ['fr', 'en', 'es']]);
+$result = $node->evaluate($cluster); // true
+```
+
+### Cas 3 : Fonction AVG avec SQL
 ```php
 $node = new FunctionNode('AVG', 'scores', ComparisonOperator::GREATER_THAN_OR_EQUAL, '85');
 
-$sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-// AVG(CAST(json_extract(clusters, '$.scores') AS NUMERIC)) >= 85
-
+// MySQL
 $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
-// AVG(CAST(JSON_EXTRACT(clusters, '$.scores') AS DECIMAL(10,2))) >= 85
-```
+// "AVG(CAST(JSON_EXTRACT(clusters, '$.scores') AS DECIMAL(10,2))) >= 85"
 
-### Cas 3 : LENGTH sur une chaîne
-
-```php
-$node = new FunctionNode('LENGTH', 'name', ComparisonOperator::GREATER_THAN, '5');
-
+// SQLite
 $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-// LENGTH(json_extract(clusters, '$.name')) > 5
+// "AVG(CAST(json_extract(clusters, '$.scores') AS NUMERIC)) >= 85"
 ```
 
-### Cas 4 : Sans opérateur (COUNT > 0 par défaut)
-
+### Cas 4 : Fonction SUM avec opérateur EXISTS
 ```php
-$node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '0');
-// Utilisé lorsque l'opérateur est omis dans la requête
-// "COUNT(addresses)" → COUNT > 0
+$node = new FunctionNode('SUM', 'prices', ComparisonOperator::EXISTS);
+$cluster = new ClusterVO(['prices' => [100, 200, 300]]);
+$result = $node->evaluate($cluster); // true (la somme existe)
 ```
-
-### Cas 5 : Application Eloquent
-
-```php
-$query = User::query();
-
-// Filtrage sur le nombre d'adresses
-$node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
-$node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-
-// Filtrage sur la moyenne des scores
-$node2 = new FunctionNode('AVG', 'scores', ComparisonOperator::GREATER_THAN_OR_EQUAL, '85');
-$node2->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-
-$users = $query->get();
-```
-
-### Cas 6 : JSON_LENGTH (spécifique SQLite)
-
-```php
-$node = new FunctionNode('JSON_LENGTH', 'addresses', ComparisonOperator::GREATER_THAN, '2');
-
-$sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-// json_array_length(clusters, '$.addresses') > 2
-```
-
-### Cas 7 : Combinaison avec valeurs booléennes 'yes'/'no'
-
-```php
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Nodes\GroupNode;
-use AndyDefer\LaravelCluster\Enums\LogicalOperator;
-
-// Filtrage des utilisateurs actifs avec plus de 2 adresses
-$statusNode = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
-$countNode = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
-$group = new GroupNode(LogicalOperator::AND, $statusNode, $countNode);
-
-$query = User::query();
-$group->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-$users = $query->get();
-// Utilisateurs avec status='active' ET COUNT(addresses) > 2
-
-// Filtrage avec vérification 'verified=yes'
-$verifiedNode = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
-$avgNode = new FunctionNode('AVG', 'scores', ComparisonOperator::GREATER_THAN_OR_EQUAL, '85');
-$group = new GroupNode(LogicalOperator::AND, $verifiedNode, $avgNode);
-
-$query = User::query();
-$group->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-$users = $query->get();
-// Utilisateurs avec verified='yes' ET AVG(scores) >= 85
-```
-
----
 
 ## Gestion des erreurs
 
 | Situation | Exception | Message |
 |-----------|-----------|---------|
 | Opérateur non supporté | `InvalidArgumentException` | `Unsupported operator for SQL function` |
-| Fonction inconnue | Retourne `1=0` | - |
-| SQL expression null | Retourne `1=0` | - |
+| Fonction non enregistrée | - | Retourne `'1=0'` dans `toSql()` |
+| Fonction non enregistrée | - | Retourne `false` dans `evaluate()` |
+| Chemin inexistant | - | Retourne `false` dans `evaluate()` |
 
----
+## Intégration
+
+Le `FunctionNode` interagit avec :
+
+- **`SqlFunctionRegistry`** : Pour obtenir la génération SQL et l'exécution des fonctions
+- **`ClusterVO`** : Pour l'extraction des données en mémoire
+- **`Eloquent Builder`** : Pour l'application des conditions SQL
+- **`ComparisonOperator`** : Pour évaluer les comparaisons
+
+### Cycle de vie d'un FunctionNode
+
+```
+1. Construction avec fonction, chemin, opérateur, valeur et arguments
+   ↓
+2. Évaluation en mémoire : evaluate(ClusterVO)
+   ↓
+   - Extrait la valeur du chemin
+   - Exécute la fonction via le registre
+   - Compare le résultat avec la valeur via l'opérateur
+   ↓
+3. Génération SQL : toSql(column, driver)
+   ↓
+   - Récupère l'expression SQL via le registre
+   - Applique l'opérateur et la valeur de comparaison
+   ↓
+4. Application Eloquent : toEloquent(query, column, driver)
+   ↓
+   - Ajoute la condition au query builder
+```
 
 ## Performance
 
-- **Évaluation :** O(n) où n est la taille du tableau extrait
-- **SQL :** Génération à la volée, pas de cache
-- **Eloquent :** Utilisation de `whereRaw` avec des sous-requêtes pour les fonctions d'agrégation
-
----
+- **Extraction** : O(n) où n est la profondeur du chemin
+- **Évaluation** : O(1) via le registre
+- **Génération SQL** : O(1) via le registre
 
 ## Compatibilité
 
-| Driver | COUNT | SUM/AVG/MIN/MAX | LENGTH | JSON_LENGTH |
-|--------|-------|-----------------|--------|-------------|
-| SQLite | `json_array_length` | `CAST(... AS NUMERIC)` | `LENGTH(json_extract)` | `json_array_length` |
-| MySQL | `JSON_LENGTH` | `CAST(... AS DECIMAL(10,2))` | `LENGTH(JSON_EXTRACT)` | `JSON_LENGTH` |
-| PostgreSQL | `jsonb_array_length` | `::numeric` | `LENGTH(->>)` | `jsonb_array_length` |
-
----
+| Version PHP | Support |
+|-------------|---------|
+| PHP 8.1+ | ✅ Complet |
+| PHP 8.0 | ✅ Complet |
 
 ## Exemple complet
 
@@ -268,96 +231,47 @@ $users = $query->get();
 declare(strict_types=1);
 
 use AndyDefer\LaravelCluster\Nodes\FunctionNode;
-use AndyDefer\LaravelCluster\Nodes\ConditionNode;
-use AndyDefer\LaravelCluster\Nodes\GroupNode;
 use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
-use AndyDefer\LaravelCluster\Enums\LogicalOperator;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
+use App\Models\User;
 
-// ==================== CRÉATION ====================
+// 1. Création d'un FunctionNode COUNT
+$node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
 
-$countNode = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
-$sumNode = new FunctionNode('SUM', 'prices', ComparisonOperator::GREATER_THAN, '500');
-$avgNode = new FunctionNode('AVG', 'scores', ComparisonOperator::GREATER_THAN_OR_EQUAL, '85');
-$minNode = new FunctionNode('MIN', 'scores', ComparisonOperator::LESS_THAN, '75');
-$maxNode = new FunctionNode('MAX', 'scores', ComparisonOperator::GREATER_THAN, '90');
-$lengthNode = new FunctionNode('LENGTH', 'name', ComparisonOperator::GREATER_THAN, '5');
-$jsonLengthNode = new FunctionNode('JSON_LENGTH', 'addresses', ComparisonOperator::GREATER_THAN, '2');
+// 2. Évaluation en mémoire
+$cluster = new ClusterVO(['addresses' => ['a', 'b', 'c']]);
+$result = $node->evaluate($cluster); // true
 
-// Conditions booléennes
-$verifiedNode = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
-$activeNode = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
+// 3. Génération SQL MySQL
+$sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
+// "JSON_LENGTH(clusters, '$.addresses') > 2"
 
-// ==================== ÉVALUATION ====================
+// 4. Génération SQL SQLite
+$sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+// "json_array_length(clusters, '$.addresses') > 2"
 
-$cluster = new ClusterVO([
-    'addresses' => ['a', 'b', 'c'],
-    'prices' => [100, 200, 300],
-    'scores' => [80, 90, 85],
-    'name' => 'John Doe',
-    'status' => 'active',
-    'verified' => 'yes',
-]);
-
-var_dump($countNode->evaluate($cluster)); // true (3 > 2)
-var_dump($sumNode->evaluate($cluster)); // true (600 > 500)
-var_dump($avgNode->evaluate($cluster)); // true (85 >= 85)
-var_dump($minNode->evaluate($cluster)); // false (80 < 75? non)
-var_dump($maxNode->evaluate($cluster)); // false (90 > 90? non)
-var_dump($lengthNode->evaluate($cluster)); // true (8 > 5)
-var_dump($jsonLengthNode->evaluate($cluster)); // true (3 > 2)
-
-// Groupe avec conditions booléennes
-$group = new GroupNode(LogicalOperator::AND, $activeNode, $verifiedNode, $countNode);
-var_dump($group->evaluate($cluster)); // true
-
-// ==================== GÉNÉRATION SQL ====================
-
-$column = 'clusters';
-
-echo "COUNT (SQLite):\n";
-echo $countNode->toSql($column, DatabaseDriver::SQLITE) . "\n";
-// json_array_length(clusters, '$.addresses') > 2
-
-echo "COUNT (MySQL):\n";
-echo $countNode->toSql($column, DatabaseDriver::MYSQL) . "\n";
-// JSON_LENGTH(clusters, '$.addresses') > 2
-
-echo "AVG (SQLite):\n";
-echo $avgNode->toSql($column, DatabaseDriver::SQLITE) . "\n";
-// AVG(CAST(json_extract(clusters, '$.scores') AS NUMERIC)) >= 85
-
-echo "AVG (MySQL):\n";
-echo $avgNode->toSql($column, DatabaseDriver::MYSQL) . "\n";
-// AVG(CAST(JSON_EXTRACT(clusters, '$.scores') AS DECIMAL(10,2))) >= 85
-
-echo "LENGTH (SQLite):\n";
-echo $lengthNode->toSql($column, DatabaseDriver::SQLITE) . "\n";
-// LENGTH(json_extract(clusters, '$.name')) > 5
-
-echo "Condition booléenne (SQLite):\n";
-echo $verifiedNode->toSql($column, DatabaseDriver::SQLITE) . "\n";
-// LOWER(json_extract(clusters, '$.verified')) = LOWER('yes')
-
-// ==================== APPLICATION ELOQUENT ====================
-
+// 5. Application Eloquent
 $query = User::query();
-
-// Filtrer les utilisateurs avec plus de 2 adresses, actifs et vérifiés
-$group->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-
+$node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 $users = $query->get();
-// Utilisateurs avec status='active', verified='yes' ET COUNT(addresses) > 2
-```
 
----
+// 6. FunctionNode CONTAINS
+$node = new FunctionNode('CONTAINS', 'languages', ComparisonOperator::EQUAL, 'true', ['languages', 'fr']);
+$cluster = new ClusterVO(['languages' => ['fr', 'en']]);
+$result = $node->evaluate($cluster); // true
+
+// 7. SQL pour CONTAINS
+$sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+// "EXISTS (SELECT 1 FROM json_each(clusters, '$.languages') WHERE value = 'fr')"
+```
 
 ## Voir aussi
 
-- `SqlFunctionRegistry` - Registre des fonctions SQL
-- `ComparisonOperator` - Énumération des opérateurs
-- `DatabaseDriver` - Énumération des drivers
-- `Node` - Classe parente
-- `GroupNode` - Groupe de conditions
-- `ConditionNode` - Condition simple
+- [`Node`](Node.md) - Classe de base des nœuds AST
+- [`ConditionNode`](ConditionNode.md) - Nœud de condition simple
+- [`GroupNode`](GroupNode.md) - Nœud de groupe logique (AND/OR)
+- [`SubConditionNode`](SubConditionNode.md) - Nœud de sous-condition
+- [`SqlFunctionRegistry`](../Registry/SqlFunctionRegistry.md) - Registre des fonctions SQL
+- [`ComparisonOperator`](../Enums/ComparisonOperator.md) - Opérateurs de comparaison
+- [`ClusterVO`](../ValueObjects/ClusterVO.md) - Conteneur de données

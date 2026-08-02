@@ -1,47 +1,28 @@
-# SqlFunctionRegistry - Technical Reference
+# SqlFunctionRegistry - Référence Technique
 
 ## Description
 
-Le registre des fonctions SQL gère l'ensemble des fonctions SQL disponibles pour les requêtes sur données JSON. Il assure l'enregistrement, la résolution et l'exécution des fonctions avec génération de SQL adaptée à chaque driver de base de données.
+Registre central qui gère l'ensemble des fonctions SQL disponibles pour les requêtes Cluster, avec génération de SQL adaptée à chaque driver de base de données (SQLite, MySQL, PostgreSQL).
 
-## Hiérarchie
+## Hiérarchie / Implémentations
 
 ```
-SqlFunctionRegistry
-    └── Implémente le pattern Registry
+SqlFunctionRegistry (classe finale)
 ```
 
 ## Rôle principal
 
-Centralise l'accès aux fonctions SQL (COUNT, SUM, AVG, MIN, MAX, LENGTH, JSON_LENGTH, REGEXP) et fournit une interface unifiée pour :
-- La génération de SQL spécifique à chaque driver
-- L'exécution en mémoire des fonctions
-- La validation des arguments
-- La découverte des types de retour
+Le `SqlFunctionRegistry` est le point d'entrée pour toutes les fonctions SQL dans Laravel Cluster. Il :
 
----
+- **Enregistre** les fonctions SQL (COUNT, SUM, AVG, MIN, MAX, LENGTH, JSON_LENGTH, REGEXP, CONTAINS)
+- **Génère** le SQL approprié selon le driver de base de données
+- **Exécute** les fonctions en mémoire pour l'évaluation des clusters
+- **Valide** les arguments des fonctions
+- **Fournit** les métadonnées des fonctions (types de retour, nombre d'arguments min/max)
 
-## API
-
-### `__construct()`
-
-Initialise le registre et enregistre les fonctions par défaut.
-
-**Fonctions par défaut :**
-- `CountFunction`
-- `SumFunction`
-- `AvgFunction`
-- `MinFunction`
-- `MaxFunction`
-- `LengthFunction`
-- `JsonLengthFunction`
-- `RegexpFunction`
-
----
+## API / Méthodes publiques
 
 ### `register(SqlFunctionInterface $function): self`
-
-Enregistre une fonction SQL dans le registre.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -59,8 +40,6 @@ $registry->register(new CustomFunction());
 
 ### `has(string $name): bool`
 
-Vérifie si une fonction est enregistrée.
-
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$name` | `string` | Le nom de la fonction (insensible à la casse) |
@@ -69,322 +48,308 @@ Vérifie si une fonction est enregistrée.
 
 **Exemple :**
 ```php
-$registry->has('COUNT'); // true
-$registry->has('UNKNOWN'); // false
+$registry = new SqlFunctionRegistry();
+$exists = $registry->has('COUNT'); // true
+$exists = $registry->has('UNKNOWN'); // false
 ```
 
 ---
 
 ### `get(string $name): ?SqlFunctionInterface`
 
-Récupère une fonction enregistrée.
-
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$name` | `string` | Le nom de la fonction (insensible à la casse) |
 
-**Retourne :** `SqlFunctionInterface|null` - L'instance de la fonction ou `null`
+**Retourne :** `SqlFunctionInterface|null` - L'instance de la fonction, ou `null` si non trouvée
 
 **Exemple :**
 ```php
+$registry = new SqlFunctionRegistry();
 $function = $registry->get('COUNT');
-if ($function) {
-    $sql = $function->toSql('clusters', 'addresses', DatabaseDriver::MYSQL);
-}
+// Retourne une instance de CountFunction
 ```
 
 ---
 
-### `toSql(string $name, string $column, string $path, DatabaseDriver $driver): ?string`
-
-Génère l'expression SQL pour une fonction enregistrée.
+### `toSql(string $name, string $column, string $path, DatabaseDriver $driver, array $args = []): ?string`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$name` | `string` | Le nom de la fonction |
-| `$column` | `string` | La colonne contenant les données JSON |
-| `$path` | `string` | Le chemin JSON dans la colonne |
+| `$column` | `string` | La colonne JSON contenant les données |
+| `$path` | `string` | Le chemin JSON à l'intérieur de la colonne |
 | `$driver` | `DatabaseDriver` | Le driver de base de données |
+| `$args` | `array` | Arguments supplémentaires pour la fonction |
 
 **Retourne :** `string|null` - L'expression SQL, ou `null` si la fonction n'est pas enregistrée
 
 **Exemple :**
 ```php
-$sql = $registry->toSql('COUNT', 'clusters', 'addresses', DatabaseDriver::SQLITE);
-// json_array_length(clusters, '$.addresses')
+$registry = new SqlFunctionRegistry();
 
-$sql = $registry->toSql('AVG', 'clusters', 'scores', DatabaseDriver::MYSQL);
-// AVG(CAST(JSON_EXTRACT(clusters, '$.scores') AS DECIMAL(10,2)))
+// MySQL
+$sql = $registry->toSql('COUNT', 'clusters', 'addresses', DatabaseDriver::MYSQL);
+// 'JSON_LENGTH(clusters, '$.addresses')'
 
-$sql = $registry->toSql('REGEXP', 'clusters', 'name', DatabaseDriver::MYSQL);
-// JSON_EXTRACT(clusters, '$.name')
+// SQLite
+$sql = $registry->toSql('CONTAINS', 'clusters', 'languages', DatabaseDriver::SQLITE, ['languages', 'fr']);
+// "EXISTS (SELECT 1 FROM json_each(clusters, '$.languages') WHERE value = 'fr')"
+
+// PostgreSQL
+$sql = $registry->toSql('SUM', 'clusters', 'prices', DatabaseDriver::PGSQL);
+// '(clusters->>'prices')::numeric'
 ```
 
 ---
 
-### `execute(string $name, mixed $value): mixed`
-
-Exécute une fonction enregistrée sur une valeur (évaluation en mémoire).
+### `execute(string $name, mixed $value, array $args = []): mixed`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$name` | `string` | Le nom de la fonction |
 | `$value` | `mixed` | La valeur à traiter |
+| `$args` | `array` | Arguments supplémentaires pour la fonction |
 
 **Retourne :** `mixed` - Le résultat de la fonction, ou la valeur originale si non enregistrée
 
 **Exemple :**
 ```php
+$registry = new SqlFunctionRegistry();
+
 $result = $registry->execute('COUNT', ['a', 'b', 'c']); // 3
 $result = $registry->execute('SUM', [10, 20, 30]); // 60.0
-$result = $registry->execute('REGEXP', 'hello'); // 'hello'
-```
-
----
-
-### `getDefaultValue(string $name): mixed`
-
-Retourne la valeur par défaut pour une fonction.
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$name` | `string` | Le nom de la fonction |
-
-**Retourne :** `mixed` - La valeur par défaut, ou `null` si la fonction n'est pas trouvée
-
-**Exemple :**
-```php
-$default = $registry->getDefaultValue('COUNT'); // 0
-$default = $registry->getDefaultValue('AVG'); // 0.0
-$default = $registry->getDefaultValue('REGEXP'); // 0
+$result = $registry->execute('CONTAINS', ['fr', 'en'], ['fr']); // true
 ```
 
 ---
 
 ### `validateArgs(string $name, array $args): bool`
 
-Valide les arguments pour une fonction enregistrée.
-
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$name` | `string` | Le nom de la fonction |
-| `$args` | `array<int, mixed>` | Les arguments à valider |
+| `$args` | `array` | Les arguments à valider |
 
 **Retourne :** `bool` - `true` si les arguments sont valides
 
 **Exemple :**
 ```php
+$registry = new SqlFunctionRegistry();
+
 $valid = $registry->validateArgs('COUNT', ['addresses']); // true
-$valid = $registry->validateArgs('COUNT', ['addresses', 'city']); // false
-$valid = $registry->validateArgs('REGEXP', ['name', '^John.*']); // true
+$valid = $registry->validateArgs('COUNT', []); // false
+$valid = $registry->validateArgs('CONTAINS', ['languages', 'fr']); // true
+$valid = $registry->validateArgs('CONTAINS', ['languages']); // false
+```
+
+---
+
+### `getMinArgs(string $name): ?int`
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$name` | `string` | Le nom de la fonction |
+
+**Retourne :** `int|null` - Le nombre minimum d'arguments, ou `null` si non trouvée
+
+**Exemple :**
+```php
+$registry = new SqlFunctionRegistry();
+
+$min = $registry->getMinArgs('COUNT'); // 1
+$min = $registry->getMinArgs('CONTAINS'); // 2
+```
+
+---
+
+### `getMaxArgs(string $name): ?int`
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$name` | `string` | Le nom de la fonction |
+
+**Retourne :** `int|null` - Le nombre maximum d'arguments, ou `null` si non trouvée
+
+**Exemple :**
+```php
+$registry = new SqlFunctionRegistry();
+
+$max = $registry->getMaxArgs('COUNT'); // PHP_INT_MAX
+$max = $registry->getMaxArgs('CONTAINS'); // 2
+```
+
+---
+
+### `getReturnType(string $name): ?string`
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$name` | `string` | Le nom de la fonction |
+
+**Retourne :** `string|null` - Le type de retour (`'int'`, `'float'`, `'string'`, `'bool'`), ou `null` si non trouvée
+
+**Exemple :**
+```php
+$registry = new SqlFunctionRegistry();
+
+$type = $registry->getReturnType('COUNT'); // 'int'
+$type = $registry->getReturnType('SUM'); // 'float'
+$type = $registry->getReturnType('CONTAINS'); // 'bool'
+```
+
+---
+
+### `getDefaultValue(string $name): mixed`
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$name` | `string` | Le nom de la fonction |
+
+**Retourne :** `mixed` - La valeur par défaut, ou `null` si non trouvée
+
+**Exemple :**
+```php
+$registry = new SqlFunctionRegistry();
+
+$default = $registry->getDefaultValue('COUNT'); // 0
+$default = $registry->getDefaultValue('CONTAINS'); // false
 ```
 
 ---
 
 ### `all(): array`
 
-Retourne toutes les fonctions enregistrées.
-
-**Retourne :** `array<string, SqlFunctionInterface>` - Tableau des fonctions indexées par nom
-
----
-
-### `getReturnType(string $name): ?string`
-
-Retourne le type de retour pour une fonction enregistrée.
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$name` | `string` | Le nom de la fonction |
-
-**Retourne :** `string|null` - Le type de retour (`'int'`, `'float'`, `'string'`, `'bool'`) ou `null`
+**Retourne :** `array<string, SqlFunctionInterface>` - Toutes les fonctions enregistrées
 
 **Exemple :**
 ```php
-$type = $registry->getReturnType('COUNT'); // 'int'
-$type = $registry->getReturnType('AVG'); // 'float'
-$type = $registry->getReturnType('REGEXP'); // 'int'
+$registry = new SqlFunctionRegistry();
+$functions = $registry->all();
+// ['COUNT' => CountFunction, 'SUM' => SumFunction, ...]
 ```
 
 ---
 
 ### `getNames(): array`
 
-Retourne les noms de toutes les fonctions enregistrées.
+**Retourne :** `array<string>` - Les noms de toutes les fonctions enregistrées
 
-**Retourne :** `array<string>` - Tableau des noms de fonctions
-
----
+**Exemple :**
+```php
+$registry = new SqlFunctionRegistry();
+$names = $registry->getNames();
+// ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'LENGTH', 'JSON_LENGTH', 'REGEXP', 'CONTAINS']
+```
 
 ## Cas d'utilisation
 
-### Cas 1 : Génération de SQL pour différents drivers
-
+### Cas 1 : Utiliser une fonction dans une requête Cluster
 ```php
-<?php
+use AndyDefer\LaravelCluster\ClusterQuery;
+use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
 
-declare(strict_types=1);
+$engine = new ClusterQuery();
+$collection = new ClusterVOCollection();
+// ... ajout de clusters ...
 
+// La fonction CONTAINS est automatiquement reconnue
+$result = $engine->filter($collection, 'CONTAINS(languages, fr)');
+```
+
+### Cas 2 : Générer du SQL pour différents drivers
+```php
 use AndyDefer\LaravelCluster\Registry\SqlFunctionRegistry;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 
 $registry = new SqlFunctionRegistry();
 
-// SQLite
-$sql = $registry->toSql('COUNT', 'clusters', 'addresses', DatabaseDriver::SQLITE);
-// json_array_length(clusters, '$.addresses')
+// Pour MySQL
+$mysqlSql = $registry->toSql('COUNT', 'clusters', 'addresses', DatabaseDriver::MYSQL);
+// 'JSON_LENGTH(clusters, '$.addresses')'
 
-// MySQL
-$sql = $registry->toSql('AVG', 'clusters', 'scores', DatabaseDriver::MYSQL);
-// AVG(CAST(JSON_EXTRACT(clusters, '$.scores') AS DECIMAL(10,2)))
+// Pour SQLite
+$sqliteSql = $registry->toSql('COUNT', 'clusters', 'addresses', DatabaseDriver::SQLITE);
+// 'json_array_length(clusters, '$.addresses')'
 
-// PostgreSQL
-$sql = $registry->toSql('SUM', 'clusters', 'prices', DatabaseDriver::PGSQL);
-// (clusters->>'prices')::numeric
-
-// REGEXP MySQL
-$sql = $registry->toSql('REGEXP', 'clusters', 'name', DatabaseDriver::MYSQL);
-// JSON_EXTRACT(clusters, '$.name')
+// Pour PostgreSQL
+$pgsqlSql = $registry->toSql('COUNT', 'clusters', 'addresses', DatabaseDriver::PGSQL);
+// 'jsonb_array_length(clusters->'addresses')'
 ```
 
-### Cas 2 : Évaluation en mémoire
-
+### Cas 3 : Ajouter une fonction personnalisée
 ```php
-// Évaluation directe sur une valeur
-$count = $registry->execute('COUNT', ['a', 'b', 'c']); // 3
-$sum = $registry->execute('SUM', [10, 20, 30]); // 60.0
-$avg = $registry->execute('AVG', [80, 90, 100]); // 90.0
-$regexp = $registry->execute('REGEXP', 'hello'); // 'hello'
-```
+use AndyDefer\LaravelCluster\Registry\SqlFunctionRegistry;
+use AndyDefer\LaravelCluster\SqlFunctions\AbstractSqlFunction;
 
-### Cas 3 : Enregistrement d'une fonction personnalisée
-
-```php
-use AndyDefer\LaravelCluster\Contracts\SqlFunctionInterface;
-
-final class CustomFunction extends AbstractSqlFunction
+class CustomFunction extends AbstractSqlFunction
 {
     public function getName(): string { return 'CUSTOM'; }
-    public function toSql(...): string { /* ... */ }
-    public function execute(mixed $value): mixed { /* ... */ }
+    
+    public function toSql(string $column, string $path, DatabaseDriver $driver, array $args = []): string
+    {
+        return match ($driver) {
+            DatabaseDriver::SQLITE => "CUSTOM_FN(json_extract($column, '$.$path'))",
+            DatabaseDriver::MYSQL => "CUSTOM_FN(JSON_EXTRACT($column, '$.$path'))",
+            DatabaseDriver::PGSQL => "CUSTOM_FN($column->>'$path')",
+        };
+    }
+    
+    public function execute(mixed $value, array $args = []): mixed
+    {
+        return is_string($value) ? strlen($value) : 0;
+    }
+    
     public function getReturnType(): string { return 'int'; }
-    public function validateArgs(array $args): bool { return count($args) === 1; }
 }
 
 $registry = new SqlFunctionRegistry();
 $registry->register(new CustomFunction());
+
+// La fonction est maintenant disponible
+$sql = $registry->toSql('CUSTOM', 'clusters', 'name', DatabaseDriver::MYSQL);
 ```
 
-### Cas 4 : Validation d'arguments
+## Gestion des erreurs
 
-```php
-// COUNT attend 1 argument
-$valid = $registry->validateArgs('COUNT', ['addresses']);
-// true
-
-$valid = $registry->validateArgs('COUNT', ['addresses', 'city']);
-// false
-
-// REGEXP attend 2 arguments
-$valid = $registry->validateArgs('REGEXP', ['name', '^John.*']);
-// true
-
-$valid = $registry->validateArgs('REGEXP', ['name']);
-// false
-```
-
-### Cas 5 : Utilisation de REGEXP dans une requête
-
-```php
-use App\Models\User;
-
-// Utilisateurs dont le nom commence par "John"
-$users = User::whereCluster('clusters', 'REGEXP(name, "^John.*")')->get();
-
-// Utilisateurs avec un email Gmail
-$users = User::whereCluster('clusters', 'REGEXP(email, ".*@gmail\.com$")')->get();
-
-// Combinaison avec d'autres conditions
-$users = User::whereCluster('clusters', 'REGEXP(name, "^John.*") & status=active')->get();
-```
-
-### Cas 6 : Filtrage avec valeurs booléennes 'yes'/'no'
-
-```php
-use App\Models\User;
-
-// Utilisateurs vérifiés
-$users = User::whereCluster('clusters', 'verified=yes')->get();
-
-// Utilisateurs non vérifiés
-$users = User::whereCluster('clusters', 'verified=no')->get();
-
-// Utilisateurs actifs et vérifiés
-$users = User::whereCluster('clusters', 'status=active & verified=yes')->get();
-
-// Utilisateurs avec une moyenne de scores >= 85
-$users = User::whereCluster('clusters', 'AVG(scores) >= 85 & verified=yes')->get();
-```
-
-### Cas 7 : Utilisation avec ClusterVOCollection
-
-```php
-use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
-use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
-
-$collection = new ClusterVOCollection();
-$collection->add(new ClusterVO([
-    'name' => 'John Doe',
-    'status' => 'active',
-    'verified' => 'yes',
-    'scores' => [80, 90, 85],
-]));
-$collection->add(new ClusterVO([
-    'name' => 'Jane Smith',
-    'status' => 'active',
-    'verified' => 'no',
-    'scores' => [70, 75, 80],
-]));
-$collection->add(new ClusterVO([
-    'name' => 'Bob Johnson',
-    'status' => 'inactive',
-    'verified' => 'yes',
-    'scores' => [95, 98, 92],
-]));
-
-// Filtrage avec valeurs booléennes
-$activeVerified = $collection->whereQuery('status=active & verified=yes');
-// John Doe uniquement
-
-// Filtrage avec fonction d'agrégation
-$highScores = $collection->whereAggregate('{AVG(scores) >= 85} & verified=yes');
-// John Doe, Bob Johnson
-
-// Filtrage avec NOT
-$notVerified = $collection->whereQuery('!verified');
-// Jane Smith (verified=no)
-```
-
----
+| Situation | Comportement |
+|-----------|--------------|
+| Fonction non enregistrée | `has()` retourne `false`, `get()` retourne `null` |
+| `toSql()` sur fonction non enregistrée | Retourne `null` |
+| `execute()` sur fonction non enregistrée | Retourne la valeur d'origine |
+| `validateArgs()` sur fonction non enregistrée | Retourne `false` |
+| Arguments invalides | `validateArgs()` retourne `false` |
 
 ## Intégration
 
-Le registre est utilisé par :
+Le `SqlFunctionRegistry` est utilisé par :
 
-- **`ClusterServiceProvider`** : Enregistrement du registre dans le conteneur Laravel
-- **`Parser`** : Détection des fonctions SQL dans les expressions
-- **`FunctionNode`** : Génération SQL et évaluation des fonctions
-- **`ClusterQuery`** : Application des requêtes avec fonctions SQL
+- **`Parser`** : Pour valider les fonctions et leurs arguments pendant l'analyse syntaxique
+- **`FunctionNode`** : Pour générer le SQL et exécuter les fonctions en mémoire
+- **`ClusterQuery`** : Pour le filtrage des collections
 
----
+### Cycle de vie d'une fonction
+
+```
+1. Fonction enregistrée dans le registre
+   ↓
+2. Parser détecte la fonction dans la requête
+   ↓
+3. Parser valide les arguments via validateArgs()
+   ↓
+4. FunctionNode créé avec la fonction
+   ↓
+5. Évaluation : execute() pour les clusters en mémoire
+   ↓
+6. Génération SQL : toSql() pour les requêtes base de données
+```
 
 ## Performance
 
-- **Complexité :** O(1) pour l'accès aux fonctions via tableau associatif
-- **Mémoire :** Les fonctions sont instanciées une seule fois (singleton via le conteneur Laravel)
-- **Cache :** Les résultats de `toSql()` ne sont pas mis en cache (génération à la volée)
-
----
+- **Recherche** : O(1) via tableau associatif
+- **Enregistrement** : O(1)
+- **Mémoire** : Une instance par fonction enregistrée
+- **Initialisation** : Les 9 fonctions par défaut sont enregistrées à la construction
 
 ## Compatibilité
 
@@ -392,14 +357,6 @@ Le registre est utilisé par :
 |-------------|---------|
 | PHP 8.1+ | ✅ Complet |
 | PHP 8.0 | ✅ Complet |
-
-| Version Database | Support |
-|------------------|---------|
-| SQLite 3.9+ | ✅ Complet (REGEXP nécessite l'extension) |
-| MySQL 5.7+ | ✅ Complet |
-| PostgreSQL 9.4+ | ✅ Complet |
-
----
 
 ## Exemple complet
 
@@ -411,66 +368,50 @@ declare(strict_types=1);
 use AndyDefer\LaravelCluster\Registry\SqlFunctionRegistry;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 
-// Création du registre
 $registry = new SqlFunctionRegistry();
 
-// Vérification des fonctions disponibles
-$available = $registry->getNames();
-// ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'LENGTH', 'JSON_LENGTH', 'REGEXP']
+// 1. Vérifier les fonctions disponibles
+var_dump($registry->getNames());
+// ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'LENGTH', 'JSON_LENGTH', 'REGEXP', 'CONTAINS']
 
-// Vérification d'une fonction
-if ($registry->has('COUNT')) {
-    // Génération SQL
-    $sql = $registry->toSql('COUNT', 'clusters', 'addresses', DatabaseDriver::SQLITE);
-    echo "SQL: $sql\n";
-    // SQL: json_array_length(clusters, '$.addresses')
+// 2. Vérifier les métadonnées d'une fonction
+var_dump($registry->has('COUNT')); // true
+var_dump($registry->getMinArgs('COUNT')); // 1
+var_dump($registry->getMaxArgs('COUNT')); // PHP_INT_MAX
+var_dump($registry->getReturnType('COUNT')); // 'int'
+var_dump($registry->getDefaultValue('COUNT')); // 0
 
-    // Exécution en mémoire
-    $result = $registry->execute('COUNT', ['a', 'b', 'c']);
-    echo "Result: $result\n";
-    // Result: 3
+// 3. Valider des arguments
+var_dump($registry->validateArgs('COUNT', ['addresses'])); // true
+var_dump($registry->validateArgs('COUNT', [])); // false
 
-    // Type de retour
-    $type = $registry->getReturnType('COUNT');
-    echo "Return type: $type\n";
-    // Return type: int
-}
+// 4. Générer du SQL
+$sql = $registry->toSql('COUNT', 'clusters', 'addresses', DatabaseDriver::MYSQL);
+var_dump($sql); // 'JSON_LENGTH(clusters, '$.addresses')'
 
-// Vérification de REGEXP
-if ($registry->has('REGEXP')) {
-    // Génération SQL
-    $sql = $registry->toSql('REGEXP', 'clusters', 'name', DatabaseDriver::MYSQL);
-    echo "SQL: $sql\n";
-    // SQL: JSON_EXTRACT(clusters, '$.name')
+// 5. Exécuter en mémoire
+$result = $registry->execute('COUNT', ['a', 'b', 'c']);
+var_dump($result); // 3
 
-    // Validation des arguments
-    $valid = $registry->validateArgs('REGEXP', ['name', '^John.*']);
-    var_dump($valid); // bool(true)
-}
+// 6. CONTAINS avec arguments
+$result = $registry->execute('CONTAINS', ['fr', 'en', 'es'], ['fr']);
+var_dump($result); // true
 
-// Toutes les fonctions
-$allFunctions = $registry->all();
-foreach ($allFunctions as $name => $function) {
-    echo "$name: " . get_class($function) . "\n";
-}
-
-// Validation
-$valid = $registry->validateArgs('COUNT', ['addresses']);
-var_dump($valid); // bool(true)
-
-// Valeur par défaut
-$default = $registry->getDefaultValue('COUNT');
-var_dump($default); // int(0)
-$default = $registry->getDefaultValue('REGEXP');
-var_dump($default); // int(0)
+$sql = $registry->toSql('CONTAINS', 'clusters', 'languages', DatabaseDriver::SQLITE, ['languages', 'fr']);
+var_dump($sql); // "EXISTS (SELECT 1 FROM json_each(clusters, '$.languages') WHERE value = 'fr')"
 ```
-
----
 
 ## Voir aussi
 
-- `SqlFunctionInterface` - Interface des fonctions SQL
-- `AbstractSqlFunction` - Classe abstraite de base
-- `DatabaseDriver` - Énumération des drivers supportés
-- `FunctionNode` - Nœud de fonction dans l'AST
-- `RegexpFunction` - Fonction SQL pour les expressions régulières
+- [`SqlFunctionInterface`](Contracts/SqlFunctionInterface.md) - Interface des fonctions SQL
+- [`AbstractSqlFunction`](SqlFunctions/AbstractSqlFunction.md) - Classe abstraite pour les fonctions SQL
+- [`ContainsFunction`](SqlFunctions/ContainsFunction.md) - Fonction CONTAINS
+- [`CountFunction`](SqlFunctions/CountFunction.md) - Fonction COUNT
+- [`SumFunction`](SqlFunctions/SumFunction.md) - Fonction SUM
+- [`AvgFunction`](SqlFunctions/AvgFunction.md) - Fonction AVG
+- [`MinFunction`](SqlFunctions/MinFunction.md) - Fonction MIN
+- [`MaxFunction`](SqlFunctions/MaxFunction.md) - Fonction MAX
+- [`LengthFunction`](SqlFunctions/LengthFunction.md) - Fonction LENGTH
+- [`JsonLengthFunction`](SqlFunctions/JsonLengthFunction.md) - Fonction JSON_LENGTH
+- [`RegexpFunction`](SqlFunctions/RegexpFunction.md) - Fonction REGEXP
+- [`Parser`](Parser.md) - Analyseur syntaxique utilisant le registre

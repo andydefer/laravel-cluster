@@ -8,7 +8,7 @@ Les fonctions SQL fournissent des opérations de calcul et d'analyse sur les don
 
 ```
 SqlFunctionInterface
-    └── AbstractSqlFunction
+    └── AbstractSqlFunction (classe abstraite)
             ├── AvgFunction
             ├── CountFunction
             ├── JsonLengthFunction
@@ -16,7 +16,8 @@ SqlFunctionInterface
             ├── MaxFunction
             ├── MinFunction
             ├── RegexpFunction
-            └── SumFunction
+            ├── SumFunction
+            └── ContainsFunction (implémente directement SqlFunctionInterface)
 ```
 
 ## Rôle principal
@@ -53,6 +54,14 @@ Classe abstraite fournissant les fonctionnalités communes à toutes les fonctio
 
 **Retourne :** `int` - La valeur par défaut `0`
 
+### `getMinArgs(): int`
+
+**Retourne :** `int` - Le nombre minimum d'arguments (`1` par défaut)
+
+### `getMaxArgs(): int`
+
+**Retourne :** `int` - Le nombre maximum d'arguments (`PHP_INT_MAX` par défaut)
+
 ---
 
 # AvgFunction
@@ -63,21 +72,23 @@ Calcule la moyenne des valeurs numériques dans un tableau JSON.
 
 ## API
 
-### `toSql(string $column, string $path, DatabaseDriver $driver): string`
+### `toSql(string $column, string $path, DatabaseDriver $driver, array $args = []): string`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$column` | `string` | La colonne contenant les données JSON |
 | `$path` | `string` | Le chemin JSON |
 | `$driver` | `DatabaseDriver` | Le driver de base de données |
+| `$args` | `array` | Arguments supplémentaires (non utilisés) |
 
 **Retourne :** `string` - L'expression SQL
 
-### `execute(mixed $value): float`
+### `execute(mixed $value, array $args = []): float`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$value` | `mixed` | La valeur à traiter |
+| `$args` | `array` | Arguments supplémentaires (non utilisés) |
 
 **Retourne :** `float` - La moyenne des valeurs, ou `0.0` si aucune
 
@@ -101,21 +112,23 @@ Compte les éléments d'un tableau JSON ou les caractères d'une chaîne.
 
 ## API
 
-### `toSql(string $column, string $path, DatabaseDriver $driver): string`
+### `toSql(string $column, string $path, DatabaseDriver $driver, array $args = []): string`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$column` | `string` | La colonne contenant les données JSON |
 | `$path` | `string` | Le chemin JSON |
 | `$driver` | `DatabaseDriver` | Le driver de base de données |
+| `$args` | `array` | Arguments supplémentaires (non utilisés) |
 
 **Retourne :** `string` - L'expression SQL
 
-### `execute(mixed $value): int`
+### `execute(mixed $value, array $args = []): int`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$value` | `mixed` | La valeur à traiter |
+| `$args` | `array` | Arguments supplémentaires (non utilisés) |
 
 **Retourne :** `int` - Le nombre d'éléments ou de caractères
 
@@ -140,21 +153,23 @@ Calcule la longueur d'un tableau JSON. Similaire à COUNT mais spécifique aux J
 
 ## API
 
-### `toSql(string $column, string $path, DatabaseDriver $driver): string`
+### `toSql(string $column, string $path, DatabaseDriver $driver, array $args = []): string`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$column` | `string` | La colonne contenant les données JSON |
 | `$path` | `string` | Le chemin JSON |
 | `$driver` | `DatabaseDriver` | Le driver de base de données |
+| `$args` | `array` | Arguments supplémentaires (non utilisés) |
 
 **Retourne :** `string` - L'expression SQL
 
-### `execute(mixed $value): int`
+### `execute(mixed $value, array $args = []): int`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$value` | `mixed` | La valeur à traiter |
+| `$args` | `array` | Arguments supplémentaires (non utilisés) |
 
 **Retourne :** `int` - Le nombre d'éléments
 
@@ -178,21 +193,23 @@ Calcule la longueur d'une chaîne ou le nombre d'éléments d'un tableau.
 
 ## API
 
-### `toSql(string $column, string $path, DatabaseDriver $driver): string`
+### `toSql(string $column, string $path, DatabaseDriver $driver, array $args = []): string`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$column` | `string` | La colonne contenant les données JSON |
 | `$path` | `string` | Le chemin JSON |
 | `$driver` | `DatabaseDriver` | Le driver de base de données |
+| `$args` | `array` | Arguments supplémentaires (non utilisés) |
 
 **Retourne :** `string` - L'expression SQL
 
-### `execute(mixed $value): int`
+### `execute(mixed $value, array $args = []): int`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$value` | `mixed` | La valeur à traiter |
+| `$args` | `array` | Arguments supplémentaires (non utilisés) |
 
 **Retourne :** `int` - La longueur de la chaîne ou le nombre d'éléments
 
@@ -217,21 +234,23 @@ Trouve la valeur numérique maximale dans un tableau JSON.
 
 ## API
 
-### `toSql(string $column, string $path, DatabaseDriver $driver): string`
+### `toSql(string $column, string $path, DatabaseDriver $driver, array $args = []): string`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$column` | `string` | La colonne contenant les données JSON |
 | `$path` | `string` | Le chemin JSON |
 | `$driver` | `DatabaseDriver` | Le driver de base de données |
+| `$args` | `array` | Arguments supplémentaires (non utilisés) |
 
 **Retourne :** `string` - L'expression SQL
 
-### `execute(mixed $value): mixed`
+### `execute(mixed $value, array $args = []): mixed`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$value` | `mixed` | La valeur à traiter |
+| `$args` | `array` | Arguments supplémentaires (non utilisés) |
 
 **Retourne :** `mixed` - La valeur maximale trouvée, ou `0` si aucune
 
@@ -255,21 +274,23 @@ Trouve la valeur numérique minimale dans un tableau JSON.
 
 ## API
 
-### `toSql(string $column, string $path, DatabaseDriver $driver): string`
+### `toSql(string $column, string $path, DatabaseDriver $driver, array $args = []): string`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$column` | `string` | La colonne contenant les données JSON |
 | `$path` | `string` | Le chemin JSON |
 | `$driver` | `DatabaseDriver` | Le driver de base de données |
+| `$args` | `array` | Arguments supplémentaires (non utilisés) |
 
 **Retourne :** `string` - L'expression SQL
 
-### `execute(mixed $value): mixed`
+### `execute(mixed $value, array $args = []): mixed`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$value` | `mixed` | La valeur à traiter |
+| `$args` | `array` | Arguments supplémentaires (non utilisés) |
 
 **Retourne :** `mixed` - La valeur minimale trouvée, ou `0` si aucune
 
@@ -298,21 +319,23 @@ Cette fonction fournit des capacités de correspondance regex sur différents dr
 
 ## API
 
-### `toSql(string $column, string $path, DatabaseDriver $driver): string`
+### `toSql(string $column, string $path, DatabaseDriver $driver, array $args = []): string`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$column` | `string` | La colonne contenant les données JSON |
 | `$path` | `string` | Le chemin JSON |
 | `$driver` | `DatabaseDriver` | Le driver de base de données |
+| `$args` | `array` | Arguments supplémentaires (non utilisés) |
 
 **Retourne :** `string` - L'expression SQL pour extraire la valeur
 
-### `execute(mixed $value): mixed`
+### `execute(mixed $value, array $args = []): mixed`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$value` | `mixed` | La valeur à traiter |
+| `$args` | `array` | Arguments supplémentaires (non utilisés) |
 
 **Retourne :** `mixed` - La valeur si c'est une chaîne, `0` sinon
 
@@ -349,21 +372,23 @@ Calcule la somme des valeurs numériques dans un tableau JSON.
 
 ## API
 
-### `toSql(string $column, string $path, DatabaseDriver $driver): string`
+### `toSql(string $column, string $path, DatabaseDriver $driver, array $args = []): string`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$column` | `string` | La colonne contenant les données JSON |
 | `$path` | `string` | Le chemin JSON |
 | `$driver` | `DatabaseDriver` | Le driver de base de données |
+| `$args` | `array` | Arguments supplémentaires (non utilisés) |
 
 **Retourne :** `string` - L'expression SQL
 
-### `execute(mixed $value): float`
+### `execute(mixed $value, array $args = []): float`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$value` | `mixed` | La valeur à traiter |
+| `$args` | `array` | Arguments supplémentaires (non utilisés) |
 
 **Retourne :** `float` - La somme des valeurs, ou `0.0` si aucune
 
@@ -375,6 +400,86 @@ $sum->execute([10, 20, 30]); // 60.0
 // Génération SQL PostgreSQL
 $sql = $sum->toSql('clusters', 'prices', DatabaseDriver::PGSQL);
 // (clusters->>'prices')::numeric
+```
+
+---
+
+# ContainsFunction
+
+## Description
+
+Vérifie si un tableau JSON contient une valeur spécifique. Cette fonction est spéciale car elle retourne un booléen et ne prend pas d'opérateur de comparaison standard.
+
+## API
+
+### `getName(): string`
+
+**Retourne :** `string` - Le nom de la fonction : `'CONTAINS'`
+
+### `toSql(string $column, string $path, DatabaseDriver $driver, array $args = []): string`
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$column` | `string` | La colonne contenant les données JSON |
+| `$path` | `string` | Le chemin JSON vers le tableau |
+| `$driver` | `DatabaseDriver` | Le driver de base de données |
+| `$args` | `array` | Arguments : `[path, search_value]` |
+
+**Retourne :** `string` - L'expression SQL
+
+**SQL généré :**
+| Driver | SQL |
+|--------|-----|
+| **SQLite** | `EXISTS (SELECT 1 FROM json_each(column, '$.path') WHERE value = 'search')` |
+| **MySQL** | `JSON_SEARCH(column, 'one', 'search', NULL, '$."path"') IS NOT NULL` |
+| **PostgreSQL** | `EXISTS (SELECT 1 FROM json_array_elements_text(column->'path') AS elem WHERE elem = 'search')` |
+
+### `execute(mixed $value, array $args = []): mixed`
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$value` | `mixed` | La valeur à traiter (doit être un tableau) |
+| `$args` | `array` | Arguments : `[path, search_value]` |
+
+**Retourne :** `bool` - `true` si la valeur est trouvée dans le tableau
+
+### `validateArgs(array $args): bool`
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$args` | `array<mixed>` | Les arguments à valider |
+
+**Retourne :** `bool` - `true` si exactement 2 arguments sont fournis (path + valeur)
+
+### `getMinArgs(): int`
+
+**Retourne :** `int` - `2` (exige exactement 2 arguments)
+
+### `getMaxArgs(): int`
+
+**Retourne :** `int` - `2` (exige exactement 2 arguments)
+
+**Exemple :**
+```php
+use AndyDefer\LaravelCluster\SqlFunctions\ContainsFunction;
+use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
+
+$contains = new ContainsFunction();
+
+// Évaluation en mémoire
+$result = $contains->execute(['fr', 'en', 'es'], ['languages', 'fr']); // true
+
+// Génération SQL SQLite
+$sql = $contains->toSql('clusters', 'languages', DatabaseDriver::SQLITE, ['languages', 'fr']);
+// "EXISTS (SELECT 1 FROM json_each(clusters, '$.languages') WHERE value = 'fr')"
+
+// Génération SQL MySQL
+$sql = $contains->toSql('clusters', 'languages', DatabaseDriver::MYSQL, ['languages', 'fr']);
+// "JSON_SEARCH(clusters, 'one', 'fr', NULL, '$.\"languages\"') IS NOT NULL"
+
+// Validation des arguments
+$contains->validateArgs(['languages', 'fr']); // true
+$contains->validateArgs(['fr']); // false
 ```
 
 ---
@@ -456,7 +561,67 @@ $users = User::whereCluster('clusters', 'REGEXP(name, "^[A-Za-z]+$")')->get();
 $users = User::whereCluster('clusters', 'REGEXP(name, "^John.*") & status=active')->get();
 ```
 
-### Cas 6 : Utilisation avec les valeurs booléennes 'yes'/'no'
+### Cas 6 : Utilisation de CONTAINS avec Eloquent
+
+```php
+use App\Models\User;
+
+// Utilisateurs qui parlent français
+$users = User::whereCluster('clusters', 'CONTAINS(languages, fr)')->get();
+
+// Utilisateurs qui parlent français ET anglais
+$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) & CONTAINS(languages, en)')->get();
+
+// Utilisateurs qui parlent français OU anglais
+$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) | CONTAINS(languages, en)')->get();
+
+// Utilisateurs qui parlent français ET sont actifs
+$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) & status=active')->get();
+
+// Utilisateurs qui parlent français = true
+$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) = true')->get();
+
+// Utilisateurs qui parlent français = false (ne parlent pas français)
+$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) = false')->get();
+```
+
+### Cas 7 : Utilisation de CONTAINS avec ClusterVOCollection
+
+```php
+use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
+
+$collection = new ClusterVOCollection();
+$collection->add(new ClusterVO([
+    'name' => 'John Doe',
+    'languages' => ['fr', 'en', 'es'],
+    'status' => 'active',
+]));
+$collection->add(new ClusterVO([
+    'name' => 'Jane Smith',
+    'languages' => ['en', 'de'],
+    'status' => 'active',
+]));
+$collection->add(new ClusterVO([
+    'name' => 'Bob Johnson',
+    'languages' => ['fr', 'it'],
+    'status' => 'inactive',
+]));
+
+// Filtrage avec CONTAINS
+$frenchSpeakers = $collection->whereQuery('CONTAINS(languages, fr)');
+// John Doe, Bob Johnson
+
+// Filtrage avec CONTAINS ET condition
+$activeFrenchSpeakers = $collection->whereQuery('CONTAINS(languages, fr) & status=active');
+// John Doe uniquement
+
+// Filtrage avec CONTAINS ET OR
+$frenchOrEnglish = $collection->whereQuery('CONTAINS(languages, fr) | CONTAINS(languages, en)');
+// John Doe, Jane Smith, Bob Johnson
+```
+
+### Cas 8 : Utilisation avec les valeurs booléennes 'yes'/'no'
 
 ```php
 use App\Models\User;
@@ -475,9 +640,12 @@ $users = User::whereCluster('clusters', 'AVG(scores) >= 85 & verified=yes')->get
 
 // Utilisateurs avec une moyenne de scores >= 85 et non vérifiés
 $users = User::whereCluster('clusters', 'AVG(scores) >= 85 & verified=no')->get();
+
+// Utilisateurs qui parlent français ET sont vérifiés
+$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) & verified=yes')->get();
 ```
 
-### Cas 7 : Utilisation avec ClusterVOCollection et booléens
+### Cas 9 : Utilisation avec ClusterVOCollection et booléens
 
 ```php
 use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
@@ -489,18 +657,21 @@ $collection->add(new ClusterVO([
     'status' => 'active',
     'verified' => 'yes',
     'scores' => [80, 90, 85],
+    'languages' => ['fr', 'en'],
 ]));
 $collection->add(new ClusterVO([
     'name' => 'Jane Smith',
     'status' => 'active',
     'verified' => 'no',
     'scores' => [70, 75, 80],
+    'languages' => ['en', 'de'],
 ]));
 $collection->add(new ClusterVO([
     'name' => 'Bob Johnson',
     'status' => 'inactive',
     'verified' => 'yes',
     'scores' => [95, 98, 92],
+    'languages' => ['fr', 'it'],
 ]));
 
 // Filtrage avec valeurs booléennes
@@ -509,6 +680,14 @@ $activeVerified = $collection->whereQuery('status=active & verified=yes');
 
 // Filtrage avec fonction d'agrégation
 $highScores = $collection->whereAggregate('{AVG(scores) >= 85} & verified=yes');
+// John Doe, Bob Johnson
+
+// Filtrage avec CONTAINS
+$frenchSpeakers = $collection->whereQuery('CONTAINS(languages, fr)');
+// John Doe, Bob Johnson
+
+// Filtrage avec CONTAINS ET booléen
+$frenchAndVerified = $collection->whereQuery('CONTAINS(languages, fr) & verified=yes');
 // John Doe, Bob Johnson
 
 // Filtrage avec NOT
@@ -535,6 +714,8 @@ $unverified = $collection->whereNo('verified');
 | Fonction inconnue | `InvalidArgumentException` | `Function "{name}" not registered` |
 | Driver non supporté | Retourne `1=0` (condition toujours fausse) | - |
 | Arguments invalides pour REGEXP | Retourne `false` | - |
+| CONTAINS avec moins de 2 arguments | Retourne `false` dans `execute()` | - |
+| CONTAINS avec path vide | `validateArgs()` retourne `false` | - |
 
 ---
 
@@ -551,11 +732,11 @@ Les fonctions SQL sont utilisées par :
 
 ## Drivers supportés
 
-| Driver | JSON Extraction | COUNT | SUM/AVG/MIN/MAX | LENGTH | REGEXP |
-|--------|-----------------|-------|-----------------|--------|--------|
-| **SQLite** | `json_extract()` | `json_array_length()` | `CAST(... AS NUMERIC)` | `LENGTH(json_extract())` | `REGEXP` |
-| **MySQL** | `JSON_EXTRACT()` | `JSON_LENGTH()` | `CAST(... AS DECIMAL(10,2))` | `LENGTH(JSON_EXTRACT())` | `REGEXP` |
-| **PostgreSQL** | `->>` | `jsonb_array_length()` | `::numeric` | `LENGTH(->>)` | `~` |
+| Driver | JSON Extraction | COUNT | SUM/AVG/MIN/MAX | LENGTH | REGEXP | CONTAINS |
+|--------|-----------------|-------|-----------------|--------|--------|----------|
+| **SQLite** | `json_extract()` | `json_array_length()` | `CAST(... AS NUMERIC)` | `LENGTH(json_extract())` | `REGEXP` | `json_each()` |
+| **MySQL** | `JSON_EXTRACT()` | `JSON_LENGTH()` | `CAST(... AS DECIMAL(10,2))` | `LENGTH(JSON_EXTRACT())` | `REGEXP` | `JSON_SEARCH()` |
+| **PostgreSQL** | `->>` | `jsonb_array_length()` | `::numeric` | `LENGTH(->>)` | `~` | `json_array_elements_text()` |
 
 ---
 
@@ -595,6 +776,7 @@ use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 use AndyDefer\LaravelCluster\SqlFunctions\CountFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\AvgFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\RegexpFunction;
+use AndyDefer\LaravelCluster\SqlFunctions\ContainsFunction;
 
 // Création de l'instance
 $clusterQuery = new ClusterQuery;
@@ -611,6 +793,10 @@ $sql = $avg->toSql('clusters', 'scores', DatabaseDriver::MYSQL);
 $regexp = new RegexpFunction();
 $sql = $regexp->toSql('clusters', 'name', DatabaseDriver::MYSQL);
 // JSON_EXTRACT(clusters, '$.name')
+
+$contains = new ContainsFunction();
+$sql = $contains->toSql('clusters', 'languages', DatabaseDriver::SQLITE, ['languages', 'fr']);
+// EXISTS (SELECT 1 FROM json_each(clusters, '$.languages') WHERE value = 'fr')
 
 // Application à une requête Eloquent
 $query = TestCluster::query();
@@ -647,11 +833,19 @@ $clusterQuery->applyToEloquent(
     DatabaseDriver::MYSQL
 );
 
-// Expression combinée avec valeurs booléennes
+// Filtrage avec CONTAINS
 $clusterQuery->applyToEloquent(
     $query,
     'clusters',
-    'COUNT(addresses) > 1 & AVG(scores) >= 80 & verified=yes',
+    'CONTAINS(languages, fr)',
+    DatabaseDriver::SQLITE
+);
+
+// Expression combinée avec valeurs booléennes et CONTAINS
+$clusterQuery->applyToEloquent(
+    $query,
+    'clusters',
+    'COUNT(addresses) > 1 & AVG(scores) >= 80 & verified=yes & CONTAINS(languages, fr)',
     DatabaseDriver::SQLITE
 );
 
@@ -662,8 +856,8 @@ $results = $query->get();
 
 ## Voir aussi
 
-- `SqlFunctionRegistry` - Registre des fonctions SQL
-- `FunctionNode` - Nœud de fonction dans l'AST
-- `ClusterQuery` - Service de requêtes
-- `DatabaseDriver` - Énumération des drivers supportés
-- `MatchesFunction` - Fonction d'agrégation pour les regex en mémoire
+- [`SqlFunctionRegistry`](Registry/SqlFunctionRegistry.md) - Registre des fonctions SQL
+- [`FunctionNode`](Nodes/FunctionNode.md) - Nœud de fonction dans l'AST
+- [`ClusterQuery`](ClusterQuery.md) - Service de requêtes
+- [`DatabaseDriver`](Enums/DatabaseDriver.md) - Énumération des drivers supportés
+- [`ContainsFunction`](SqlFunctions/ContainsFunction.md) - Fonction CONTAINS détaillée

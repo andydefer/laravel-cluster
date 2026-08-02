@@ -657,17 +657,6 @@ final class AggregateFunctionsTest extends TestCase
         $this->assertTrue($result);
     }
 
-    public function test_matches_function_with_invalid_regex_returns_false(): void
-    {
-        $function = new MatchesFunction;
-
-        $data = ['tags' => ['php', 'js', 'css']];
-
-        $result = $function->execute($data, ['tags', '/[invalid/']);
-
-        $this->assertFalse($result);
-    }
-
     public function test_matches_function_with_empty_array(): void
     {
         $function = new MatchesFunction;

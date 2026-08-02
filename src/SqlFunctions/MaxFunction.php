@@ -24,21 +24,21 @@ final class MaxFunction extends AbstractSqlFunction
         return 'MAX';
     }
 
-    public function toSql(string $column, string $path, DatabaseDriver $driver): string
+    public function toSql(string $column, string $path, DatabaseDriver $driver, array $args = []): string
     {
         return match ($driver) {
             DatabaseDriver::SQLITE => sprintf(
-                "MAX(CAST(json_extract(%s, '$.%s') AS NUMERIC))",
+                "(SELECT MAX(json_extract(value, '$')) FROM json_each(%s, '$.%s'))",
                 $column,
                 $path
             ),
             DatabaseDriver::MYSQL => sprintf(
-                "MAX(CAST(JSON_EXTRACT(%s, '$.%s') AS DECIMAL(10,2)))",
+                "(SELECT MAX(JSON_EXTRACT(value, '$')) FROM JSON_TABLE(%s, '$.\"%s\"[*]' COLUMNS(value JSON PATH '$')) AS jt)",
                 $column,
                 $path
             ),
             DatabaseDriver::PGSQL => sprintf(
-                "MAX((%s->>'%s')::numeric)",
+                "(SELECT MAX((value->>'$')::numeric) FROM json_array_elements(%s->'%s') AS value)",
                 $column,
                 $path
             ),
@@ -50,7 +50,7 @@ final class MaxFunction extends AbstractSqlFunction
         return 'float';
     }
 
-    public function execute(mixed $value): mixed
+    public function execute(mixed $value, array $args = []): mixed
     {
         if (! is_array($value) || empty($value)) {
             return 0;

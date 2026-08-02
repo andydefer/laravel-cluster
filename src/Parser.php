@@ -25,7 +25,7 @@ use RuntimeException;
  * representing the query structure. It handles:
  * - Logical operators (AND, OR)
  * - Comparison operators (=, !=, >, <, >=, <=, LIKE, etc.)
- * - Functions (COUNT, SUM, AVG, etc.)
+ * - Functions (COUNT, SUM, AVG, CONTAINS, etc.)
  * - Sub-conditions (addresses[city=Kinshasa])
  * - Parentheses for grouping
  * - Special operators (NOT, EXISTS (*), NOT_EXISTS (#))
@@ -37,6 +37,9 @@ use RuntimeException;
  * @example
  * $ast = $parser->parse('addresses[city=Kinshasa]');
  * // SubConditionNode with ConditionNode inside
+ * @example
+ * $ast = $parser->parse('CONTAINS(languages, fr)');
+ * // FunctionNode with CONTAINS
  */
 final class Parser implements ParserInterface
 {
@@ -210,23 +213,104 @@ final class Parser implements ParserInterface
         }
         $this->advancePosition();
 
-        $pathToken = $this->getToken($this->position);
-        if (! $pathToken || $pathToken->type !== TokenType::IDENTIFIER) {
-            throw new RuntimeException('Expected path argument for function');
-        }
-        $path = $pathToken->value;
-        $this->advancePosition();
+        // Read function arguments (separated by commas)
+        $args = [];
+        $currentArg = '';
+        $foundClosingParen = false;
+        $parenDepth = 0;
 
-        $closeParen = $this->getToken($this->position);
-        if (! $closeParen || $closeParen->type !== TokenType::PAREN || $closeParen->value !== ')') {
+        while ($this->position < $this->tokens->count() - 1) {
+            $token = $this->getToken($this->position);
+
+            // Handle nested parentheses
+            if ($token->type === TokenType::PAREN && $token->value === '(') {
+                $parenDepth++;
+                $currentArg .= $token->value;
+                $this->advancePosition();
+
+                continue;
+            }
+
+            if ($token->type === TokenType::PAREN && $token->value === ')') {
+                if ($parenDepth > 0) {
+                    $parenDepth--;
+                    $currentArg .= $token->value;
+                    $this->advancePosition();
+
+                    continue;
+                }
+
+                // Closing parenthesis for the function
+                if (! empty($currentArg)) {
+                    $args[] = trim($currentArg);
+                }
+                $foundClosingParen = true;
+                $this->advancePosition();
+                break;
+            }
+
+            // Comma separator - only at depth 0
+            if ($parenDepth === 0 && $token->type === TokenType::OPERATOR && $token->value === ',') {
+                $args[] = trim($currentArg);
+                $currentArg = '';
+                $this->advancePosition();
+
+                continue;
+            }
+
+            // For all other tokens, add to current argument
+            $currentArg .= $token->value;
+            $this->advancePosition();
+        }
+
+        if (! $foundClosingParen) {
             throw new RuntimeException('Expected closing parenthesis');
         }
-        $this->advancePosition();
+
+        // ✅ VALIDATION GÉNÉRIQUE : Vérifier le nombre minimum d'arguments
+        $minArgs = $this->functionRegistry->getMinArgs($functionName) ?? 1;
+        if (count($args) < $minArgs) {
+            throw new RuntimeException(sprintf(
+                'Function "%s" expects at least %d argument%s, %d given',
+                $functionName,
+                $minArgs,
+                $minArgs > 1 ? 's' : '',
+                count($args)
+            ));
+        }
+
+        // ✅ VALIDATION GÉNÉRIQUE : Vérifier le nombre maximum d'arguments
+        $maxArgs = $this->functionRegistry->getMaxArgs($functionName) ?? PHP_INT_MAX;
+        if (count($args) > $maxArgs) {
+            throw new RuntimeException(sprintf(
+                'Function "%s" expects at most %d argument%s, %d given',
+                $functionName,
+                $maxArgs,
+                $maxArgs > 1 ? 's' : '',
+                count($args)
+            ));
+        }
+
+        // ✅ VALIDATION GÉNÉRIQUE : Vérifier les arguments via validateArgs
+        if (! $this->functionRegistry->validateArgs($functionName, $args)) {
+            throw new RuntimeException(sprintf(
+                'Invalid arguments for function "%s"',
+                $functionName
+            ));
+        }
+
+        // Le premier argument est le path
+        $path = $args[0] ?? '';
+
+        // Pour les fonctions avec plusieurs arguments, le deuxième est la valeur de comparaison
+        $comparisonValue = null;
+        if (count($args) >= 2) {
+            $comparisonValue = $args[1];
+        }
 
         $this->advanceToNextSignificantToken();
 
         $operator = null;
-        $value = null;
 
         $nextToken = $this->getToken($this->position);
 
@@ -240,18 +324,20 @@ final class Parser implements ParserInterface
 
                 $valueToken = $this->getToken($this->position);
                 if ($valueToken && $valueToken->type === TokenType::IDENTIFIER) {
-                    $value = $valueToken->value;
+                    // Si un opérateur est présent, la valeur de comparaison est après l'opérateur
+                    $comparisonValue = $valueToken->value;
                     $this->advancePosition();
                 }
             }
         }
 
+        // Si pas d'opérateur, on utilise GREATER_THAN avec 0 comme valeur par défaut
         if ($operator === null) {
             $operator = ComparisonOperator::GREATER_THAN;
-            $value = '0';
+            $comparisonValue = '0';
         }
 
-        return new FunctionNode($functionName, $path, $operator, $value);
+        return new FunctionNode($functionName, $path, $operator, $comparisonValue, $args);
     }
 
     /**

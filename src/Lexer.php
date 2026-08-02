@@ -352,10 +352,12 @@ final class Lexer implements LexerInterface
                 continue;
             }
 
+            // ⚠️ SUPPRIMER la virgule des caractères valides pour un identifiant
             $isValidChar = ctype_alnum($char)
                 || $char === '_'
                 || $char === '-'
                 || $char === '.'
+                // || $char === ','  ← SUPPRIMÉ !
                 || ($this->isLikeValueMode && $char === '%')
                 || ($this->inSubBracket && $char === '*')
                 || ($this->inQuotes);

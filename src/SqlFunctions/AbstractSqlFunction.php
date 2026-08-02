@@ -13,13 +13,15 @@ use AndyDefer\LaravelCluster\Contracts\SqlFunctionInterface;
  * - Argument validation (single argument)
  * - Default value (0)
  * - Number extraction from nested arrays
+ * - Minimum arguments (1)
+ * - Maximum arguments (no limit)
  *
  * @example
  * final class CustomFunction extends AbstractSqlFunction
  * {
  *     public function getName(): string { return 'CUSTOM'; }
- *     public function toSql(...): string { /* ... * / }
- *     public function execute(mixed $value): mixed { /* ... * / }
+ *     public function toSql(string $column, string $path, DatabaseDriver $driver, array $args = []): string { /* ... * / }
+ *     public function execute(mixed $value, array $args = []): mixed { /* ... * / }
  *     public function getReturnType(): string { return 'int'; }
  * }
  */
@@ -65,5 +67,27 @@ abstract class AbstractSqlFunction implements SqlFunctionInterface
     public function getDefaultValue(): mixed
     {
         return 0;
+    }
+
+    /**
+     * Get the minimum number of arguments required for this function.
+     * By default, all functions require at least 1 argument.
+     *
+     * @return int The minimum number of arguments
+     */
+    public function getMinArgs(): int
+    {
+        return 1;
+    }
+
+    /**
+     * Get the maximum number of arguments allowed for this function.
+     * By default, there is no limit (PHP_INT_MAX).
+     *
+     * @return int The maximum number of arguments
+     */
+    public function getMaxArgs(): int
+    {
+        return PHP_INT_MAX;
     }
 }

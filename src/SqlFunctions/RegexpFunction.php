@@ -16,8 +16,8 @@ use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
  *
  * @example
  * $regexp = new RegexpFunction();
- * $sql = $regexp->toSql('clusters', 'name', DatabaseDriver::MYSQL);
- * // "clusters->>'name' REGEXP '^John.*'"
+ * $sql = $regexp->toSql('clusters', 'name', DatabaseDriver::MYSQL, ['name', '^John.*']);
+ * // "JSON_EXTRACT(clusters, '$.name') REGEXP '^John.*'"
  * @example
  * // In a query
  * $users = User::whereCluster('clusters', 'REGEXP(name, "^John.*")')->get();
@@ -29,9 +29,14 @@ final class RegexpFunction extends AbstractSqlFunction
         return 'REGEXP';
     }
 
-    public function toSql(string $column, string $path, DatabaseDriver $driver): string
+    public function toSql(string $column, string $path, DatabaseDriver $driver, array $args = []): string
     {
-        return match ($driver) {
+        // $args[0] = path (ex: 'name')
+        // $args[1] = pattern (ex: '^John.*')
+        $pattern = $args[1] ?? '';
+        $pattern = addslashes($pattern);
+
+        $valueExtract = match ($driver) {
             DatabaseDriver::SQLITE => sprintf(
                 "json_extract(%s, '$.%s')",
                 $column,
@@ -48,20 +53,46 @@ final class RegexpFunction extends AbstractSqlFunction
                 $path
             ),
         };
+
+        return match ($driver) {
+            DatabaseDriver::SQLITE => sprintf(
+                "%s REGEXP '%s'",
+                $valueExtract,
+                $pattern
+            ),
+            DatabaseDriver::MYSQL => sprintf(
+                "%s REGEXP '%s'",
+                $valueExtract,
+                $pattern
+            ),
+            DatabaseDriver::PGSQL => sprintf(
+                "%s ~ '%s'",
+                $valueExtract,
+                $pattern
+            ),
+        };
     }
 
     public function getReturnType(): string
     {
-        return 'int';
+        return 'bool';
     }
 
-    public function execute(mixed $value): mixed
+    public function execute(mixed $value, array $args = []): mixed
     {
-        if (! is_string($value)) {
-            return 0;
+        if (! is_string($value) || count($args) < 2) {
+            return false;
         }
 
-        return $value;
+        $pattern = $args[1] ?? '';
+        if (empty($pattern)) {
+            return false;
+        }
+
+        // Utiliser preg_match pour l'évaluation en mémoire
+        $pattern = '/'.str_replace('/', '\/', $pattern).'/';
+
+        return preg_match($pattern, $value) === 1;
     }
 
     /**
@@ -72,16 +103,34 @@ final class RegexpFunction extends AbstractSqlFunction
      */
     public function validateArgs(array $args): bool
     {
-        return count($args) === 2;
+        return count($args) === 2
+            && is_string($args[0]) && ! empty($args[0])
+            && is_string($args[1]) && ! empty($args[1]);
     }
 
     /**
      * Returns the default value when the function cannot be executed.
      *
-     * @return int Default fallback value
+     * @return bool Default fallback value
      */
     public function getDefaultValue(): mixed
     {
-        return 0;
+        return false;
+    }
+
+    /**
+     * Get the minimum number of arguments required for this function.
+     */
+    public function getMinArgs(): int
+    {
+        return 2;
+    }
+
+    /**
+     * Get the maximum number of arguments allowed for this function.
+     */
+    public function getMaxArgs(): int
+    {
+        return 2;
     }
 }

@@ -1,10 +1,10 @@
-# Lexer - Technical Reference
+# Lexer - Référence Technique
 
 ## Description
 
-Le lexer transforme une chaîne de requête brute en un flux de tokens utilisable par le parseur. Il gère les identifiants, les opérateurs, les parenthèses, les crochets, les chaînes entre guillemets et les motifs LIKE.
+Analyseur lexical qui transforme une chaîne de requête textuelle en un flux de tokens compréhensibles par le `Parser`.
 
-## Hiérarchie
+## Hiérarchie / Implémentations
 
 ```
 LexerInterface
@@ -13,28 +13,26 @@ LexerInterface
 
 ## Rôle principal
 
-Analyse une chaîne de requête et la découpe en tokens selon une grammaire définie. Il identifie :
+Le `Lexer` est la première étape du traitement des requêtes dans Laravel Cluster. Il prend une chaîne brute (ex: `"status=active & COUNT(addresses) > 2"`) et la découpe en une collection de tokens (`TokenRecordCollection`) que le `Parser` pourra ensuite organiser en Arbre Syntaxique Abstrait (AST).
 
-- **Identifiants** : Noms de clés, chemins, noms de fonctions
-- **Opérateurs** : Comparaison (=, !=, >, <, >=, <=, etc.) et logiques (AND, OR, NOT)
-- **Parenthèses** : `(` et `)` pour le regroupement
-- **Crochets** : `[` et `]` pour les sous-conditions
-- **Chaînes entre guillemets** : Simples, doubles ou backticks
-- **Motifs LIKE** : Avec `%` comme caractère générique
+### Fonctionnalités clés
 
----
+- **Identifiants** : Noms de champs, chemins (ex: `status`, `addresses`, `profile.languages`)
+- **Opérateurs** : Comparaison (`=`, `!=`, `>`, `<`, `>=`, `<=`, `===`, `!==`, `<=>`), logiques (`&`, `|`), existence (`*`, `#`), LIKE (`=~`, `!~`)
+- **Parenthèses** : `(`, `)` pour le regroupement
+- **Crochets** : `[`, `]` pour les sous-conditions
+- **Chaînes entre guillemets** : Simples (`'`), doubles (`"`), backticks (`` ` ``)
+- **Motifs LIKE** : Gestion du caractère `%` pour les recherches partielles
 
-## API
+## API / Méthodes publiques
 
 ### `tokenize(string $input): TokenRecordCollection`
 
-Tokenize la chaîne d'entrée en une collection de tokens.
-
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$input` | `string` | La requête à tokenizer |
+| `$input` | `string` | La requête textuelle à tokeniser |
 
-**Retourne :** `TokenRecordCollection` - La collection de tokens
+**Retourne :** `TokenRecordCollection` - Collection de tokens représentant la requête
 
 **Exceptions :** `InvalidArgumentException` - Si un caractère invalide est rencontré
 
@@ -42,174 +40,102 @@ Tokenize la chaîne d'entrée en une collection de tokens.
 ```php
 $lexer = new Lexer();
 $tokens = $lexer->tokenize('status=active & COUNT(addresses) > 2');
-// Tokens:
-// IDENTIFIER:status, OPERATOR:=, IDENTIFIER:active, OPERATOR:&, 
-// IDENTIFIER:COUNT, PAREN:(, IDENTIFIER:addresses, PAREN:), 
-// OPERATOR:>, IDENTIFIER:2, END
+// TokenRecordCollection contenant :
+// [IDENTIFIER:status, OPERATOR:=, IDENTIFIER:active, OPERATOR:&, IDENTIFIER:COUNT, PAREN:(, IDENTIFIER:addresses, PAREN:), OPERATOR:>, IDENTIFIER:2]
 ```
-
----
-
-## Tokens générés
-
-### Types de tokens
-
-| Type | Description | Exemples |
-|------|-------------|----------|
-| `IDENTIFIER` | Identifiants, valeurs, chemins | `status`, `active`, `addresses`, `city` |
-| `OPERATOR` | Opérateurs de comparaison ou logiques | `=`, `!=`, `>`, `>=`, `AND`, `OR`, `NOT` |
-| `PAREN` | Parenthèses | `(`, `)` |
-| `SUB_OPEN` | Crochet ouvrant de sous-condition | `[` |
-| `SUB_CLOSE` | Crochet fermant de sous-condition | `]` |
-| `END` | Fin de l'entrée | - |
-
----
 
 ## Cas d'utilisation
 
-### Cas 1 : Requête simple
-
+### Cas 1 : Condition simple
 ```php
-<?php
-
-use AndyDefer\LaravelCluster\Lexer;
-
 $lexer = new Lexer();
 $tokens = $lexer->tokenize('status=active');
-
-foreach ($tokens as $token) {
-    echo $token->type . ': ' . $token->value . "\n";
-}
-// IDENTIFIER: status
-// OPERATOR: =
-// IDENTIFIER: active
-// END:
+// [IDENTIFIER:status, OPERATOR:=, IDENTIFIER:active]
 ```
 
-### Cas 2 : Requête avec parenthèses
-
+### Cas 2 : Condition avec espaces
 ```php
-$tokens = $lexer->tokenize('(status=active & role=admin) | lang_fr');
-
-// Tokens:
-// PAREN: (
-// IDENTIFIER: status
-// OPERATOR: =
-// IDENTIFIER: active
-// OPERATOR: &
-// IDENTIFIER: role
-// OPERATOR: =
-// IDENTIFIER: admin
-// PAREN: )
-// OPERATOR: |
-// IDENTIFIER: lang_fr
-// END
+$lexer = new Lexer();
+$tokens = $lexer->tokenize('status = active');
+// [IDENTIFIER:status, OPERATOR:=, IDENTIFIER:active]
+// Les espaces sont ignorés
 ```
 
-### Cas 3 : Requête avec sous-condition
-
+### Cas 3 : Fonction SQL
 ```php
-$tokens = $lexer->tokenize('addresses[city=Kinshasa]');
-
-// Tokens:
-// IDENTIFIER: addresses
-// SUB_OPEN: [
-// IDENTIFIER: city
-// OPERATOR: =
-// IDENTIFIER: Kinshasa
-// SUB_CLOSE: ]
-// END
-```
-
-### Cas 4 : Requête avec fonction SQL
-
-```php
+$lexer = new Lexer();
 $tokens = $lexer->tokenize('COUNT(addresses) > 2');
-
-// Tokens:
-// IDENTIFIER: COUNT
-// PAREN: (
-// IDENTIFIER: addresses
-// PAREN: )
-// OPERATOR: >
-// IDENTIFIER: 2
-// END
+// [IDENTIFIER:COUNT, PAREN:(, IDENTIFIER:addresses, PAREN:), OPERATOR:>, IDENTIFIER:2]
 ```
 
-### Cas 5 : Requête avec LIKE
-
+### Cas 4 : CONTAINS avec virgule
 ```php
-$tokens = $lexer->tokenize('name=~%john%');
-
-// Tokens:
-// IDENTIFIER: name
-// OPERATOR: =~
-// IDENTIFIER: %john%
-// END
+$lexer = new Lexer();
+$tokens = $lexer->tokenize('CONTAINS(languages, fr)');
+// [IDENTIFIER:CONTAINS, PAREN:(, IDENTIFIER:languages, OPERATOR:,, IDENTIFIER:fr, PAREN:)]
+// La virgule est un token OPERATOR séparé
 ```
 
-### Cas 6 : Requête avec guillemets
-
+### Cas 5 : Sous-condition
 ```php
+$lexer = new Lexer();
+$tokens = $lexer->tokenize('addresses[city=Kinshasa]');
+// [IDENTIFIER:addresses, SUB_OPEN:[, IDENTIFIER:city, OPERATOR:=, IDENTIFIER:Kinshasa, SUB_CLOSE:]]
+```
+
+### Cas 6 : Chaîne entre guillemets
+```php
+$lexer = new Lexer();
 $tokens = $lexer->tokenize('addresses[city="Kinshasa"]');
-
-// Tokens:
-// IDENTIFIER: addresses
-// SUB_OPEN: [
-// IDENTIFIER: city
-// OPERATOR: =
-// IDENTIFIER: Kinshasa
-// SUB_CLOSE: ]
-// END
+// [IDENTIFIER:addresses, SUB_OPEN:[, IDENTIFIER:city, OPERATOR:=, IDENTIFIER:Kinshasa, SUB_CLOSE:]]
+// Les guillemets sont traités mais ne font pas partie de la valeur
 ```
 
-### Cas 7 : Opérateurs spéciaux
-
+### Cas 7 : Motif LIKE
 ```php
-// EXISTS (*)
-$tokens = $lexer->tokenize('*name');
-// OPERATOR: *, IDENTIFIER: name, END
-
-// NOT_EXISTS (#)
-$tokens = $lexer->tokenize('#profile');
-// OPERATOR: #, IDENTIFIER: profile, END
-
-// NOT
-$tokens = $lexer->tokenize('!lang_fr');
-// OPERATOR: NOT, IDENTIFIER: lang_fr, END
+$lexer = new Lexer();
+$tokens = $lexer->tokenize('name=~%john%');
+// Le mode LIKE est activé, le % est autorisé
+// [IDENTIFIER:name, OPERATOR:=~, IDENTIFIER:%john%]
 ```
-
----
-
-## États internes
-
-Le lexer maintient plusieurs états pendant le tokenization :
-
-| État | Description |
-|------|-------------|
-| `isLikeValueMode` | Actif après un opérateur LIKE (`=~` ou `!~`), permet les `%` dans les identifiants |
-| `inSubBracket` | Actif à l'intérieur des crochets `[...]` |
-| `inQuotes` | Actif à l'intérieur des guillemets `"..."`, `'...'` ou `` `...` `` |
-| `quoteChar` | Le caractère de guillemet utilisé (", ' ou `) |
-
----
 
 ## Gestion des erreurs
 
 | Situation | Exception | Message |
 |-----------|-----------|---------|
-| Caractère invalide | `InvalidArgumentException` | `Invalid character "{char}" at position {pos}` |
-| Guillemet non fermé | Token fermé automatiquement à la fin | - |
+| Caractère invalide | `InvalidArgumentException` | `Invalid character "X" at position N` |
+| Chaîne non fermée | `InvalidArgumentException` | `Invalid character "X" at position N` (levée via le caractère suivant) |
 
----
+## Intégration
+
+Le `Lexer` est la première étape du pipeline de traitement des requêtes :
+
+```
+Requête textuelle
+    ↓
+Lexer::tokenize() → TokenRecordCollection
+    ↓
+Parser::parse() → AST (Node)
+    ↓
+Évaluation ou génération SQL
+```
+
+### Types de tokens produits
+
+| TokenType | Description | Exemple |
+|-----------|-------------|---------|
+| `IDENTIFIER` | Identifiant (champ, chemin, valeur) | `status`, `addresses`, `active` |
+| `OPERATOR` | Opérateur | `=`, `&`, `|`, `,` |
+| `PAREN` | Parenthèse | `(`, `)` |
+| `SUB_OPEN` | Crochet ouvrant | `[` |
+| `SUB_CLOSE` | Crochet fermant | `]` |
+| `END` | Fin de la chaîne | `''` |
 
 ## Performance
 
-- **Complexité :** O(n) où n est la longueur de la chaîne d'entrée
-- **Mémoire :** Stocke tous les tokens en mémoire
-- **Optimisation :** Utilise des tableaux pour les opérateurs triés par longueur décroissante
-
----
+- **Complexité** : O(n) où n est la longueur de la chaîne
+- **Mémoire** : La collection de tokens est créée en mémoire
+- **Optimisation** : La virgule est traitée comme un opérateur séparé, ce qui permet de parser correctement les fonctions avec plusieurs arguments
 
 ## Compatibilité
 
@@ -217,8 +143,6 @@ Le lexer maintient plusieurs états pendant le tokenization :
 |-------------|---------|
 | PHP 8.1+ | ✅ Complet |
 | PHP 8.0 | ✅ Complet |
-
----
 
 ## Exemple complet
 
@@ -228,59 +152,53 @@ Le lexer maintient plusieurs états pendant le tokenization :
 declare(strict_types=1);
 
 use AndyDefer\LaravelCluster\Lexer;
-use AndyDefer\LaravelCluster\Enums\TokenType;
 
 $lexer = new Lexer();
 
-$queries = [
-    'status=active',
-    'status=active & role=admin',
-    '(status=active | status=pending) & role=admin',
-    'addresses[city=Kinshasa]',
-    'COUNT(addresses) > 2',
-    'name=~%john%',
-    'addresses[city="Kinshasa"]',
-    '*name',
-    '#profile',
-    '!lang_fr',
-];
-
-foreach ($queries as $query) {
-    echo "Query: $query\n";
-    $tokens = $lexer->tokenize($query);
-    
-    foreach ($tokens as $token) {
-        $type = $token->type->name;
-        $value = $token->value ?: '(empty)';
-        $pos = $token->position;
-        echo "  [$type] '$value' @ $pos\n";
-    }
-    echo "\n";
+// 1. Condition simple
+$tokens = $lexer->tokenize('status=active');
+foreach ($tokens as $token) {
+    echo $token->type->value . ': ' . $token->value . "\n";
 }
+// IDENTIFIER: status
+// OPERATOR: =
+// IDENTIFIER: active
 
-// Filtrage des tokens
-$tokens = $lexer->tokenize('status=active & role=admin');
-
-// Récupérer tous les identifiants
-$identifiers = $tokens->identifiers();
-foreach ($identifiers as $token) {
-    echo "Identifier: {$token->value}\n";
+// 2. Fonction CONTAINS
+$tokens = $lexer->tokenize('CONTAINS(languages, fr)');
+foreach ($tokens as $token) {
+    echo $token->type->value . ': ' . $token->value . "\n";
 }
-// Identifier: status, active, role, admin
+// IDENTIFIER: CONTAINS
+// PAREN: (
+// IDENTIFIER: languages
+// OPERATOR: ,
+// IDENTIFIER: fr
+// PAREN: )
 
-// Récupérer tous les opérateurs
-$operators = $tokens->operators();
-foreach ($operators as $token) {
-    echo "Operator: {$token->value}\n";
+// 3. Sous-condition complexe
+$tokens = $lexer->tokenize('addresses[(city=Kinshasa | city=Paris)]');
+foreach ($tokens as $token) {
+    echo $token->type->value . ': ' . $token->value . "\n";
 }
-// Operator: =, &, =
+// IDENTIFIER: addresses
+// SUB_OPEN: [
+// PAREN: (
+// IDENTIFIER: city
+// OPERATOR: =
+// IDENTIFIER: Kinshasa
+// OPERATOR: |
+// IDENTIFIER: city
+// OPERATOR: =
+// IDENTIFIER: Paris
+// PAREN: )
+// SUB_CLOSE: ]
 ```
-
----
 
 ## Voir aussi
 
-- `TokenRecordCollection` - Collection de tokens avec méthodes de filtrage
-- `Parser` - Parseur qui consomme les tokens
-- `OperatorToken` - Énumération des opérateurs
-- `TokenType` - Énumération des types de tokens
+- [`Parser`](Parser.md) - Analyse syntaxique des tokens
+- [`TokenRecord`](Records/TokenRecord.md) - Représentation d'un token
+- [`TokenRecordCollection`](Collections/TokenRecordCollection.md) - Collection de tokens
+- [`OperatorToken`](Enums/OperatorToken.md) - Énumération des opérateurs
+- [`TokenType`](Enums/TokenType.md) - Énumération des types de tokens
