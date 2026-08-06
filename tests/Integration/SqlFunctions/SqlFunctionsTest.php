@@ -633,7 +633,7 @@ final class SqlFunctionsTest extends IntegrationTestCase
         $sql = $function->toSql(self::COLUMN, 'name', DatabaseDriver::MYSQL);
 
         $this->assertSame(
-            'LENGTH(JSON_EXTRACT(clusters, \'$.name\'))',
+            'LENGTH(JSON_UNQUOTE(JSON_EXTRACT(clusters, \'$.name\')))',
             $sql
         );
     }
@@ -811,7 +811,7 @@ final class SqlFunctionsTest extends IntegrationTestCase
         $sql = $function->toSql(self::COLUMN, 'name', DatabaseDriver::MYSQL, ['name', '^John.*']);
 
         $this->assertSame(
-            "JSON_EXTRACT(clusters, '$.name') REGEXP '^John.*'",
+            "JSON_UNQUOTE(JSON_EXTRACT(clusters, '$.name')) REGEXP '^John.*'",
             $sql
         );
     }

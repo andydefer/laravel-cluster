@@ -11,15 +11,14 @@ use AndyDefer\LaravelCluster\Nodes\ConditionNode;
 use AndyDefer\LaravelCluster\Nodes\GroupNode;
 use AndyDefer\LaravelCluster\Nodes\SubConditionNode;
 use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
-use AndyDefer\LaravelCluster\Tests\IntegrationTestCase;
+use AndyDefer\LaravelCluster\Tests\MySqlTestCase;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
-final class SubConditionNodeTest extends IntegrationTestCase
+final class SubConditionNodeMySqlTest extends MySqlTestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
-
         $this->createTestData();
     }
 
@@ -134,6 +133,10 @@ final class SubConditionNodeTest extends IntegrationTestCase
             ],
         ]);
     }
+
+    // ============================================================
+    // EVALUATE TESTS
+    // ============================================================
 
     public function test_evaluate_subcondition_simple(): void
     {
@@ -295,111 +298,119 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $this->assertFalse($node->evaluate($cluster));
     }
 
-    public function test_to_sql_sqlite_subcondition_simple(): void
+    // ============================================================
+    // TO SQL TESTS - MySQL
+    // ============================================================
+
+    public function test_mysql_to_sql_subcondition_simple(): void
     {
         $condition = new ConditionNode('city', ComparisonOperator::EQUAL, 'kinshasa');
         $node = new SubConditionNode('addresses', $condition);
 
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE LOWER(json_extract(value, '$.city')) = LOWER('kinshasa'))";
+        $expected = "JSON_SEARCH(clusters, 'one', 'kinshasa', NULL, '$.addresses[*].city') IS NOT NULL";
         $this->assertEquals($expected, $sql);
     }
 
-    public function test_to_sql_sqlite_subcondition_with_and(): void
+    public function test_mysql_to_sql_subcondition_with_and(): void
     {
         $cityCondition = new ConditionNode('city', ComparisonOperator::EQUAL, 'kinshasa');
         $countryCondition = new ConditionNode('country', ComparisonOperator::EQUAL, 'rdc');
         $andNode = new GroupNode(LogicalOperator::AND, $cityCondition, $countryCondition);
         $node = new SubConditionNode('addresses', $andNode);
 
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE LOWER(json_extract(value, '$.city')) = LOWER('kinshasa') AND LOWER(json_extract(value, '$.country')) = LOWER('rdc'))";
+        $expected = "(JSON_SEARCH(clusters, 'one', 'kinshasa', NULL, '$.addresses[*].city') IS NOT NULL AND JSON_SEARCH(clusters, 'one', 'rdc', NULL, '$.addresses[*].country') IS NOT NULL)";
         $this->assertEquals($expected, $sql);
     }
 
-    public function test_to_sql_sqlite_subcondition_with_or(): void
+    public function test_mysql_to_sql_subcondition_with_or(): void
     {
         $condition1 = new ConditionNode('city', ComparisonOperator::EQUAL, 'kinshasa');
         $condition2 = new ConditionNode('city', ComparisonOperator::EQUAL, 'paris');
         $orNode = new GroupNode(LogicalOperator::OR, $condition1, $condition2);
         $node = new SubConditionNode('addresses', $orNode);
 
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE LOWER(json_extract(value, '$.city')) = LOWER('kinshasa') OR LOWER(json_extract(value, '$.city')) = LOWER('paris'))";
+        $expected = "(JSON_SEARCH(clusters, 'one', 'kinshasa', NULL, '$.addresses[*].city') IS NOT NULL OR JSON_SEARCH(clusters, 'one', 'paris', NULL, '$.addresses[*].city') IS NOT NULL)";
         $this->assertEquals($expected, $sql);
     }
 
-    public function test_to_sql_sqlite_subcondition_with_like(): void
+    public function test_mysql_to_sql_subcondition_with_like(): void
     {
         $condition = new ConditionNode('city', ComparisonOperator::LIKE, 'kin%');
         $node = new SubConditionNode('addresses', $condition);
 
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE LOWER(json_extract(value, '$.city')) LIKE LOWER('kin%'))";
+        $expected = "JSON_SEARCH(clusters, 'one', '%kin%', NULL, '$.addresses[*].city') IS NOT NULL";
         $this->assertEquals($expected, $sql);
     }
 
-    public function test_to_sql_sqlite_subcondition_with_not_like(): void
+    public function test_mysql_to_sql_subcondition_with_not_like(): void
     {
         $condition = new ConditionNode('city', ComparisonOperator::NOT_LIKE, 'kin%');
         $node = new SubConditionNode('addresses', $condition);
 
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE LOWER(json_extract(value, '$.city')) NOT LIKE LOWER('kin%'))";
+        $expected = "JSON_SEARCH(clusters, 'one', '%kin%', NULL, '$.addresses[*].city') IS NULL";
         $this->assertEquals($expected, $sql);
     }
 
-    public function test_to_sql_sqlite_subcondition_with_exists(): void
+    public function test_mysql_to_sql_subcondition_with_exists(): void
     {
         $condition = new ConditionNode('city', ComparisonOperator::EXISTS);
         $node = new SubConditionNode('addresses', $condition);
 
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE json_extract(value, '$.city') IS NOT NULL)";
+        $expected = "JSON_LENGTH(clusters, '$.addresses') > 0";
         $this->assertEquals($expected, $sql);
     }
 
-    public function test_to_sql_sqlite_subcondition_with_not_exists(): void
+    public function test_mysql_to_sql_subcondition_with_not_exists(): void
     {
         $condition = new ConditionNode('city', ComparisonOperator::NOT_EXISTS);
         $node = new SubConditionNode('addresses', $condition);
 
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "NOT EXISTS (SELECT 1 FROM json_each(clusters, '$.addresses') WHERE json_extract(value, '$.city') IS NOT NULL)";
+        $expected = "JSON_LENGTH(clusters, '$.addresses') = 0 OR JSON_LENGTH(clusters, '$.addresses') IS NULL";
         $this->assertEquals($expected, $sql);
     }
 
-    public function test_to_sql_sqlite_subcondition_with_nested_path(): void
+    public function test_mysql_to_sql_subcondition_with_nested_path(): void
     {
         $condition = new ConditionNode('email', ComparisonOperator::EQUAL, 'yes');
         $node = new SubConditionNode('settings.notifications', $condition);
 
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
 
-        $expected = "EXISTS (SELECT 1 FROM json_each(clusters, '$.settings.notifications') WHERE LOWER(json_extract(value, '$.email')) = LOWER('yes'))";
+        $expected = "JSON_SEARCH(clusters, 'one', 'yes', NULL, '$.settings.notifications[*].email') IS NOT NULL";
         $this->assertEquals($expected, $sql);
     }
 
-    public function test_to_eloquent_sqlite_subcondition_simple(): void
+    // ============================================================
+    // TO ELOQUENT TESTS - MySQL
+    // ============================================================
+
+    public function test_mysql_to_eloquent_subcondition_simple(): void
     {
         $condition = new ConditionNode('city', ComparisonOperator::EQUAL, 'Kinshasa');
         $node = new SubConditionNode('addresses', $condition);
 
         $query = TestCluster::query();
-        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $results = $query->get();
         $this->assertCount(2, $results);
     }
 
-    public function test_to_eloquent_sqlite_subcondition_with_and(): void
+    public function test_mysql_to_eloquent_subcondition_with_and(): void
     {
         $cityCondition = new ConditionNode('city', ComparisonOperator::EQUAL, 'Kinshasa');
         $countryCondition = new ConditionNode('country', ComparisonOperator::EQUAL, 'RDC');
@@ -407,13 +418,13 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $node = new SubConditionNode('addresses', $andNode);
 
         $query = TestCluster::query();
-        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $results = $query->get();
         $this->assertCount(2, $results);
     }
 
-    public function test_to_eloquent_sqlite_subcondition_with_or(): void
+    public function test_mysql_to_eloquent_subcondition_with_or(): void
     {
         $condition1 = new ConditionNode('city', ComparisonOperator::EQUAL, 'Kinshasa');
         $condition2 = new ConditionNode('city', ComparisonOperator::EQUAL, 'Paris');
@@ -421,61 +432,61 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $node = new SubConditionNode('addresses', $orNode);
 
         $query = TestCluster::query();
-        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $results = $query->get();
         $this->assertCount(3, $results);
     }
 
-    public function test_to_eloquent_sqlite_subcondition_with_like(): void
+    public function test_mysql_to_eloquent_subcondition_with_like(): void
     {
         $condition = new ConditionNode('city', ComparisonOperator::LIKE, 'Kin%');
         $node = new SubConditionNode('addresses', $condition);
 
         $query = TestCluster::query();
-        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $results = $query->get();
         $this->assertCount(2, $results);
     }
 
-    public function test_to_eloquent_sqlite_subcondition_with_nested_path(): void
+    public function test_mysql_to_eloquent_subcondition_with_nested_path(): void
     {
         $condition = new ConditionNode('email', ComparisonOperator::EQUAL, 'yes');
         $node = new SubConditionNode('settings.notifications', $condition);
 
         $query = TestCluster::query();
-        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $results = $query->get();
         $this->assertCount(2, $results);
     }
 
-    public function test_to_eloquent_sqlite_subcondition_with_exists(): void
+    public function test_mysql_to_eloquent_subcondition_with_exists(): void
     {
         $condition = new ConditionNode('city', ComparisonOperator::EXISTS);
         $node = new SubConditionNode('addresses', $condition);
 
         $query = TestCluster::query();
-        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $results = $query->get();
         $this->assertCount(3, $results);
     }
 
-    public function test_to_eloquent_sqlite_subcondition_with_not_exists(): void
+    public function test_mysql_to_eloquent_subcondition_with_not_exists(): void
     {
         $condition = new ConditionNode('city', ComparisonOperator::NOT_EXISTS);
         $node = new SubConditionNode('addresses', $condition);
 
         $query = TestCluster::query();
-        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $results = $query->get();
         $this->assertCount(1, $results);
     }
 
-    public function test_full_query_with_subcondition_and_status(): void
+    public function test_mysql_full_query_with_subcondition_and_status(): void
     {
         $statusNode = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
         $cityNode = new ConditionNode('city', ComparisonOperator::EQUAL, 'Kinshasa');
@@ -483,13 +494,13 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $andNode = new GroupNode(LogicalOperator::AND, $statusNode, $subNode);
 
         $query = TestCluster::query();
-        $andNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+        $andNode->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $results = $query->get();
         $this->assertCount(2, $results);
     }
 
-    public function test_full_query_with_subcondition_or_status(): void
+    public function test_mysql_full_query_with_subcondition_or_status(): void
     {
         $statusNode = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
         $cityNode = new ConditionNode('city', ComparisonOperator::EQUAL, 'Paris');
@@ -497,13 +508,13 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $orNode = new GroupNode(LogicalOperator::OR, $statusNode, $subNode);
 
         $query = TestCluster::query();
-        $orNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+        $orNode->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $results = $query->get();
         $this->assertCount(3, $results);
     }
 
-    public function test_full_query_with_complex_subcondition(): void
+    public function test_mysql_full_query_with_complex_subcondition(): void
     {
         $city1 = new ConditionNode('city', ComparisonOperator::EQUAL, 'Kinshasa');
         $country1 = new ConditionNode('country', ComparisonOperator::EQUAL, 'RDC');
@@ -517,27 +528,27 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $subNode = new SubConditionNode('addresses', $orNode);
 
         $query = TestCluster::query();
-        $subNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+        $subNode->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $results = $query->get();
         $this->assertCount(3, $results);
     }
 
-    public function test_to_eloquent_sqlite_subcondition_combined_with_condition(): void
+    public function test_mysql_to_eloquent_subcondition_combined_with_condition(): void
     {
         $statusCondition = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
         $addressCondition = new ConditionNode('city', ComparisonOperator::EQUAL, 'Kinshasa');
         $subNode = new SubConditionNode('addresses', $addressCondition);
 
         $query = TestCluster::query();
-        $statusCondition->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-        $subNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
+        $statusCondition->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+        $subNode->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
 
         $results = $query->get();
         $this->assertCount(2, $results);
     }
 
-    public function test_get_children(): void
+    public function test_mysql_get_children(): void
     {
         $condition = new ConditionNode('city', ComparisonOperator::EQUAL, 'kinshasa');
         $node = new SubConditionNode('addresses', $condition);
@@ -547,7 +558,7 @@ final class SubConditionNodeTest extends IntegrationTestCase
         $this->assertInstanceOf(ConditionNode::class, $children[0]);
     }
 
-    public function test_get_children_with_group(): void
+    public function test_mysql_get_children_with_group(): void
     {
         $cityCondition = new ConditionNode('city', ComparisonOperator::EQUAL, 'kinshasa');
         $countryCondition = new ConditionNode('country', ComparisonOperator::EQUAL, 'rdc');

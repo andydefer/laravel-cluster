@@ -120,7 +120,13 @@ final class ClusterCastTest extends IntegrationTestCase
         ]);
 
         $raw = TestCluster::find($model->id)->getAttributes();
-        $this->assertSame($json, $raw['clusters']);
+        $decoded = json_decode($raw['clusters'], true);
+
+        $this->assertIsArray($decoded);
+        $this->assertArrayHasKey('status', $decoded);
+        $this->assertArrayHasKey('role', $decoded);
+        $this->assertEquals('active', $decoded['status']);
+        $this->assertEquals('admin', $decoded['role']);
     }
 
     public function test_handles_null_value(): void

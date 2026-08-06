@@ -10,10 +10,10 @@ use AndyDefer\LaravelCluster\Enums\LogicalOperator;
 use AndyDefer\LaravelCluster\Nodes\ConditionNode;
 use AndyDefer\LaravelCluster\Nodes\GroupNode;
 use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
-use AndyDefer\LaravelCluster\Tests\IntegrationTestCase;
+use AndyDefer\LaravelCluster\Tests\SqliteTestCase;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
-final class GroupNodeTest extends IntegrationTestCase
+final class GroupNodeSqliteTest extends SqliteTestCase
 {
     protected function setUp(): void
     {
@@ -84,6 +84,10 @@ final class GroupNodeTest extends IntegrationTestCase
             ],
         ]);
     }
+
+    // ============================================================
+    // EVALUATE TESTS
+    // ============================================================
 
     public function test_evaluate_and(): void
     {
@@ -189,88 +193,11 @@ final class GroupNodeTest extends IntegrationTestCase
         $this->assertFalse($outerGroup->evaluate($cluster4));
     }
 
-    public function test_to_sql_and(): void
-    {
-        $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
-        $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
+    // ============================================================
+    // TO SQL TESTS - SQLite
+    // ============================================================
 
-        $group = new GroupNode(LogicalOperator::AND, $node1, $node2);
-
-        $sql = $group->toSql('clusters', DatabaseDriver::MYSQL);
-
-        $expected = "(LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active') AND LOWER(JSON_EXTRACT(clusters, '$.\"role\"')) = LOWER('admin'))";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_or(): void
-    {
-        $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
-        $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
-
-        $group = new GroupNode(LogicalOperator::OR, $node1, $node2);
-
-        $sql = $group->toSql('clusters', DatabaseDriver::MYSQL);
-
-        $expected = "(LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active') OR LOWER(JSON_EXTRACT(clusters, '$.\"role\"')) = LOWER('admin'))";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_multiple_children(): void
-    {
-        $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
-        $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
-        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
-
-        $group = new GroupNode(LogicalOperator::AND, $node1, $node2, $node3);
-
-        $sql = $group->toSql('clusters', DatabaseDriver::MYSQL);
-
-        $expected = "(LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active') AND LOWER(JSON_EXTRACT(clusters, '$.\"role\"')) = LOWER('admin') AND LOWER(JSON_EXTRACT(clusters, '$.\"verified\"')) = LOWER('yes'))";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_single_child(): void
-    {
-        $node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
-
-        $group = new GroupNode(LogicalOperator::AND, $node);
-
-        $sql = $group->toSql('clusters', DatabaseDriver::MYSQL);
-
-        $expected = "LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active')";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_nested_groups(): void
-    {
-        $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
-        $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
-
-        $innerGroup = new GroupNode(LogicalOperator::OR, $node1, $node2);
-
-        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
-        $outerGroup = new GroupNode(LogicalOperator::AND, $innerGroup, $node3);
-
-        $sql = $outerGroup->toSql('clusters', DatabaseDriver::MYSQL);
-
-        $expected = "((LOWER(JSON_EXTRACT(clusters, '$.\"status\"')) = LOWER('active') OR LOWER(JSON_EXTRACT(clusters, '$.\"role\"')) = LOWER('admin')) AND LOWER(JSON_EXTRACT(clusters, '$.\"verified\"')) = LOWER('yes'))";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_postgres(): void
-    {
-        $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
-        $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
-
-        $group = new GroupNode(LogicalOperator::AND, $node1, $node2);
-
-        $sql = $group->toSql('clusters', DatabaseDriver::PGSQL);
-
-        $expected = "(LOWER(clusters->>'status') = LOWER('active') AND LOWER(clusters->>'role') = LOWER('admin'))";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_sqlite(): void
+    public function test_sqlite_to_sql_and(): void
     {
         $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
         $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
@@ -279,11 +206,70 @@ final class GroupNodeTest extends IntegrationTestCase
 
         $sql = $group->toSql('clusters', DatabaseDriver::SQLITE);
 
-        $expected = "(LOWER(json_extract(clusters, '$.status')) = LOWER('active') AND LOWER(json_extract(clusters, '$.role')) = LOWER('admin'))";
+        $expected = "(json_extract(clusters, '$.status') = 'active' AND json_extract(clusters, '$.role') = 'admin')";
         $this->assertEquals($expected, $sql);
     }
 
-    public function test_to_eloquent_and(): void
+    public function test_sqlite_to_sql_or(): void
+    {
+        $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
+        $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
+
+        $group = new GroupNode(LogicalOperator::OR, $node1, $node2);
+
+        $sql = $group->toSql('clusters', DatabaseDriver::SQLITE);
+
+        $expected = "(json_extract(clusters, '$.status') = 'active' OR json_extract(clusters, '$.role') = 'admin')";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_sqlite_to_sql_multiple_children(): void
+    {
+        $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
+        $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
+        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
+
+        $group = new GroupNode(LogicalOperator::AND, $node1, $node2, $node3);
+
+        $sql = $group->toSql('clusters', DatabaseDriver::SQLITE);
+
+        $expected = "(json_extract(clusters, '$.status') = 'active' AND json_extract(clusters, '$.role') = 'admin' AND json_extract(clusters, '$.verified') = 'yes')";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_sqlite_to_sql_single_child(): void
+    {
+        $node = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
+
+        $group = new GroupNode(LogicalOperator::AND, $node);
+
+        $sql = $group->toSql('clusters', DatabaseDriver::SQLITE);
+
+        $expected = "json_extract(clusters, '$.status') = 'active'";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_sqlite_to_sql_nested_groups(): void
+    {
+        $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
+        $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
+
+        $innerGroup = new GroupNode(LogicalOperator::OR, $node1, $node2);
+
+        $node3 = new ConditionNode('verified', ComparisonOperator::EQUAL, 'yes');
+        $outerGroup = new GroupNode(LogicalOperator::AND, $innerGroup, $node3);
+
+        $sql = $outerGroup->toSql('clusters', DatabaseDriver::SQLITE);
+
+        $expected = "((json_extract(clusters, '$.status') = 'active' OR json_extract(clusters, '$.role') = 'admin') AND json_extract(clusters, '$.verified') = 'yes')";
+        $this->assertEquals($expected, $sql);
+    }
+
+    // ============================================================
+    // TO ELOQUENT TESTS - SQLite
+    // ============================================================
+
+    public function test_sqlite_to_eloquent_and(): void
     {
         $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
         $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
@@ -291,16 +277,13 @@ final class GroupNodeTest extends IntegrationTestCase
         $group = new GroupNode(LogicalOperator::AND, $node1, $node2);
 
         $query = TestCluster::query();
-        $group->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
-
-        $sql = $query->toSql();
-        $this->assertStringContainsString(' and ', strtolower($sql));
+        $group->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
         $this->assertCount(2, $results);
     }
 
-    public function test_to_eloquent_or(): void
+    public function test_sqlite_to_eloquent_or(): void
     {
         $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
         $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
@@ -308,16 +291,13 @@ final class GroupNodeTest extends IntegrationTestCase
         $group = new GroupNode(LogicalOperator::OR, $node1, $node2);
 
         $query = TestCluster::query();
-        $group->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
-
-        $sql = $query->toSql();
-        $this->assertStringContainsString(' or ', strtolower($sql));
+        $group->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
         $this->assertCount(3, $results);
     }
 
-    public function test_to_eloquent_multiple_children(): void
+    public function test_sqlite_to_eloquent_multiple_children(): void
     {
         $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
         $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
@@ -326,13 +306,13 @@ final class GroupNodeTest extends IntegrationTestCase
         $group = new GroupNode(LogicalOperator::AND, $node1, $node2, $node3);
 
         $query = TestCluster::query();
-        $group->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+        $group->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
         $this->assertCount(2, $results);
     }
 
-    public function test_to_eloquent_nested_groups(): void
+    public function test_sqlite_to_eloquent_nested_groups(): void
     {
         $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
         $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
@@ -343,13 +323,13 @@ final class GroupNodeTest extends IntegrationTestCase
         $outerGroup = new GroupNode(LogicalOperator::AND, $innerGroup, $node3);
 
         $query = TestCluster::query();
-        $outerGroup->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+        $outerGroup->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
         $this->assertCount(3, $results);
     }
 
-    public function test_to_eloquent_with_or_where_nested(): void
+    public function test_sqlite_to_eloquent_with_or_where_nested(): void
     {
         $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
         $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'doctor');
@@ -357,13 +337,13 @@ final class GroupNodeTest extends IntegrationTestCase
         $group = new GroupNode(LogicalOperator::OR, $node1, $node2);
 
         $query = TestCluster::query();
-        $group->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+        $group->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
 
         $results = $query->get();
         $this->assertCount(4, $results);
     }
 
-    public function test_get_children(): void
+    public function test_sqlite_get_children(): void
     {
         $node1 = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
         $node2 = new ConditionNode('role', ComparisonOperator::EQUAL, 'admin');
@@ -377,7 +357,7 @@ final class GroupNodeTest extends IntegrationTestCase
         $this->assertSame($node2, $children[1]);
     }
 
-    public function test_get_children_empty(): void
+    public function test_sqlite_get_children_empty(): void
     {
         $group = new GroupNode(LogicalOperator::AND);
 

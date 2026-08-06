@@ -8,6 +8,7 @@ cluster.php
 # PHPUnit
 .phpunit.cache/
 /.phpunit.cache
+phpunit.mysql.xml
 *.cache
 coverage/
 *.coverage

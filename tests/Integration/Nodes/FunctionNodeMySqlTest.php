@@ -12,11 +12,10 @@ use AndyDefer\LaravelCluster\Nodes\FunctionNode;
 use AndyDefer\LaravelCluster\Nodes\GroupNode;
 use AndyDefer\LaravelCluster\Registry\SqlFunctionRegistry;
 use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
-use AndyDefer\LaravelCluster\Tests\IntegrationTestCase;
+use AndyDefer\LaravelCluster\Tests\MySqlTestCase;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
-use Illuminate\Support\Facades\DB;
 
-final class FunctionNodeTest extends IntegrationTestCase
+final class FunctionNodeMySqlTest extends MySqlTestCase
 {
     private SqlFunctionRegistry $registry;
 
@@ -85,6 +84,10 @@ final class FunctionNodeTest extends IntegrationTestCase
             ],
         ]);
     }
+
+    // ============================================================
+    // EVALUATE TESTS
+    // ============================================================
 
     public function test_evaluate_count_greater_than(): void
     {
@@ -267,338 +270,6 @@ final class FunctionNodeTest extends IntegrationTestCase
         $this->assertFalse($node->evaluate($cluster));
     }
 
-    public function test_to_sql_count_sqlite(): void
-    {
-        $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-
-        $expected = "json_array_length(clusters, '$.addresses') > 2";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_count_mysql(): void
-    {
-        $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
-
-        $expected = "JSON_LENGTH(clusters, '$.addresses') > 2";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_count_pgsql(): void
-    {
-        $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
-
-        $expected = "jsonb_array_length(clusters->'addresses') > 2";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_sum_sqlite(): void
-    {
-        $node = new FunctionNode('SUM', 'prices', ComparisonOperator::GREATER_THAN, '500');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-
-        $expected = "(SELECT SUM(json_extract(value, '$')) FROM json_each(clusters, '$.prices')) > 500";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_sum_mysql(): void
-    {
-        $node = new FunctionNode('SUM', 'prices', ComparisonOperator::GREATER_THAN, '500');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
-
-        $expected = "(SELECT SUM(JSON_EXTRACT(value, '$')) FROM JSON_TABLE(clusters, '$.\"prices\"[*]' COLUMNS(value JSON PATH '$')) AS jt) > 500";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_sum_pgsql(): void
-    {
-        $node = new FunctionNode('SUM', 'prices', ComparisonOperator::GREATER_THAN, '500');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
-
-        $expected = "(SELECT SUM((value->>'$')::numeric) FROM json_array_elements(clusters->'prices') AS value) > 500";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_avg_sqlite(): void
-    {
-        $node = new FunctionNode('AVG', 'scores', ComparisonOperator::GREATER_THAN_OR_EQUAL, '85');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-
-        $expected = "(SELECT AVG(json_extract(value, '$')) FROM json_each(clusters, '$.scores')) >= 85";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_avg_mysql(): void
-    {
-        $node = new FunctionNode('AVG', 'scores', ComparisonOperator::GREATER_THAN_OR_EQUAL, '85');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
-
-        $expected = "(SELECT AVG(JSON_EXTRACT(value, '$')) FROM JSON_TABLE(clusters, '$.\"scores\"[*]' COLUMNS(value JSON PATH '$')) AS jt) >= 85";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_avg_pgsql(): void
-    {
-        $node = new FunctionNode('AVG', 'scores', ComparisonOperator::GREATER_THAN_OR_EQUAL, '85');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
-
-        $expected = "(SELECT AVG((value->>'$')::numeric) FROM json_array_elements(clusters->'scores') AS value) >= 85";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_min_sqlite(): void
-    {
-        $node = new FunctionNode('MIN', 'scores', ComparisonOperator::LESS_THAN, '75');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-
-        $expected = "(SELECT MIN(json_extract(value, '$')) FROM json_each(clusters, '$.scores')) < 75";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_max_sqlite(): void
-    {
-        $node = new FunctionNode('MAX', 'scores', ComparisonOperator::GREATER_THAN, '95');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-
-        $expected = "(SELECT MAX(json_extract(value, '$')) FROM json_each(clusters, '$.scores')) > 95";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_length_sqlite(): void
-    {
-        $node = new FunctionNode('LENGTH', 'name', ComparisonOperator::GREATER_THAN, '5');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-
-        $expected = "LENGTH(json_extract(clusters, '$.name')) > 5";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_length_mysql(): void
-    {
-        $node = new FunctionNode('LENGTH', 'name', ComparisonOperator::GREATER_THAN, '5');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
-
-        $expected = "LENGTH(JSON_EXTRACT(clusters, '$.name')) > 5";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_length_pgsql(): void
-    {
-        $node = new FunctionNode('LENGTH', 'name', ComparisonOperator::GREATER_THAN, '5');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::PGSQL);
-
-        $expected = "LENGTH(clusters->>'name') > 5";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_count_equals(): void
-    {
-        $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::EQUAL, '2');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-
-        $expected = "json_array_length(clusters, '$.addresses') = 2";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_count_not_equal(): void
-    {
-        $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::NOT_EQUAL, '2');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-
-        $expected = "json_array_length(clusters, '$.addresses') != 2";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_with_nested_path(): void
-    {
-        $node = new FunctionNode('COUNT', 'settings.notifications', ComparisonOperator::GREATER_THAN, '1');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-
-        $expected = "json_array_length(clusters, '$.settings.notifications') > 1";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_with_null_value(): void
-    {
-        $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::EQUAL, null);
-
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-
-        $expected = "json_array_length(clusters, '$.addresses') IS NOT NULL";
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_sql_unknown_function(): void
-    {
-        $node = new FunctionNode('UNKNOWN', 'addresses', ComparisonOperator::GREATER_THAN, '0');
-
-        $sql = $node->toSql('clusters', DatabaseDriver::SQLITE);
-
-        $expected = '1=0';
-        $this->assertEquals($expected, $sql);
-    }
-
-    public function test_to_eloquent_count_sqlite(): void
-    {
-        $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
-
-        $query = TestCluster::query();
-        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-
-        $results = $query->get();
-        $this->assertCount(1, $results);
-        $this->assertEquals('Bob Johnson', $results->first()->clusters['name']);
-    }
-
-    public function test_to_eloquent_count_mysql(): void
-    {
-        $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
-
-        $query = TestCluster::query();
-        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
-
-        $results = $query->get();
-        $this->assertCount(1, $results);
-        $this->assertEquals('Bob Johnson', $results->first()->clusters['name']);
-    }
-
-    public function test_to_eloquent_sum_sqlite(): void
-    {
-        $node = new FunctionNode('SUM', 'prices', ComparisonOperator::GREATER_THAN, '500');
-
-        $query = TestCluster::query();
-        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-
-        $results = $query->get();
-        $this->assertCount(2, $results);
-        $names = $results->pluck('clusters')->pluck('name')->toArray();
-        $this->assertContains('John Doe', $names);
-        $this->assertContains('Bob Johnson', $names);
-    }
-
-    public function test_to_eloquent_avg_sqlite(): void
-    {
-        $node = new FunctionNode('AVG', 'scores', ComparisonOperator::GREATER_THAN_OR_EQUAL, '85');
-
-        $query = TestCluster::query();
-        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-
-        $results = $query->get();
-        $this->assertCount(2, $results);
-        $names = $results->pluck('clusters')->pluck('name')->toArray();
-        $this->assertContains('John Doe', $names);
-        $this->assertContains('Bob Johnson', $names);
-    }
-
-    public function test_to_eloquent_min_sqlite(): void
-    {
-        $node = new FunctionNode('MIN', 'scores', ComparisonOperator::LESS_THAN, '75');
-
-        $query = TestCluster::query();
-        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-
-        $results = $query->get();
-        $this->assertCount(2, $results);
-        $names = $results->pluck('clusters')->pluck('name')->toArray();
-        $this->assertContains('Jane Smith', $names);
-        $this->assertContains('Alice Wonder', $names);
-    }
-
-    public function test_to_eloquent_max_sqlite(): void
-    {
-        $node = new FunctionNode('MAX', 'scores', ComparisonOperator::GREATER_THAN, '95');
-
-        $query = TestCluster::query();
-        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-
-        $results = $query->get();
-        $this->assertCount(1, $results);
-        $this->assertEquals('Bob Johnson', $results->first()->clusters['name']);
-    }
-
-    public function test_to_eloquent_length_sqlite(): void
-    {
-        $node = new FunctionNode('LENGTH', 'name', ComparisonOperator::GREATER_THAN, '5');
-
-        $query = TestCluster::query();
-        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-
-        $results = $query->get();
-        $this->assertCount(4, $results);
-    }
-
-    public function test_to_eloquent_count_equals(): void
-    {
-        $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::EQUAL, '2');
-
-        $query = TestCluster::query();
-        $node->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-
-        $results = $query->get();
-        $this->assertCount(1, $results);
-        $this->assertEquals('John Doe', $results->first()->clusters['name']);
-    }
-
-    public function test_to_eloquent_combined_with_condition(): void
-    {
-        $statusNode = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
-        $countNode = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
-
-        $query = TestCluster::query();
-        $statusNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-        $countNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-
-        $results = $query->get();
-        $this->assertCount(1, $results);
-        $this->assertEquals('Bob Johnson', $results->first()->clusters['name']);
-    }
-
-    public function test_to_eloquent_with_group_node(): void
-    {
-        $countNode = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '1');
-        $statusNode = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
-
-        $groupNode = new GroupNode(LogicalOperator::AND, $countNode, $statusNode);
-
-        $query = TestCluster::query();
-        $groupNode->toEloquent($query, 'clusters', DatabaseDriver::SQLITE);
-
-        $results = $query->get();
-        $this->assertCount(2, $results);
-        $names = $results->pluck('clusters')->pluck('name')->toArray();
-        $this->assertContains('John Doe', $names);
-        $this->assertContains('Bob Johnson', $names);
-    }
-
-    public function test_get_children_returns_empty_array(): void
-    {
-        $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
-
-        $children = $node->getChildren();
-
-        $this->assertIsArray($children);
-        $this->assertEmpty($children);
-    }
-
     public function test_evaluate_with_empty_array(): void
     {
         $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '0');
@@ -621,13 +292,154 @@ final class FunctionNodeTest extends IntegrationTestCase
         $this->assertTrue($node->evaluate($cluster));
     }
 
-    private function isPostgres(): bool
+    // ============================================================
+    // TO SQL TESTS - MySQL
+    // ============================================================
+
+    public function test_mysql_to_sql_count(): void
     {
-        return DB::connection()->getDriverName() === 'pgsql';
+        $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
+
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
+
+        $expected = "JSON_LENGTH(clusters, '$.addresses') > 2";
+        $this->assertEquals($expected, $sql);
     }
 
-    private function isMysql(): bool
+    public function test_mysql_to_sql_sum(): void
     {
-        return DB::connection()->getDriverName() === 'mysql';
+        $node = new FunctionNode('SUM', 'prices', ComparisonOperator::GREATER_THAN, '500');
+
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
+
+        $expected = "(SELECT SUM(JSON_EXTRACT(value, '$')) FROM JSON_TABLE(clusters, '$.\"prices\"[*]' COLUMNS(value JSON PATH '$')) AS jt) > 500";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_mysql_to_sql_avg(): void
+    {
+        $node = new FunctionNode('AVG', 'scores', ComparisonOperator::GREATER_THAN_OR_EQUAL, '85');
+
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
+
+        $expected = "(SELECT AVG(JSON_EXTRACT(value, '$')) FROM JSON_TABLE(clusters, '$.\"scores\"[*]' COLUMNS(value JSON PATH '$')) AS jt) >= 85";
+        $this->assertEquals($expected, $sql);
+    }
+
+    public function test_mysql_to_sql_length(): void
+    {
+        $node = new FunctionNode('LENGTH', 'name', ComparisonOperator::GREATER_THAN, '5');
+
+        $sql = $node->toSql('clusters', DatabaseDriver::MYSQL);
+
+        $expected = "LENGTH(JSON_UNQUOTE(JSON_EXTRACT(clusters, '$.name'))) > 5";
+        $this->assertEquals($expected, $sql);
+    }
+    // ============================================================
+    // TO ELOQUENT TESTS - MySQL
+    // ============================================================
+
+    public function test_mysql_to_eloquent_count(): void
+    {
+        $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
+
+        $query = TestCluster::query();
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $results = $query->get();
+        $this->assertCount(1, $results);
+        $this->assertEquals('Bob Johnson', $results->first()->clusters['name']);
+    }
+
+    public function test_mysql_to_eloquent_sum(): void
+    {
+        $node = new FunctionNode('SUM', 'prices', ComparisonOperator::GREATER_THAN, '500');
+
+        $query = TestCluster::query();
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $results = $query->get();
+        $this->assertCount(2, $results);
+        $names = $results->pluck('clusters')->pluck('name')->toArray();
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+    }
+
+    public function test_mysql_to_eloquent_avg(): void
+    {
+        $node = new FunctionNode('AVG', 'scores', ComparisonOperator::GREATER_THAN_OR_EQUAL, '85');
+
+        $query = TestCluster::query();
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $results = $query->get();
+        $this->assertCount(2, $results);
+        $names = $results->pluck('clusters')->pluck('name')->toArray();
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+    }
+
+    public function test_mysql_to_eloquent_length(): void
+    {
+        $node = new FunctionNode('LENGTH', 'name', ComparisonOperator::GREATER_THAN, '5');
+
+        $query = TestCluster::query();
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $results = $query->get();
+        $this->assertCount(4, $results);
+    }
+
+    public function test_mysql_to_eloquent_count_equals(): void
+    {
+        $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::EQUAL, '2');
+
+        $query = TestCluster::query();
+        $node->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $results = $query->get();
+        $this->assertCount(1, $results);
+        $this->assertEquals('John Doe', $results->first()->clusters['name']);
+    }
+
+    public function test_mysql_to_eloquent_combined_with_condition(): void
+    {
+        $statusNode = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
+        $countNode = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
+
+        $query = TestCluster::query();
+        $statusNode->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+        $countNode->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $results = $query->get();
+        $this->assertCount(1, $results);
+        $this->assertEquals('Bob Johnson', $results->first()->clusters['name']);
+    }
+
+    public function test_mysql_to_eloquent_with_group_node(): void
+    {
+        $countNode = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '1');
+        $statusNode = new ConditionNode('status', ComparisonOperator::EQUAL, 'active');
+
+        $groupNode = new GroupNode(LogicalOperator::AND, $countNode, $statusNode);
+
+        $query = TestCluster::query();
+        $groupNode->toEloquent($query, 'clusters', DatabaseDriver::MYSQL);
+
+        $results = $query->get();
+        $this->assertCount(2, $results);
+        $names = $results->pluck('clusters')->pluck('name')->toArray();
+        $this->assertContains('John Doe', $names);
+        $this->assertContains('Bob Johnson', $names);
+    }
+
+    public function test_mysql_get_children_returns_empty_array(): void
+    {
+        $node = new FunctionNode('COUNT', 'addresses', ComparisonOperator::GREATER_THAN, '2');
+
+        $children = $node->getChildren();
+
+        $this->assertIsArray($children);
+        $this->assertEmpty($children);
     }
 }

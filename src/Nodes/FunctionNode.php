@@ -53,7 +53,23 @@ final class FunctionNode extends Node
             return '1=0';
         }
 
-        if ($driver === DatabaseDriver::SQLITE && $this->functionName === 'JSON_LENGTH') {
+        // ✅ Traiter d'abord les valeurs null
+        if ($this->value === null) {
+            $sqlExpression = $registry->toSql($this->functionName, $column, $this->path, $driver, $this->args);
+
+            if ($sqlExpression === null) {
+                return '1=0';
+            }
+
+            return match ($this->operator) {
+                ComparisonOperator::EXISTS => sprintf('%s IS NOT NULL', $sqlExpression),
+                ComparisonOperator::NOT_EXISTS => sprintf('%s IS NULL', $sqlExpression),
+                default => sprintf('%s IS NOT NULL', $sqlExpression),
+            };
+        }
+
+        // Pour SQLite avec COUNT/JSON_LENGTH
+        if ($driver === DatabaseDriver::SQLITE && ($this->functionName === 'JSON_LENGTH' || $this->functionName === 'COUNT')) {
             return $this->buildSqliteJsonLength($column);
         }
 
@@ -65,16 +81,13 @@ final class FunctionNode extends Node
 
         $returnType = $registry->getReturnType($this->functionName);
 
-        // 🔥 Pour les fonctions booléennes (CONTAINS, REGEXP), gérer les comparaisons
         if ($returnType === 'bool') {
-            // Si la valeur de comparaison est 'false', 'no', '0' ou 'f' (pour CONTAINS = false)
             $falseValues = ['false', 'no', '0', 'f'];
             $trueValues = ['true', 'yes', '1', 't'];
 
             if ($this->value !== null) {
                 $valueLower = strtolower($this->value);
 
-                // Si on compare avec false
                 if (in_array($valueLower, $falseValues, true)) {
                     return match ($this->operator) {
                         ComparisonOperator::EQUAL,
@@ -86,7 +99,6 @@ final class FunctionNode extends Node
                     };
                 }
 
-                // Si on compare avec true
                 if (in_array($valueLower, $trueValues, true)) {
                     return match ($this->operator) {
                         ComparisonOperator::EQUAL,
@@ -99,16 +111,7 @@ final class FunctionNode extends Node
                 }
             }
 
-            // Par défaut, retourner l'expression telle quelle
             return $sqlExpression;
-        }
-
-        if ($this->value === null) {
-            return match ($this->operator) {
-                ComparisonOperator::EXISTS => sprintf('%s IS NOT NULL', $sqlExpression),
-                ComparisonOperator::NOT_EXISTS => sprintf('%s IS NULL', $sqlExpression),
-                default => sprintf('%s IS NOT NULL', $sqlExpression),
-            };
         }
 
         $castedValue = $this->castValue($this->value, $returnType);

@@ -7,24 +7,10 @@ namespace AndyDefer\LaravelCluster\Nodes;
 use AndyDefer\LaravelCluster\Contracts\NodeInterface;
 use AndyDefer\LaravelCluster\Enums\ComparisonOperator;
 use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
+use AndyDefer\LaravelCluster\Enums\LogicalOperator;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use Illuminate\Database\Eloquent\Builder;
 
-/**
- * Represents a sub-condition node in the query AST.
- *
- * This node handles conditions on nested JSON arrays, allowing queries like
- * `addresses[city=Kinshasa]` by evaluating the condition against each element
- * of the array.
- *
- * @example
- * $condition = new ConditionNode('city', ComparisonOperator::EQUAL, 'Kinshasa');
- * $node = new SubConditionNode('addresses', $condition);
- * $node->evaluate($cluster); // true if any address has city = 'Kinshasa'
- * @example
- * $node = new SubConditionNode('addresses', new ConditionNode('*', ComparisonOperator::EXISTS));
- * $node->toSql('clusters', DatabaseDriver::MYSQL);
- */
 final class SubConditionNode extends Node
 {
     public function __construct(
@@ -32,34 +18,21 @@ final class SubConditionNode extends Node
         private readonly NodeInterface $condition
     ) {}
 
-    /**
-     * Returns the path of this sub-condition.
-     */
     public function getPath(): string
     {
         return $this->path;
     }
 
-    /**
-     * Returns the condition of this sub-condition.
-     */
     public function getCondition(): NodeInterface
     {
         return $this->condition;
     }
 
-    /**
-     * Evaluates the sub-condition against a cluster data object.
-     *
-     * @param  ClusterVO  $data  The cluster data to evaluate against
-     * @return bool True if the sub-condition matches
-     */
     public function evaluate(ClusterVO $data): bool
     {
         $originalData = $data->getUnflattened()->toArray();
         $value = $this->navigatePath($originalData, $this->path);
 
-        // ✅ Si c'est une string JSON, la décoder
         if (is_string($value) && str_starts_with($value, '[') && str_ends_with($value, ']')) {
             $decoded = json_decode($value, true);
             if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
@@ -112,13 +85,6 @@ final class SubConditionNode extends Node
         return false;
     }
 
-    /**
-     * Generates the SQL expression for this sub-condition.
-     *
-     * @param  string  $column  The database column containing JSON data
-     * @param  DatabaseDriver  $driver  The database driver to use
-     * @return string The SQL expression
-     */
     public function toSql(string $column, DatabaseDriver $driver = DatabaseDriver::MYSQL): string
     {
         if ($this->condition instanceof ConditionNode && $this->condition->isEmptyCondition()) {
@@ -149,7 +115,7 @@ final class SubConditionNode extends Node
                     $this->path
                 ),
                 DatabaseDriver::MYSQL => sprintf(
-                    "EXISTS (SELECT 1 FROM JSON_TABLE(%s, '$.%s[*]' COLUMNS(value JSON PATH '$')) AS jt)",
+                    "JSON_LENGTH(%s, '$.%s') > 0",
                     $column,
                     $this->path
                 ),
@@ -168,13 +134,6 @@ final class SubConditionNode extends Node
         };
     }
 
-    /**
-     * Applies this sub-condition to an Eloquent query builder.
-     *
-     * @param  Builder  $query  The Eloquent query builder
-     * @param  string  $column  The database column containing JSON data
-     * @param  DatabaseDriver  $driver  The database driver to use
-     */
     public function toEloquent(Builder $query, string $column, DatabaseDriver $driver): void
     {
         if ($this->condition instanceof ConditionNode && $this->condition->isEmptyCondition()) {
@@ -199,7 +158,7 @@ final class SubConditionNode extends Node
                     "EXISTS (SELECT 1 FROM json_each({$column}, '$.{$this->path}'))"
                 ),
                 DatabaseDriver::MYSQL => $query->whereRaw(
-                    "EXISTS (SELECT 1 FROM JSON_TABLE({$column}, '$.{$this->path}[*]' COLUMNS(value JSON PATH '$')) AS jt)"
+                    "JSON_LENGTH({$column}, '$.{$this->path}') > 0"
                 ),
                 DatabaseDriver::PGSQL => $query->whereRaw(
                     "EXISTS (SELECT 1 FROM jsonb_array_elements({$column}->'{$this->path}') AS value)"
@@ -216,19 +175,11 @@ final class SubConditionNode extends Node
         };
     }
 
-    /**
-     * Returns the children nodes of this sub-condition.
-     *
-     * @return array<NodeInterface> The condition node
-     */
     public function getChildren(): array
     {
         return [$this->condition];
     }
 
-    /**
-     * Builds the SQLite SQL condition.
-     */
     private function buildSqliteSubCondition(string $column): string
     {
         $subSql = $this->condition->toSql('value', DatabaseDriver::SQLITE);
@@ -258,9 +209,6 @@ final class SubConditionNode extends Node
         );
     }
 
-    /**
-     * Applies the condition to an Eloquent query for SQLite.
-     */
     private function applySqliteEloquent(Builder $query, string $column): void
     {
         $subSql = $this->condition->toSql('value', DatabaseDriver::SQLITE);
@@ -290,41 +238,171 @@ final class SubConditionNode extends Node
         );
     }
 
-    /**
-     * Builds the MySQL SQL condition.
-     */
+    // ============================================================
+    // MYSQL - Solution avec JSON_SEARCH + JSON_LENGTH
+    // ============================================================
+
     private function buildMySqlSubCondition(string $column): string
     {
-        $subSql = $this->condition->toSql('value', DatabaseDriver::MYSQL);
+        $condition = $this->condition;
 
-        $subSql = trim($subSql);
-        if (str_starts_with($subSql, '(') && str_ends_with($subSql, ')')) {
-            $subSql = substr($subSql, 1, -1);
+        if ($condition instanceof ConditionNode) {
+            return $this->buildMySqlConditionNodeSql($column, $condition);
         }
 
-        if ($this->condition instanceof ConditionNode &&
-            $this->condition->getOperator() === ComparisonOperator::NOT_EXISTS) {
-            $subSql = str_replace('IS NULL', 'IS NOT NULL', $subSql);
+        if ($condition instanceof GroupNode) {
+            return $this->buildMySqlGroupNodeSql($column, $condition);
+        }
 
+        return '1=0';
+    }
+
+    private function buildMySqlConditionNodeSql(string $column, ConditionNode $condition): string
+    {
+        $key = $condition->getKey();
+        $operator = $condition->getOperator();
+        $value = $condition->getValue();
+
+        // EXISTS
+        if ($operator === ComparisonOperator::EXISTS) {
             return sprintf(
-                "NOT EXISTS (SELECT 1 FROM JSON_TABLE(%s, '$.%s[*]' COLUMNS(value JSON PATH '$')) AS jt WHERE %s)",
+                "JSON_LENGTH(%s, '$.%s') > 0",
                 $column,
-                $this->path,
-                $subSql
+                $this->path
             );
         }
 
-        return sprintf(
-            "EXISTS (SELECT 1 FROM JSON_TABLE(%s, '$.%s[*]' COLUMNS(value JSON PATH '$')) AS jt WHERE %s)",
-            $column,
-            $this->path,
-            $subSql
-        );
+        // NOT EXISTS
+        if ($operator === ComparisonOperator::NOT_EXISTS) {
+            return sprintf(
+                "JSON_LENGTH(%s, '$.%s') = 0 OR JSON_LENGTH(%s, '$.%s') IS NULL",
+                $column,
+                $this->path,
+                $column,
+                $this->path
+            );
+        }
+
+        // LIKE
+        if ($operator === ComparisonOperator::LIKE) {
+            $pattern = str_replace('%', '', $value ?? '');
+
+            return sprintf(
+                "JSON_SEARCH(%s, 'one', '%%%s%%', NULL, '$.%s[*].%s') IS NOT NULL",
+                $column,
+                $pattern,
+                $this->path,
+                $key
+            );
+        }
+
+        // NOT LIKE
+        if ($operator === ComparisonOperator::NOT_LIKE) {
+            $pattern = str_replace('%', '', $value ?? '');
+
+            return sprintf(
+                "JSON_SEARCH(%s, 'one', '%%%s%%', NULL, '$.%s[*].%s') IS NULL",
+                $column,
+                $pattern,
+                $this->path,
+                $key
+            );
+        }
+
+        // EQUAL
+        if ($operator === ComparisonOperator::EQUAL) {
+            return sprintf(
+                "JSON_SEARCH(%s, 'one', '%s', NULL, '$.%s[*].%s') IS NOT NULL",
+                $column,
+                $value ?? '',
+                $this->path,
+                $key
+            );
+        }
+
+        // NOT_EQUAL
+        if ($operator === ComparisonOperator::NOT_EQUAL) {
+            return sprintf(
+                "JSON_SEARCH(%s, 'one', '%s', NULL, '$.%s[*].%s') IS NULL",
+                $column,
+                $value ?? '',
+                $this->path,
+                $key
+            );
+        }
+
+        // Opérateurs numériques
+        if ($operator->isNumeric()) {
+            $operatorMap = [
+                ComparisonOperator::GREATER_THAN => '>',
+                ComparisonOperator::GREATER_THAN_OR_EQUAL => '>=',
+                ComparisonOperator::LESS_THAN => '<',
+                ComparisonOperator::LESS_THAN_OR_EQUAL => '<=',
+            ];
+            $op = $operatorMap[$operator] ?? '=';
+
+            return sprintf(
+                "EXISTS (SELECT 1 FROM JSON_TABLE(%s, '$.%s' COLUMNS(value JSON PATH '$')) AS jt WHERE JSON_UNQUOTE(JSON_EXTRACT(value, '$.\"%s\"')) %s '%s')",
+                $column,
+                $this->path,
+                $key,
+                $op,
+                $value ?? '0'
+            );
+        }
+
+        return '1=0';
     }
 
-    /**
-     * Builds the PostgreSQL SQL condition.
-     */
+    private function buildMySqlGroupNodeSql(string $column, GroupNode $group): string
+    {
+        $children = $group->getChildren();
+        $operator = $group->getOperator();
+
+        if (empty($children)) {
+            return $operator === LogicalOperator::AND ? '1=1' : '1=0';
+        }
+
+        $parts = [];
+        foreach ($children as $child) {
+            if ($child instanceof ConditionNode) {
+                $parts[] = $this->buildMySqlConditionNodeSql($column, $child);
+            } elseif ($child instanceof GroupNode) {
+                // Groupe imbriqué - extraire les ConditionNode
+                $subChildren = $child->getChildren();
+                $subParts = [];
+                $subOperator = $child->getOperator();
+                foreach ($subChildren as $subChild) {
+                    if ($subChild instanceof ConditionNode) {
+                        $subParts[] = $this->buildMySqlConditionNodeSql($column, $subChild);
+                    }
+                }
+                if (! empty($subParts)) {
+                    $glue = $subOperator === LogicalOperator::AND ? ' AND ' : ' OR ';
+                    $parts[] = '('.implode($glue, $subParts).')';
+                }
+            }
+        }
+
+        if (empty($parts)) {
+            return '1=0';
+        }
+
+        $glue = $operator === LogicalOperator::AND ? ' AND ' : ' OR ';
+
+        return count($parts) > 1 ? '('.implode($glue, $parts).')' : $parts[0];
+    }
+
+    private function applyMySqlEloquent(Builder $query, string $column): void
+    {
+        $sql = $this->buildMySqlSubCondition($column);
+        $query->whereRaw($sql);
+    }
+
+    // ============================================================
+    // POSTGRESQL
+    // ============================================================
+
     private function buildPostgreSqlSubCondition(string $column): string
     {
         $subSql = $this->condition->toSql('value', DatabaseDriver::PGSQL);
@@ -354,36 +432,6 @@ final class SubConditionNode extends Node
         );
     }
 
-    /**
-     * Applies the condition to an Eloquent query for MySQL.
-     */
-    private function applyMySqlEloquent(Builder $query, string $column): void
-    {
-        $subSql = $this->condition->toSql('value', DatabaseDriver::MYSQL);
-
-        $subSql = trim($subSql);
-        if (str_starts_with($subSql, '(') && str_ends_with($subSql, ')')) {
-            $subSql = substr($subSql, 1, -1);
-        }
-
-        if ($this->condition instanceof ConditionNode &&
-            $this->condition->getOperator() === ComparisonOperator::NOT_EXISTS) {
-            $subSql = str_replace('IS NULL', 'IS NOT NULL', $subSql);
-            $query->whereRaw(
-                "NOT EXISTS (SELECT 1 FROM JSON_TABLE({$column}, '$.{$this->path}[*]' COLUMNS(value JSON PATH '$')) AS jt WHERE {$subSql})"
-            );
-
-            return;
-        }
-
-        $query->whereRaw(
-            "EXISTS (SELECT 1 FROM JSON_TABLE({$column}, '$.{$this->path}[*]' COLUMNS(value JSON PATH '$')) AS jt WHERE {$subSql})"
-        );
-    }
-
-    /**
-     * Applies the condition to an Eloquent query for PostgreSQL.
-     */
     private function applyPostgreSqlEloquent(Builder $query, string $column): void
     {
         $subSql = $this->condition->toSql('value', DatabaseDriver::PGSQL);
@@ -408,13 +456,6 @@ final class SubConditionNode extends Node
         );
     }
 
-    /**
-     * Navigates through a dot-notation path in the data array.
-     *
-     * @param  array<string, mixed>  $data  The source data
-     * @param  string  $path  The dot-notation path to navigate
-     * @return mixed The value at the path, or null if not found
-     */
     private function navigatePath(array $data, string $path): mixed
     {
         if (empty($path)) {
