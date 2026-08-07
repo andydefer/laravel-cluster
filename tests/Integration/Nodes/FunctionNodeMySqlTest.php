@@ -14,9 +14,12 @@ use AndyDefer\LaravelCluster\Registry\SqlFunctionRegistry;
 use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
 use AndyDefer\LaravelCluster\Tests\MySqlTestCase;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
 final class FunctionNodeMySqlTest extends MySqlTestCase
 {
+    use RefreshDatabase;
+
     private SqlFunctionRegistry $registry;
 
     protected function setUp(): void

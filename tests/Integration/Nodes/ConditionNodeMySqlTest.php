@@ -10,9 +10,12 @@ use AndyDefer\LaravelCluster\Nodes\ConditionNode;
 use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
 use AndyDefer\LaravelCluster\Tests\MySqlTestCase;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
 final class ConditionNodeMySqlTest extends MySqlTestCase
 {
+    use RefreshDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();

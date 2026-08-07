@@ -13,9 +13,12 @@ use AndyDefer\LaravelCluster\Nodes\SubConditionNode;
 use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
 use AndyDefer\LaravelCluster\Tests\MySqlTestCase;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
 final class SubConditionNodeMySqlTest extends MySqlTestCase
 {
+    use RefreshDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();

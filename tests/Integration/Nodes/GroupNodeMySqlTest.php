@@ -12,9 +12,12 @@ use AndyDefer\LaravelCluster\Nodes\GroupNode;
 use AndyDefer\LaravelCluster\Tests\Fixtures\Models\TestCluster;
 use AndyDefer\LaravelCluster\Tests\MySqlTestCase;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
 final class GroupNodeMySqlTest extends MySqlTestCase
 {
+    use RefreshDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();
