@@ -47,7 +47,7 @@ enum BinaryChoice: string
     /**
      * Create from boolean.
      */
-    public static function fromBoolean(bool $value): self
+    public static function fromBool(bool $value): self
     {
         return $value ? self::YES : self::NO;
     }
