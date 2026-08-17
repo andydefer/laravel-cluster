@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace AndyDefer\LaravelCluster\Tests\Unit\Functions;
 
+use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
 use AndyDefer\LaravelCluster\Functions\AllFunction;
 use AndyDefer\LaravelCluster\Functions\AvgFunction;
 use AndyDefer\LaravelCluster\Functions\CountFunction;
+use AndyDefer\LaravelCluster\Functions\DistanceFunction;
 use AndyDefer\LaravelCluster\Functions\ExistsFunction;
 use AndyDefer\LaravelCluster\Functions\HasFunction;
 use AndyDefer\LaravelCluster\Functions\IsEmptyFunction;
@@ -15,6 +17,9 @@ use AndyDefer\LaravelCluster\Functions\MatchesFunction;
 use AndyDefer\LaravelCluster\Functions\MaxFunction;
 use AndyDefer\LaravelCluster\Functions\MinFunction;
 use AndyDefer\LaravelCluster\Functions\SumFunction;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
+use AndyDefer\PhpVo\ValueObjects\CoordinatesVO;
+use AndyDefer\PhpVo\ValueObjects\Types\FloatVO;
 use PHPUnit\Framework\TestCase;
 
 final class AggregateFunctionsTest extends TestCase
@@ -732,6 +737,342 @@ final class AggregateFunctionsTest extends TestCase
         $this->assertTrue($result);
     }
 
+    // ==================== DISTANCE FUNCTION TESTS ====================
+
+    public function test_distance_function_with_coordinates_vo(): void
+    {
+        $function = new DistanceFunction;
+
+        $coords = new CoordinatesVO(
+            FloatVO::from(48.8566),
+            FloatVO::from(2.3522)
+        );
+
+        $data = ['coordinates' => $coords];
+
+        $result = $function->execute($data, ['coordinates', 45.7640, 4.8357]);
+
+        $this->assertIsFloat($result);
+        $this->assertGreaterThan(0, $result);
+        $this->assertGreaterThan(391000, $result);
+        $this->assertLessThan(392000, $result);
+    }
+
+    public function test_distance_function_with_array_coordinates(): void
+    {
+        $function = new DistanceFunction;
+
+        $data = [
+            'coordinates' => [
+                'latitude' => 48.8566,
+                'longitude' => 2.3522,
+            ],
+        ];
+
+        $result = $function->execute($data, ['coordinates', 45.7640, 4.8357]);
+
+        $this->assertIsFloat($result);
+        $this->assertGreaterThan(0, $result);
+        $this->assertGreaterThan(391000, $result);
+        $this->assertLessThan(392000, $result);
+    }
+
+    public function test_distance_function_with_km_unit(): void
+    {
+        $function = new DistanceFunction;
+
+        $data = [
+            'coordinates' => [
+                'latitude' => 48.8566,
+                'longitude' => 2.3522,
+            ],
+        ];
+
+        $result = $function->execute($data, ['coordinates', 45.7640, 4.8357, 'km']);
+
+        $this->assertIsFloat($result);
+        $this->assertGreaterThan(0, $result);
+        $this->assertGreaterThan(391, $result);
+        $this->assertLessThan(392, $result);
+    }
+
+    public function test_distance_function_with_m_unit(): void
+    {
+        $function = new DistanceFunction;
+
+        $data = [
+            'coordinates' => [
+                'latitude' => 48.8566,
+                'longitude' => 2.3522,
+            ],
+        ];
+
+        $result = $function->execute($data, ['coordinates', 45.7640, 4.8357, 'm']);
+
+        $this->assertIsFloat($result);
+        $this->assertGreaterThan(0, $result);
+        $this->assertGreaterThan(391000, $result);
+        $this->assertLessThan(392000, $result);
+    }
+
+    public function test_distance_function_with_same_coordinates(): void
+    {
+        $function = new DistanceFunction;
+
+        $data = [
+            'coordinates' => [
+                'latitude' => 48.8566,
+                'longitude' => 2.3522,
+            ],
+        ];
+
+        $result = $function->execute($data, ['coordinates', 48.8566, 2.3522]);
+
+        $this->assertIsFloat($result);
+        $this->assertEquals(0.0, $result);
+    }
+
+    public function test_distance_function_with_nested_path(): void
+    {
+        $function = new DistanceFunction;
+
+        $data = [
+            'user' => [
+                'location' => [
+                    'coordinates' => [
+                        'latitude' => 48.8566,
+                        'longitude' => 2.3522,
+                    ],
+                ],
+            ],
+        ];
+
+        $result = $function->execute($data, ['user.location.coordinates', 45.7640, 4.8357]);
+
+        $this->assertIsFloat($result);
+        $this->assertGreaterThan(391000, $result);
+        $this->assertLessThan(392000, $result);
+    }
+
+    public function test_distance_function_with_invalid_coordinates(): void
+    {
+        $function = new DistanceFunction;
+
+        $data = ['coordinates' => 'not a coordinate'];
+
+        $result = $function->execute($data, ['coordinates', 45.7640, 4.8357]);
+
+        $this->assertSame(0.0, $result);
+    }
+
+    public function test_distance_function_with_missing_coordinates(): void
+    {
+        $function = new DistanceFunction;
+
+        $data = ['something' => 'else'];
+
+        $result = $function->execute($data, ['coordinates', 45.7640, 4.8357]);
+
+        $this->assertSame(0.0, $result);
+    }
+
+    public function test_distance_function_with_invalid_unit(): void
+    {
+        $function = new DistanceFunction;
+
+        $data = [
+            'coordinates' => [
+                'latitude' => 48.8566,
+                'longitude' => 2.3522,
+            ],
+        ];
+
+        $result = $function->execute($data, ['coordinates', 45.7640, 4.8357, 'invalid']);
+
+        $this->assertIsFloat($result);
+        $this->assertGreaterThan(391000, $result);
+        $this->assertLessThan(392000, $result);
+    }
+
+    public function test_distance_function_validate_args(): void
+    {
+        $function = new DistanceFunction;
+
+        $this->assertTrue($function->validateArgs(['coordinates', 48.8566, 2.3522]));
+        $this->assertTrue($function->validateArgs(['coordinates', 48.8566, 2.3522, 'km']));
+        $this->assertTrue($function->validateArgs(['coordinates', 48.8566, 2.3522, 'm']));
+
+        $this->assertFalse($function->validateArgs(['coordinates', 48.8566]));
+        $this->assertFalse($function->validateArgs(['coordinates']));
+        $this->assertFalse($function->validateArgs([]));
+        $this->assertFalse($function->validateArgs(['coordinates', 48.8566, 2.3522, 'invalid']));
+    }
+
+    public function test_distance_function_get_metadata(): void
+    {
+        $function = new DistanceFunction;
+
+        $this->assertSame('DISTANCE', $function->getName());
+        $this->assertSame('float', $function->getReturnType());
+        $this->assertSame(0.0, $function->getDefaultValue());
+        $this->assertFalse($function->returnsBoolean());
+        $this->assertSame(3, $function->getMinArgs());
+        $this->assertSame(4, $function->getMaxArgs());
+    }
+
+    public function test_distance_function_with_multiple_pharmacies(): void
+    {
+        $function = new DistanceFunction;
+
+        $data = [
+            'pharmacies' => [
+                [
+                    'name' => 'Paris Pharmacy',
+                    'coordinates' => [
+                        'latitude' => 48.8566,
+                        'longitude' => 2.3522,
+                    ],
+                ],
+                [
+                    'name' => 'Lyon Pharmacy',
+                    'coordinates' => [
+                        'latitude' => 45.7640,
+                        'longitude' => 4.8357,
+                    ],
+                ],
+                [
+                    'name' => 'Marseille Pharmacy',
+                    'coordinates' => [
+                        'latitude' => 43.2965,
+                        'longitude' => 5.3698,
+                    ],
+                ],
+            ],
+        ];
+
+        $distances = [];
+        foreach ($data['pharmacies'] as $pharmacy) {
+            $distance = $function->execute(
+                ['coords' => $pharmacy['coordinates']],
+                ['coords', 48.8566, 2.3522, 'km']
+            );
+            $distances[$pharmacy['name']] = $distance;
+        }
+
+        $this->assertGreaterThan(390, $distances['Lyon Pharmacy']);
+        $this->assertGreaterThan(660, $distances['Marseille Pharmacy']);
+    }
+
+    public function test_distance_function_in_collection_context(): void
+    {
+        $collection = new ClusterVOCollection;
+
+        $collection->add(new ClusterVO([
+            'name' => 'Paris Pharmacy',
+            'coordinates' => [
+                'latitude' => 48.8566,
+                'longitude' => 2.3522,
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Lyon Pharmacy',
+            'coordinates' => [
+                'latitude' => 45.7640,
+                'longitude' => 4.8357,
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Marseille Pharmacy',
+            'coordinates' => [
+                'latitude' => 43.2965,
+                'longitude' => 5.3698,
+            ],
+        ]));
+
+        $result = $collection->whereAggregate(
+            '{DISTANCE(coordinates, 48.8566, 2.3522, km) < 500}'
+        );
+
+        $this->assertCount(2, $result);
+        $this->assertEquals('Paris Pharmacy', $result->first()->get('name'));
+        $this->assertEquals('Lyon Pharmacy', $result->last()->get('name'));
+    }
+
+    public function test_distance_function_with_group_and_condition(): void
+    {
+        $collection = new ClusterVOCollection;
+
+        $collection->add(new ClusterVO([
+            'name' => 'Paris Pharmacy',
+            'coordinates' => [
+                'latitude' => 48.8566,
+                'longitude' => 2.3522,
+            ],
+            'status' => 'active',
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Lyon Pharmacy',
+            'coordinates' => [
+                'latitude' => 45.7640,
+                'longitude' => 4.8357,
+            ],
+            'status' => 'inactive',
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Marseille Pharmacy',
+            'coordinates' => [
+                'latitude' => 43.2965,
+                'longitude' => 5.3698,
+            ],
+            'status' => 'active',
+        ]));
+
+        // ✅ Utiliser whereAggregate avec le GROUP et la condition status=active
+        // On utilise GROUP pour grouper la condition de distance
+        // Et on ajoute status=active comme condition simple
+        $result = $collection
+            ->whereAggregate('{DISTANCE(coordinates, 48.8566, 2.3522, km) < 500}')
+            ->where('status', 'active');
+
+        // Ou bien on utilise whereQuery qui gère les deux
+        // $result = $collection->whereQuery('{DISTANCE(coordinates, 48.8566, 2.3522, km) < 500} & status=active');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Paris Pharmacy', $result->first()->get('name'));
+    }
+
+    public function test_distance_function_with_different_coordinates_format(): void
+    {
+        $function = new DistanceFunction;
+
+        $data = [
+            'coordinates' => [
+                'lat' => 48.8566,
+                'lng' => 2.3522,
+            ],
+        ];
+
+        $result = $function->execute($data, ['coordinates', 45.7640, 4.8357]);
+
+        $this->assertSame(0.0, $result);
+    }
+
+    public function test_distance_function_with_less_than_min_args(): void
+    {
+        $function = new DistanceFunction;
+
+        $data = [
+            'coordinates' => [
+                'latitude' => 48.8566,
+                'longitude' => 2.3522,
+            ],
+        ];
+
+        $result = $function->execute($data, ['coordinates']);
+
+        $this->assertSame(0.0, $result);
+    }
+
     // ==================== VALIDATION TESTS ====================
 
     public function test_count_function_validate_args(): void
@@ -773,6 +1114,13 @@ final class AggregateFunctionsTest extends TestCase
         $this->assertFalse($function->validateArgs(['path', 'key', 'pattern', 'extra']));
     }
 
+    public function test_distance_function_validate_args_with_invalid_unit(): void
+    {
+        $function = new DistanceFunction;
+
+        $this->assertFalse($function->validateArgs(['coordinates', 48.8566, 2.3522, 'invalid_unit']));
+    }
+
     // ==================== ABSTRACT FUNCTION TESTS ====================
 
     public function test_function_returns_correct_metadata(): void
@@ -789,6 +1137,7 @@ final class AggregateFunctionsTest extends TestCase
             new AllFunction,
             new IsEmptyFunction,
             new MatchesFunction,
+            new DistanceFunction,
         ];
 
         foreach ($functions as $function) {

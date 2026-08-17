@@ -2,48 +2,56 @@
 
 ## Description
 
-Registre central qui gère l'ensemble des fonctions d'agrégation disponibles pour les requêtes. Il permet d'enregistrer, rechercher et exécuter des fonctions comme COUNT, SUM, AVG, MIN, MAX, ainsi que des fonctions booléennes comme EXISTS, HAS, ALL, IS_EMPTY et MATCHES.
+Registre central gérant l'ensemble des fonctions d'agrégation (COUNT, SUM, AVG, MIN, MAX, etc.) utilisables dans les expressions de requête sur les clusters. Ce registre assure l'enregistrement, la résolution et l'exécution des fonctions d'agrégation.
 
-## Hiérarchie / Implémentations
+## Hiérarchie
 
 ```
-AggregateFunctionRegistry (classe finale)
+AggregateFunctionRegistry
 ```
 
 ## Rôle principal
 
-L'`AggregateFunctionRegistry` est le point d'entrée pour toutes les fonctions d'agrégation dans Laravel Cluster. Il :
+Le `AggregateFunctionRegistry` est le point d'entrée pour toutes les fonctions d'agrégation. Il :
 
-- **Enregistre** les fonctions d'agrégation (COUNT, SUM, AVG, MIN, MAX, LENGTH, EXISTS, HAS, ALL, IS_EMPTY, MATCHES)
-- **Valide** les noms de fonctions selon la convention SCREAMING_SNAKE_CASE
-- **Exécute** les fonctions sur des données en mémoire
-- **Fournit** les métadonnées des fonctions (type de retour, valeur par défaut, etc.)
-- **Filtre** les fonctions par type (booléennes vs numériques)
+- Gère le cycle de vie des fonctions (enregistrement, résolution, exécution)
+- Fournit des méthodes de filtrage (fonctions booléennes vs numériques)
+- Valide les noms de fonctions selon la convention SCREAMING_SNAKE_CASE
+- Empêche les enregistrements en double
+- Sert de pont entre le parseur d'expressions et les fonctions concrètes
 
 ## API / Méthodes publiques
 
 ### `register(AggregateFunctionInterface $function): self`
 
+Enregistre une fonction d'agrégation dans le registre.
+
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$function` | `AggregateFunctionInterface` | La fonction à enregistrer |
 
-**Retourne :** `self` - L'instance du registre pour le chaînage
+**Retourne :** `self` - L'instance du registre pour le chaînage de méthodes
 
-**Exceptions :** 
-- `InvalidArgumentException` - Si une fonction du même nom est déjà enregistrée
-- `InvalidArgumentException` - Si le nom de la fonction est invalide
+**Exceptions :**
+- `InvalidArgumentException` si une fonction avec le même nom est déjà enregistrée
+- `InvalidArgumentException` si le nom de la fonction est invalide (format SCREAMING_SNAKE_CASE)
 
 **Exemple :**
 ```php
+<?php
+
+declare(strict_types=1);
+
+use AndyDefer\LaravelCluster\Registry\AggregateFunctionRegistry;
+
 $registry = new AggregateFunctionRegistry();
 $customFunction = new CustomFunction();
 $registry->register($customFunction);
 ```
 
----
-
 ### `has(string $name): bool`
+
+Vérifie si une fonction est enregistrée.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -53,14 +61,14 @@ $registry->register($customFunction);
 
 **Exemple :**
 ```php
-$registry = new AggregateFunctionRegistry();
-$exists = $registry->has('COUNT'); // true
-$exists = $registry->has('UNKNOWN'); // false
+if ($registry->has('COUNT')) {
+    echo "La fonction COUNT est disponible";
+}
 ```
 
----
-
 ### `get(string $name): ?AggregateFunctionInterface`
+
+Récupère une fonction enregistrée par son nom.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -70,14 +78,15 @@ $exists = $registry->has('UNKNOWN'); // false
 
 **Exemple :**
 ```php
-$registry = new AggregateFunctionRegistry();
-$function = $registry->get('COUNT');
-// Retourne une instance de CountFunction
+$countFunction = $registry->get('COUNT');
+if ($countFunction !== null) {
+    $result = $countFunction->execute($data, ['addresses']);
+}
 ```
 
----
-
 ### `execute(string $name, array $data, array $args): mixed`
+
+Exécute une fonction enregistrée avec les données et arguments fournis.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -87,28 +96,18 @@ $function = $registry->get('COUNT');
 
 **Retourne :** `mixed` - Le résultat de l'exécution de la fonction
 
-**Exceptions :** `InvalidArgumentException` - Si la fonction n'est pas enregistrée
+**Exceptions :** `InvalidArgumentException` si la fonction n'est pas enregistrée
 
 **Exemple :**
 ```php
-$registry = new AggregateFunctionRegistry();
-
-// COUNT
 $data = ['addresses' => ['a', 'b', 'c']];
-$result = $registry->execute('COUNT', $data, ['addresses']); // 3
-
-// SUM
-$data = ['prices' => [10, 20, 30]];
-$result = $registry->execute('SUM', $data, ['prices']); // 60.0
-
-// HAS
-$data = ['tags' => ['php', 'js', 'docker']];
-$result = $registry->execute('HAS', $data, ['tags', 'php']); // true
+$result = $registry->execute('COUNT', $data, ['addresses']);
+// $result = 3
 ```
 
----
-
 ### `getDefaultValue(string $name): mixed`
+
+Retourne la valeur par défaut d'une fonction.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -118,191 +117,163 @@ $result = $registry->execute('HAS', $data, ['tags', 'php']); // true
 
 **Exemple :**
 ```php
-$registry = new AggregateFunctionRegistry();
-
 $default = $registry->getDefaultValue('COUNT'); // 0
 $default = $registry->getDefaultValue('EXISTS'); // false
 ```
 
----
-
 ### `all(): array`
 
-**Retourne :** `array<string, AggregateFunctionInterface>` - Toutes les fonctions enregistrées
+Retourne toutes les fonctions enregistrées.
+
+**Retourne :** `array<string, AggregateFunctionInterface>` - Tableau des instances de fonctions indexées par leur nom
 
 **Exemple :**
 ```php
-$registry = new AggregateFunctionRegistry();
-$functions = $registry->all();
-// ['COUNT' => CountFunction, 'SUM' => SumFunction, ...]
+$allFunctions = $registry->all();
+foreach ($allFunctions as $name => $function) {
+    echo $name . " : " . get_class($function) . "\n";
+}
 ```
-
----
 
 ### `getBooleanFunctions(): array`
 
-**Retourne :** `array<string, AggregateFunctionInterface>` - Les fonctions qui retournent des booléens
+Retourne uniquement les fonctions qui retournent des valeurs booléennes.
+
+**Retourne :** `array<string, AggregateFunctionInterface>` - Tableau des fonctions booléennes
 
 **Exemple :**
 ```php
-$registry = new AggregateFunctionRegistry();
 $booleanFunctions = $registry->getBooleanFunctions();
-// ['EXISTS', 'HAS', 'ALL', 'IS_EMPTY', 'MATCHES']
+// ['EXISTS' => ExistsFunction, 'HAS' => HasFunction, 'ALL' => AllFunction, ...]
 ```
-
----
 
 ### `getNumericFunctions(): array`
 
-**Retourne :** `array<string, AggregateFunctionInterface>` - Les fonctions qui retournent des nombres
+Retourne uniquement les fonctions qui retournent des valeurs numériques.
+
+**Retourne :** `array<string, AggregateFunctionInterface>` - Tableau des fonctions numériques
 
 **Exemple :**
 ```php
-$registry = new AggregateFunctionRegistry();
 $numericFunctions = $registry->getNumericFunctions();
-// ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'LENGTH']
+// ['COUNT' => CountFunction, 'SUM' => SumFunction, 'AVG' => AvgFunction, ...]
 ```
-
----
 
 ### `getNames(): array`
 
-**Retourne :** `array<string>` - Les noms de toutes les fonctions enregistrées
+Retourne les noms de toutes les fonctions enregistrées.
+
+**Retourne :** `array<string>` - Tableau des noms de fonctions
 
 **Exemple :**
 ```php
-$registry = new AggregateFunctionRegistry();
 $names = $registry->getNames();
-// ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'LENGTH', 'EXISTS', 'HAS', 'ALL', 'IS_EMPTY', 'MATCHES']
+// ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'LENGTH', 'EXISTS', 'HAS', 'ALL', 'IS_EMPTY', 'MATCHES', 'GROUP']
 ```
 
 ## Cas d'utilisation
 
-### Cas 1 : Utiliser les fonctions d'agrégation dans une requête
+### Cas 1 : Enregistrement d'une fonction personnalisée
 
 ```php
+<?php
+
+declare(strict_types=1);
+
 use AndyDefer\LaravelCluster\Registry\AggregateFunctionRegistry;
-use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
-use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
-$registry = new AggregateFunctionRegistry();
-$collection = new ClusterVOCollection();
-$collection->add(new ClusterVO([
-    'name' => 'John Doe',
-    'addresses' => ['a', 'b', 'c'],
-    'scores' => [80, 90, 85],
-]));
-
-// Utiliser COUNT
-$data = $collection->first()->getUnflattened()->toArray();
-$count = $registry->execute('COUNT', $data, ['addresses']); // 3
-
-// Utiliser AVG
-$avg = $registry->execute('AVG', $data, ['scores']); // 85.0
-```
-
-### Cas 2 : Filtrer une collection avec des fonctions booléennes
-
-```php
-use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
-use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
-
-$collection = new ClusterVOCollection();
-$collection->add(new ClusterVO([
-    'name' => 'John',
-    'tags' => ['php', 'js', 'docker'],
-]));
-$collection->add(new ClusterVO([
-    'name' => 'Jane',
-    'tags' => ['python', 'react'],
-]));
-
-// Filtrer les clusters qui contiennent 'php' dans leurs tags
-$filtered = $collection->whereAggregate('{HAS(tags, php)}');
-// John uniquement
-```
-
-### Cas 3 : Ajouter une fonction personnalisée
-
-```php
-use AndyDefer\LaravelCluster\Registry\AggregateFunctionRegistry;
-use AndyDefer\LaravelCluster\Functions\AbstractAggregateFunction;
-
-class DoubleCountFunction extends AbstractAggregateFunction
+class MyCustomFunction implements AggregateFunctionInterface
 {
-    public function execute(array $data, array $args): int
-    {
-        $path = $args[0] ?? null;
-        $items = $this->resolvePath($data, $path);
-        
-        if (!is_array($items)) {
-            return 0;
-        }
-        
-        return count($items) * 2;
-    }
-    
-    public function getName(): string { return 'DOUBLE_COUNT'; }
-    public function getDefaultValue(): mixed { return 0; }
-    public function getReturnType(): string { return 'int'; }
+    public function getName(): string { return 'MY_FUNCTION'; }
+    public function execute(array $data, array $args): mixed { return 'custom result'; }
+    public function getMinArgs(): int { return 0; }
+    public function getMaxArgs(): int { return PHP_INT_MAX; }
+    public function validateArgs(array $args): bool { return true; }
+    public function getDefaultValue(): mixed { return null; }
+    public function getReturnType(): string { return 'string'; }
     public function returnsBoolean(): bool { return false; }
-    public function getMinArgs(): int { return 1; }
-    public function getMaxArgs(): int { return 1; }
-    public function validateArgs(array $args): bool { return count($args) === 1; }
 }
 
 $registry = new AggregateFunctionRegistry();
-$registry->register(new DoubleCountFunction());
+$registry->register(new MyCustomFunction());
 
-// Utilisation
-$data = ['addresses' => ['a', 'b', 'c']];
-$result = $registry->execute('DOUBLE_COUNT', $data, ['addresses']); // 6
+$result = $registry->execute('MY_FUNCTION', [], []);
+// $result = 'custom result'
+```
+
+### Cas 2 : Filtrage des fonctions par type
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use AndyDefer\LaravelCluster\Registry\AggregateFunctionRegistry;
+
+$registry = new AggregateFunctionRegistry();
+
+// Récupérer uniquement les fonctions booléennes pour la validation
+$booleanFunctions = $registry->getBooleanFunctions();
+foreach ($booleanFunctions as $name => $function) {
+    echo "Fonction booléenne: $name\n";
+}
+
+// Récupérer uniquement les fonctions numériques pour les calculs
+$numericFunctions = $registry->getNumericFunctions();
+foreach ($numericFunctions as $name => $function) {
+    echo "Fonction numérique: $name\n";
+}
+```
+
+### Cas 3 : Exécution sécurisée avec vérification
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use AndyDefer\LaravelCluster\Registry\AggregateFunctionRegistry;
+
+$registry = new AggregateFunctionRegistry();
+
+$functionName = 'COUNT';
+$args = ['addresses'];
+
+if ($registry->has($functionName)) {
+    $result = $registry->execute($functionName, $data, $args);
+    echo "Résultat: $result\n";
+} else {
+    echo "Fonction $functionName non disponible\n";
+}
 ```
 
 ## Gestion des erreurs
 
 | Situation | Exception | Message |
 |-----------|-----------|---------|
-| Fonction déjà enregistrée | `InvalidArgumentException` | `Function "X" is already registered. Cannot register duplicate.` |
-| Nom de fonction invalide | `InvalidArgumentException` | `Invalid function name "X". Function names must be in SCREAMING_SNAKE_CASE format: start with a letter, contain only uppercase letters, numbers, and underscores.` |
-| Fonction non enregistrée | `InvalidArgumentException` | `Function "X" not registered` |
-| Arguments invalides | Erreur spécifique à la fonction | Dépend de l'implémentation de la fonction |
+| Enregistrement d'une fonction avec un nom invalide | `InvalidArgumentException` | `Invalid function name "X". Function names must be in SCREAMING_SNAKE_CASE format: start with a letter, contain only uppercase letters, numbers, and underscores.` |
+| Enregistrement d'une fonction avec un nom déjà utilisé | `InvalidArgumentException` | `Function "X" is already registered. Cannot register duplicate.` |
+| Exécution d'une fonction non enregistrée | `InvalidArgumentException` | `Function "X" not registered` |
 
 ## Intégration
 
-L'`AggregateFunctionRegistry` est utilisé par :
+Le `AggregateFunctionRegistry` est utilisé par :
 
-- **`AggregateEvaluatorService`** : Pour évaluer les expressions d'agrégation
-- **`AggregateExpressionParser`** : Pour parser les expressions d'agrégation
-- **`ClusterVOCollection`** : Pour les méthodes `whereAggregate`, `matchesAggregate`, etc.
-- **`ClusterQuery`** : Pour le filtrage des collections avec des fonctions d'agrégation
-
-### Cycle de vie d'une fonction
-
-```
-1. Fonction enregistrée dans le registre (register)
-   ↓
-2. Parser détecte la fonction dans l'expression
-   ↓
-3. Parser valide les arguments via validateArgs()
-   ↓
-4. Évaluation : execute() pour les clusters en mémoire
-   ↓
-5. Résultat retourné à l'appelant
-```
+- **`AggregateEvaluatorService`** : Pour l'exécution des fonctions dans les expressions
+- **`AggregateExpressionParser`** : Pour la validation des fonctions lors du parsing
+- **`ClusterVOCollection`** : Via les méthodes `whereAggregate()`, `whereAggregateDirect()`, `matchesAggregate()`, `getAggregateValue()`
 
 ## Performance
 
-- **Recherche** : O(1) via tableau associatif
-- **Enregistrement** : O(1)
-- **Exécution** : O(n) où n est la taille des données traitées
-- **Mémoire** : Une instance par fonction enregistrée
-- **Initialisation** : Les 11 fonctions par défaut sont enregistrées à la construction
+- L'enregistrement des fonctions est O(1) (tableau associatif)
+- La résolution des fonctions est O(1)
+- Aucun cache interne requis car le registre est un simple stockage de références
+- Les fonctions sont instanciées une fois au moment de l'enregistrement
 
 ## Compatibilité
 
-| Version PHP | Support |
-|-------------|---------|
+| Version | Support |
+|---------|---------|
 | PHP 8.1+ | ✅ Complet |
 | PHP 8.0 | ✅ Complet |
 
@@ -314,69 +285,57 @@ L'`AggregateFunctionRegistry` est utilisé par :
 declare(strict_types=1);
 
 use AndyDefer\LaravelCluster\Registry\AggregateFunctionRegistry;
+use AndyDefer\LaravelCluster\Functions\CountFunction;
 
+// Création du registre
 $registry = new AggregateFunctionRegistry();
 
-// 1. Vérifier les fonctions disponibles
-var_dump($registry->getNames());
-// ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'LENGTH', 'EXISTS', 'HAS', 'ALL', 'IS_EMPTY', 'MATCHES']
+// Vérification des fonctions disponibles
+$isCountAvailable = $registry->has('COUNT');
+$isSumAvailable = $registry->has('SUM');
 
-// 2. Vérifier les fonctions booléennes
-var_dump($registry->getBooleanFunctions());
-// ['EXISTS', 'HAS', 'ALL', 'IS_EMPTY', 'MATCHES']
+echo "COUNT disponible: " . ($isCountAvailable ? 'oui' : 'non') . "\n";
+echo "SUM disponible: " . ($isSumAvailable ? 'oui' : 'non') . "\n";
 
-// 3. Exécuter COUNT
-$data = ['addresses' => ['a', 'b', 'c']];
-$result = $registry->execute('COUNT', $data, ['addresses']);
-var_dump($result); // 3
-
-// 4. Exécuter HAS
-$data = ['tags' => ['php', 'js', 'docker']];
-$result = $registry->execute('HAS', $data, ['tags', 'php']);
-var_dump($result); // true
-
-// 5. Exécuter ALL
+// Exécution d'une fonction
 $data = [
-    'items' => [
-        ['status' => 'active'],
-        ['status' => 'active'],
-        ['status' => 'active'],
-    ],
+    'addresses' => ['a', 'b', 'c'],
+    'prices' => [10, 20, 30],
+    'scores' => [80, 90, 85],
 ];
-$result = $registry->execute('ALL', $data, ['items', 'status', 'active']);
-var_dump($result); // true
 
-// 6. Exécuter MATCHES
-$data = ['name' => 'John Doe'];
-$result = $registry->execute('MATCHES', $data, ['name', '/^John/']);
-var_dump($result); // true
+$count = $registry->execute('COUNT', $data, ['addresses']);
+$sum = $registry->execute('SUM', $data, ['prices']);
+$avg = $registry->execute('AVG', $data, ['scores']);
 
-// 7. Exécuter IS_EMPTY
-$data = ['empty_array' => []];
-$result = $registry->execute('IS_EMPTY', $data, ['empty_array']);
-var_dump($result); // true
+echo "Count: $count\n";  // 3
+echo "Sum: $sum\n";      // 60
+echo "Avg: $avg\n";      // 85
 
-// 8. Exécuter EXISTS
-$data = ['present' => 'value'];
-$result = $registry->execute('EXISTS', $data, ['present']);
-var_dump($result); // true
+// Récupération des fonctions booléennes
+$booleanFunctions = $registry->getBooleanFunctions();
+echo "Fonctions booléennes: " . implode(', ', array_keys($booleanFunctions)) . "\n";
+
+// Enregistrement d'une fonction personnalisée
+$customFunction = new class implements AggregateFunctionInterface {
+    public function getName(): string { return 'CUSTOM'; }
+    public function execute(array $data, array $args): mixed { return 'hello'; }
+    public function getMinArgs(): int { return 0; }
+    public function getMaxArgs(): int { return PHP_INT_MAX; }
+    public function validateArgs(array $args): bool { return true; }
+    public function getDefaultValue(): mixed { return ''; }
+    public function getReturnType(): string { return 'string'; }
+    public function returnsBoolean(): bool { return false; }
+};
+
+$registry->register($customFunction);
+$result = $registry->execute('CUSTOM', [], []);
+echo "Custom result: $result\n"; // hello
 ```
 
 ## Voir aussi
 
-- [`AggregateFunctionInterface`](Contracts/AggregateFunctionInterface.md) - Interface des fonctions d'agrégation
-- [`AbstractAggregateFunction`](Functions/AbstractAggregateFunction.md) - Classe abstraite pour les fonctions d'agrégation
-- [`AggregateEvaluatorService`](Services/AggregateEvaluatorService.md) - Service d'évaluation des expressions
-- [`AggregateExpressionParser`](Parser/AggregateExpressionParser.md) - Parser des expressions d'agrégation
-- [`ClusterVOCollection`](Collections/ClusterVOCollection.md) - Collection de clusters avec méthodes d'agrégation
-- [`CountFunction`](Functions/CountFunction.md) - Fonction COUNT
-- [`SumFunction`](Functions/SumFunction.md) - Fonction SUM
-- [`AvgFunction`](Functions/AvgFunction.md) - Fonction AVG
-- [`MinFunction`](Functions/MinFunction.md) - Fonction MIN
-- [`MaxFunction`](Functions/MaxFunction.md) - Fonction MAX
-- [`LengthFunction`](Functions/LengthFunction.md) - Fonction LENGTH
-- [`ExistsFunction`](Functions/ExistsFunction.md) - Fonction EXISTS
-- [`HasFunction`](Functions/HasFunction.md) - Fonction HAS
-- [`AllFunction`](Functions/AllFunction.md) - Fonction ALL
-- [`IsEmptyFunction`](Functions/IsEmptyFunction.md) - Fonction IS_EMPTY
-- [`MatchesFunction`](Functions/MatchesFunction.md) - Fonction MATCHES
+- `AggregateEvaluatorService` - Service d'évaluation des expressions
+- `AggregateExpressionParser` - Parser des expressions d'agrégation
+- `ClusterVOCollection::whereAggregate()` - Filtrage par expression d'agrégation
+- `AbstractAggregateFunction` - Classe de base pour les fonctions d'agrégation

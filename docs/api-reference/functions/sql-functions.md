@@ -17,7 +17,7 @@ SqlFunctionInterface
             ├── MinFunction
             ├── RegexpFunction
             └── SumFunction
-    └── ContainsFunction (implémente directement SqlFunctionInterface)
+            └── ContainsFunction (implémente directement SqlFunctionInterface)
 ```
 
 ## Rôle principal

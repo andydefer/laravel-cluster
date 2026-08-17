@@ -10,17 +10,6 @@ use AndyDefer\LaravelCluster\Parser\AggregateExpressionParser;
 use AndyDefer\LaravelCluster\Registry\AggregateFunctionRegistry;
 use PHPUnit\Framework\TestCase;
 
-/**
- * Unit tests for AggregateExpressionParser.
- *
- * Tests cover:
- * - Parsing simple aggregate expressions (COUNT, SUM, AVG, MIN, MAX, LENGTH)
- * - Parsing boolean functions (EXISTS, HAS, ALL, IS_EMPTY)
- * - Argument parsing (multiple arguments, variables, arrays, strings, booleans)
- * - Splitting complex expressions with AND/OR operators
- * - Nested function expressions
- * - Edge cases (empty arguments, spaces, special characters, escaped quotes)
- */
 final class AggregateExpressionParserTest extends TestCase
 {
     private AggregateExpressionParser $parser;
@@ -32,16 +21,10 @@ final class AggregateExpressionParserTest extends TestCase
         parent::setUp();
 
         $this->registry = new AggregateFunctionRegistry;
-
-        // Enregistrer une fonction CUSTOM pour les tests
         $this->registerCustomFunction();
-
         $this->parser = new AggregateExpressionParser($this->registry);
     }
 
-    /**
-     * Enregistre une fonction CUSTOM personnalisée pour les tests.
-     */
     private function registerCustomFunction(): void
     {
         $mockFunction = $this->createStub(AggregateFunctionInterface::class);
@@ -55,6 +38,139 @@ final class AggregateExpressionParserTest extends TestCase
         $mockFunction->method('returnsBoolean')->willReturn(false);
 
         $this->registry->register($mockFunction);
+    }
+
+    // ==================== SPLIT TESTS ====================
+
+    public function test_split_single_expression(): void
+    {
+        $result = $this->parser->split('{COUNT(addresses) > 2}');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('{COUNT(addresses) > 2}', $result[0]['expression']);
+        $this->assertEquals('&', $result[0]['operator']);
+    }
+
+    public function test_split_two_expressions_with_and(): void
+    {
+        $result = $this->parser->split('{COUNT(addresses) > 2} & {AVG(scores) >= 85}');
+
+        $this->assertCount(2, $result);
+        $this->assertEquals('{COUNT(addresses) > 2}', $result[0]['expression']);
+        $this->assertEquals('&', $result[0]['operator']);
+        $this->assertEquals('{AVG(scores) >= 85}', $result[1]['expression']);
+        $this->assertEquals('&', $result[1]['operator']);
+    }
+
+    public function test_split_two_expressions_with_or(): void
+    {
+        $result = $this->parser->split('{COUNT(addresses) > 2} | {SUM(prices) > 1000}');
+
+        $this->assertCount(2, $result);
+        $this->assertEquals('{COUNT(addresses) > 2}', $result[0]['expression']);
+        $this->assertEquals('|', $result[0]['operator']);
+        $this->assertEquals('{SUM(prices) > 1000}', $result[1]['expression']);
+        $this->assertEquals('|', $result[1]['operator']);
+    }
+
+    public function test_split_three_expressions(): void
+    {
+        $result = $this->parser->split(
+            '{COUNT(addresses) > 2} & {AVG(scores) >= 85} & {SUM(prices) > 1000}'
+        );
+
+        $this->assertCount(3, $result);
+        $this->assertEquals('{COUNT(addresses) > 2}', $result[0]['expression']);
+        $this->assertEquals('&', $result[0]['operator']);
+        $this->assertEquals('{AVG(scores) >= 85}', $result[1]['expression']);
+        $this->assertEquals('&', $result[1]['operator']);
+        $this->assertEquals('{SUM(prices) > 1000}', $result[2]['expression']);
+        $this->assertEquals('&', $result[2]['operator']);
+    }
+
+    public function test_split_with_mixed_operators(): void
+    {
+        $result = $this->parser->split(
+            '{COUNT(addresses) > 2} & {AVG(scores) >= 85} | {SUM(prices) > 1000}'
+        );
+
+        $this->assertCount(3, $result);
+        $this->assertEquals('{COUNT(addresses) > 2}', $result[0]['expression']);
+        $this->assertEquals('&', $result[0]['operator']);
+        $this->assertEquals('{AVG(scores) >= 85}', $result[1]['expression']);
+        $this->assertEquals('|', $result[1]['operator']);
+        $this->assertEquals('{SUM(prices) > 1000}', $result[2]['expression']);
+        $this->assertEquals('|', $result[2]['operator']);
+    }
+
+    public function test_split_with_complex_nested_expressions(): void
+    {
+        $result = $this->parser->split(
+            '{COUNT({LENGTH(name) > 5}) > 2} & {SUM(prices) > 1000}'
+        );
+
+        $this->assertCount(2, $result);
+        $this->assertEquals('{COUNT({LENGTH(name) > 5}) > 2}', $result[0]['expression']);
+        $this->assertEquals('&', $result[0]['operator']);
+        $this->assertEquals('{SUM(prices) > 1000}', $result[1]['expression']);
+        $this->assertEquals('&', $result[1]['operator']);
+    }
+
+    // ==================== GROUP FUNCTION TESTS ====================
+
+    public function test_split_with_group_function(): void
+    {
+        $result = $this->parser->split(
+            '{GROUP({COUNT(addresses) > 2} & {AVG(scores) >= 85})} | {HAS(tags, "php")}'
+        );
+
+        $this->assertCount(2, $result);
+        $this->assertEquals('{GROUP({COUNT(addresses) > 2} & {AVG(scores) >= 85})}', $result[0]['expression']);
+        $this->assertEquals('|', $result[0]['operator']);
+        $this->assertEquals('{HAS(tags, "php")}', $result[1]['expression']);
+        $this->assertEquals('|', $result[1]['operator']);
+    }
+
+    public function test_split_with_nested_group_functions(): void
+    {
+        $result = $this->parser->split(
+            '{GROUP({GROUP({COUNT(addresses) > 2} & {AVG(scores) >= 85})} | {HAS(tags, "php")})} & {SUM(prices) > 1000}'
+        );
+
+        $this->assertCount(2, $result);
+        $this->assertEquals(
+            '{GROUP({GROUP({COUNT(addresses) > 2} & {AVG(scores) >= 85})} | {HAS(tags, "php")})}',
+            $result[0]['expression']
+        );
+        $this->assertEquals('&', $result[0]['operator']);
+        $this->assertEquals('{SUM(prices) > 1000}', $result[1]['expression']);
+        $this->assertEquals('&', $result[1]['operator']);
+    }
+
+    public function test_split_with_group_function_and_other_conditions(): void
+    {
+        $result = $this->parser->split(
+            '{GROUP({COUNT(addresses) > 2} & {AVG(scores) >= 85})} & {HAS(tags, "php")}'
+        );
+
+        $this->assertCount(2, $result);
+        $this->assertEquals('{GROUP({COUNT(addresses) > 2} & {AVG(scores) >= 85})}', $result[0]['expression']);
+        $this->assertEquals('&', $result[0]['operator']);
+        $this->assertEquals('{HAS(tags, "php")}', $result[1]['expression']);
+        $this->assertEquals('&', $result[1]['operator']);
+    }
+
+    public function test_split_with_group_function_and_spaces(): void
+    {
+        $result = $this->parser->split(
+            ' {GROUP({COUNT(addresses) > 2} & {AVG(scores) >= 85})}  |  {HAS(tags, "php")} '
+        );
+
+        $this->assertCount(2, $result);
+        $this->assertEquals('{GROUP({COUNT(addresses) > 2} & {AVG(scores) >= 85})}', trim($result[0]['expression']));
+        $this->assertEquals('|', $result[0]['operator']);
+        $this->assertEquals('{HAS(tags, "php")}', trim($result[1]['expression']));
+        $this->assertEquals('|', $result[1]['operator']);
     }
 
     // ==================== PARSE TESTS ====================
@@ -134,6 +250,40 @@ final class AggregateExpressionParserTest extends TestCase
         $this->assertEquals(['addresses'], $result['args']);
         $this->assertNull($result['operator']);
         $this->assertNull($result['value']);
+    }
+
+    public function test_parse_group_function(): void
+    {
+        $result = $this->parser->parse(
+            '{GROUP({COUNT(addresses) > 2} & {AVG(scores) >= 85})}'
+        );
+
+        $this->assertNotNull($result);
+        $this->assertEquals('GROUP', $result['functionName']);
+        $this->assertCount(1, $result['args']);
+
+        // L'argument est soit une string, soit un tableau selon le parsing
+        $arg = $result['args'][0];
+        $this->assertTrue(is_string($arg) || is_array($arg));
+    }
+
+    public function test_parse_nested_group_functions(): void
+    {
+        $result = $this->parser->parse(
+            '{GROUP({GROUP({COUNT(addresses) > 2} & {AVG(scores) >= 85})} | {HAS(tags, "php")})}'
+        );
+
+        $this->assertNotNull($result);
+        $this->assertEquals('GROUP', $result['functionName']);
+        $this->assertCount(1, $result['args']);
+
+        $arg = $result['args'][0];
+        $this->assertTrue(is_string($arg) || is_array($arg));
+
+        // Si c'est une string, elle doit contenir 'GROUP'
+        if (is_string($arg)) {
+            $this->assertStringContainsString('GROUP', $arg);
+        }
     }
 
     // ==================== ARGUMENT PARSING TESTS ====================
@@ -221,82 +371,6 @@ final class AggregateExpressionParserTest extends TestCase
         $this->assertEquals([], $result['args']);
     }
 
-    // ==================== SPLIT TESTS ====================
-
-    public function test_split_single_expression(): void
-    {
-        $result = $this->parser->split('{COUNT(addresses) > 2}');
-
-        $this->assertCount(1, $result);
-        $this->assertEquals('{COUNT(addresses) > 2}', $result[0]['expression']);
-        $this->assertEquals('&', $result[0]['operator']);
-    }
-
-    public function test_split_two_expressions_with_and(): void
-    {
-        $result = $this->parser->split('{COUNT(addresses) > 2} & {AVG(scores) >= 85}');
-
-        $this->assertCount(2, $result);
-        $this->assertEquals('{COUNT(addresses) > 2}', $result[0]['expression']);
-        $this->assertEquals('&', $result[0]['operator']);
-        $this->assertEquals('{AVG(scores) >= 85}', $result[1]['expression']);
-        $this->assertEquals('&', $result[1]['operator']);
-    }
-
-    public function test_split_two_expressions_with_or(): void
-    {
-        $result = $this->parser->split('{COUNT(addresses) > 2} | {SUM(prices) > 1000}');
-
-        $this->assertCount(2, $result);
-        $this->assertEquals('{COUNT(addresses) > 2}', $result[0]['expression']);
-        $this->assertEquals('|', $result[0]['operator']);
-        $this->assertEquals('{SUM(prices) > 1000}', $result[1]['expression']);
-        $this->assertEquals('|', $result[1]['operator']);
-    }
-
-    public function test_split_three_expressions(): void
-    {
-        $result = $this->parser->split(
-            '{COUNT(addresses) > 2} & {AVG(scores) >= 85} & {SUM(prices) > 1000}'
-        );
-
-        $this->assertCount(3, $result);
-        $this->assertEquals('{COUNT(addresses) > 2}', $result[0]['expression']);
-        $this->assertEquals('&', $result[0]['operator']);
-        $this->assertEquals('{AVG(scores) >= 85}', $result[1]['expression']);
-        $this->assertEquals('&', $result[1]['operator']);
-        $this->assertEquals('{SUM(prices) > 1000}', $result[2]['expression']);
-        $this->assertEquals('&', $result[2]['operator']);
-    }
-
-    public function test_split_with_mixed_operators(): void
-    {
-        $result = $this->parser->split(
-            '{COUNT(addresses) > 2} & {AVG(scores) >= 85} | {SUM(prices) > 1000}'
-        );
-
-        $this->assertCount(3, $result);
-        $this->assertEquals('{COUNT(addresses) > 2}', $result[0]['expression']);
-        $this->assertEquals('&', $result[0]['operator']);
-        $this->assertEquals('{AVG(scores) >= 85}', $result[1]['expression']);
-        $this->assertEquals('|', $result[1]['operator']);
-        $this->assertEquals('{SUM(prices) > 1000}', $result[2]['expression']);
-        $this->assertEquals('|', $result[2]['operator']);
-    }
-
-    public function test_split_with_complex_nested_expressions(): void
-    {
-        $result = $this->parser->split(
-            '{COUNT({LENGTH(name) > 5}) > 2} & {SUM(prices) > 1000}'
-        );
-
-        $this->assertCount(2, $result);
-        $this->assertEquals('{COUNT({LENGTH(name) > 5}) > 2}', $result[0]['expression']);
-        $this->assertEquals('&', $result[0]['operator']);
-        $this->assertEquals('{SUM(prices) > 1000}', $result[1]['expression']);
-        $this->assertEquals('&', $result[1]['operator']);
-    }
-
     // ==================== COMPLEX EXPRESSIONS TESTS ====================
 
     public function test_parse_with_special_characters_in_string(): void
@@ -335,11 +409,13 @@ final class AggregateExpressionParserTest extends TestCase
 
     public function test_parse_with_all_function_types(): void
     {
-        $functions = ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'LENGTH', 'EXISTS', 'HAS', 'ALL', 'IS_EMPTY'];
+        $functions = ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'LENGTH', 'EXISTS', 'HAS', 'ALL', 'IS_EMPTY', 'GROUP'];
 
         foreach ($functions as $function) {
             if (in_array($function, ['HAS', 'ALL'])) {
                 $expression = sprintf('{%s(test, key, "value") > 1}', $function);
+            } elseif ($function === 'GROUP') {
+                $expression = '{GROUP({COUNT(test) > 1})}';
             } elseif (in_array($function, ['EXISTS', 'IS_EMPTY'])) {
                 $expression = sprintf('{%s(test)}', $function);
             } else {

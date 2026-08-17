@@ -13,7 +13,7 @@ use InvalidArgumentException;
  *
  * This service parses and evaluates complex expressions containing aggregate
  * functions like COUNT, SUM, AVG, etc. It supports logical operators (&, |)
- * and can handle both boolean and numeric functions.
+ * and GROUP function for grouping complex expressions.
  *
  * @example
  * $service = new AggregateEvaluatorService();
@@ -22,11 +22,8 @@ use InvalidArgumentException;
  * // Simple function
  * $service->evaluate($data, 'COUNT(addresses) > 2'); // true
  *
- * // Complex expression
- * $service->evaluate($data, 'COUNT(addresses) > 1 & status=active'); // true
- *
- * // Direct execution
- * $service->evaluateDirect($data, 'COUNT', ['addresses']); // 3
+ * // Complex expression with GROUP
+ * $service->evaluate($data, '{GROUP({COUNT(addresses) > 1} & {AVG(scores) >= 85})} | {HAS(tags, "php")}');
  */
 final class AggregateEvaluatorService
 {
@@ -34,6 +31,11 @@ final class AggregateEvaluatorService
 
     private AggregateExpressionParser $parser;
 
+    /**
+     * Constructor.
+     *
+     * @param  AggregateFunctionRegistry|null  $registry  The function registry
+     */
     public function __construct(?AggregateFunctionRegistry $registry = null)
     {
         $this->registry = $registry ?? new AggregateFunctionRegistry;
@@ -118,6 +120,15 @@ final class AggregateEvaluatorService
 
         $result = $this->registry->execute($functionName, $data, $args);
 
+        // Si c'est GROUP, le résultat est l'expression à évaluer
+        if ($functionName === 'GROUP') {
+            if (is_string($result)) {
+                return $this->evaluateComplex($data, $result);
+            }
+
+            return (bool) $result;
+        }
+
         $function = $this->registry->get($functionName);
 
         if ($function && $function->returnsBoolean()) {
@@ -181,6 +192,8 @@ final class AggregateEvaluatorService
 
     /**
      * Returns the function registry.
+     *
+     * @return AggregateFunctionRegistry The function registry
      */
     public function getRegistry(): AggregateFunctionRegistry
     {
@@ -189,6 +202,8 @@ final class AggregateEvaluatorService
 
     /**
      * Returns the expression parser.
+     *
+     * @return AggregateExpressionParser The expression parser
      */
     public function getParser(): AggregateExpressionParser
     {

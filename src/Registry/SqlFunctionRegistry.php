@@ -9,6 +9,7 @@ use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
 use AndyDefer\LaravelCluster\SqlFunctions\AvgFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\ContainsFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\CountFunction;
+use AndyDefer\LaravelCluster\SqlFunctions\DistanceFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\JsonLengthFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\LengthFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\MaxFunction;
@@ -280,5 +281,6 @@ final class SqlFunctionRegistry
         $this->register(new JsonLengthFunction);
         $this->register(new RegexpFunction);
         $this->register(new ContainsFunction);
+        $this->register(new DistanceFunction);
     }
 }

@@ -8,7 +8,9 @@ use AndyDefer\LaravelCluster\Contracts\AggregateFunctionInterface;
 use AndyDefer\LaravelCluster\Functions\AllFunction;
 use AndyDefer\LaravelCluster\Functions\AvgFunction;
 use AndyDefer\LaravelCluster\Functions\CountFunction;
+use AndyDefer\LaravelCluster\Functions\DistanceFunction;
 use AndyDefer\LaravelCluster\Functions\ExistsFunction;
+use AndyDefer\LaravelCluster\Functions\GroupFunction;
 use AndyDefer\LaravelCluster\Functions\HasFunction;
 use AndyDefer\LaravelCluster\Functions\IsEmptyFunction;
 use AndyDefer\LaravelCluster\Functions\LengthFunction;
@@ -217,5 +219,7 @@ final class AggregateFunctionRegistry
         $this->register(new AllFunction);
         $this->register(new IsEmptyFunction);
         $this->register(new MatchesFunction);
+        $this->register(new DistanceFunction);
+        $this->register(new GroupFunction);
     }
 }

@@ -29,15 +29,16 @@ final class SqlFunctionRegistryTest extends TestCase
     public function test_register_default_functions(): void
     {
         $expectedFunctions = [
-            'COUNT',
-            'SUM',
             'AVG',
-            'MIN',
-            'MAX',
-            'LENGTH',
-            'JSON_LENGTH',
-            'REGEXP',
             'CONTAINS',
+            'COUNT',
+            'DISTANCE',
+            'JSON_LENGTH',
+            'LENGTH',
+            'MAX',
+            'MIN',
+            'REGEXP',
+            'SUM',
         ];
 
         $names = $this->registry->getNames();
@@ -112,6 +113,7 @@ final class SqlFunctionRegistryTest extends TestCase
         $this->assertTrue($this->registry->has('SUM'));
         $this->assertTrue($this->registry->has('AVG'));
         $this->assertTrue($this->registry->has('CONTAINS'));
+        $this->assertTrue($this->registry->has('DISTANCE'));
     }
 
     public function test_has_returns_false_for_unregistered_function(): void
@@ -262,9 +264,10 @@ final class SqlFunctionRegistryTest extends TestCase
     {
         $all = $this->registry->all();
         $this->assertIsArray($all);
-        $this->assertCount(9, $all);
+        $this->assertCount(10, $all);
         $this->assertArrayHasKey('COUNT', $all);
         $this->assertArrayHasKey('CONTAINS', $all);
+        $this->assertArrayHasKey('DISTANCE', $all);
         $this->assertInstanceOf(CountFunction::class, $all['COUNT']);
         $this->assertInstanceOf(ContainsFunction::class, $all['CONTAINS']);
     }
@@ -273,9 +276,10 @@ final class SqlFunctionRegistryTest extends TestCase
     {
         $names = $this->registry->getNames();
         $this->assertIsArray($names);
-        $this->assertCount(9, $names);
+        $this->assertCount(10, $names);
         $this->assertContains('COUNT', $names);
         $this->assertContains('CONTAINS', $names);
+        $this->assertContains('DISTANCE', $names);
     }
 
     // ============================================================
