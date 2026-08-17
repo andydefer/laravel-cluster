@@ -658,4 +658,314 @@ final class AggregateWhereTest extends IntegrationTestCase
         $this->assertCount(1, $result);
         $this->assertEquals('John', $result->first()->get('name'));
     }
+
+    // ==================== TESTS AVEC DISTANCE FUNCTION ====================
+
+    public function test_where_aggregate_with_distance(): void
+    {
+        $collection = new ClusterVOCollection;
+
+        $collection->add(new ClusterVO([
+            'name' => 'Paris Pharmacy',
+            'coordinates' => [
+                'latitude' => 48.8566,
+                'longitude' => 2.3522,
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Lyon Pharmacy',
+            'coordinates' => [
+                'latitude' => 45.7640,
+                'longitude' => 4.8357,
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Marseille Pharmacy',
+            'coordinates' => [
+                'latitude' => 43.2965,
+                'longitude' => 5.3698,
+            ],
+        ]));
+
+        $result = $collection->whereAggregate(
+            '{DISTANCE(coordinates, 48.8566, 2.3522, km) < 500}'
+        );
+
+        $this->assertCount(2, $result);
+        $this->assertEquals('Paris Pharmacy', $result->first()->get('name'));
+        $this->assertEquals('Lyon Pharmacy', $result->last()->get('name'));
+    }
+
+    public function test_where_aggregate_with_distance_and_condition(): void
+    {
+        $collection = new ClusterVOCollection;
+
+        $collection->add(new ClusterVO([
+            'name' => 'Paris Pharmacy',
+            'coordinates' => [
+                'latitude' => 48.8566,
+                'longitude' => 2.3522,
+            ],
+            'status' => 'active',
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Lyon Pharmacy',
+            'coordinates' => [
+                'latitude' => 45.7640,
+                'longitude' => 4.8357,
+            ],
+            'status' => 'inactive',
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Marseille Pharmacy',
+            'coordinates' => [
+                'latitude' => 43.2965,
+                'longitude' => 5.3698,
+            ],
+            'status' => 'active',
+        ]));
+
+        $result = $collection
+            ->whereAggregate('{DISTANCE(coordinates, 48.8566, 2.3522, km) < 500}')
+            ->where('status', 'active');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Paris Pharmacy', $result->first()->get('name'));
+    }
+
+    public function test_where_aggregate_with_distance_in_meters(): void
+    {
+        $collection = new ClusterVOCollection;
+
+        $collection->add(new ClusterVO([
+            'name' => 'Paris Pharmacy',
+            'coordinates' => [
+                'latitude' => 48.8566,
+                'longitude' => 2.3522,
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Lyon Pharmacy',
+            'coordinates' => [
+                'latitude' => 45.7640,
+                'longitude' => 4.8357,
+            ],
+        ]));
+
+        // Paris-Lyon ≈ 391 000 mètres
+        $result = $collection->whereAggregate(
+            '{DISTANCE(coordinates, 48.8566, 2.3522, m) < 400000}'
+        );
+
+        $this->assertCount(2, $result);
+        $this->assertEquals('Paris Pharmacy', $result->first()->get('name'));
+        $this->assertEquals('Lyon Pharmacy', $result->last()->get('name'));
+    }
+
+    public function test_where_aggregate_with_distance_and_group(): void
+    {
+        $collection = new ClusterVOCollection;
+
+        $collection->add(new ClusterVO([
+            'name' => 'Paris Pharmacy',
+            'coordinates' => [
+                'latitude' => 48.8566,
+                'longitude' => 2.3522,
+            ],
+            'status' => 'active',
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Lyon Pharmacy',
+            'coordinates' => [
+                'latitude' => 45.7640,
+                'longitude' => 4.8357,
+            ],
+            'status' => 'active',
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Marseille Pharmacy',
+            'coordinates' => [
+                'latitude' => 43.2965,
+                'longitude' => 5.3698,
+            ],
+            'status' => 'inactive',
+        ]));
+
+        $result = $collection->whereAggregate(
+            '{GROUP({DISTANCE(coordinates, 48.8566, 2.3522, km) < 500} & status=active)}'
+        );
+
+        $this->assertCount(2, $result);
+        $this->assertEquals('Paris Pharmacy', $result->first()->get('name'));
+        $this->assertEquals('Lyon Pharmacy', $result->last()->get('name'));
+    }
+
+    public function test_where_aggregate_with_distance_and_has(): void
+    {
+        $collection = new ClusterVOCollection;
+
+        $collection->add(new ClusterVO([
+            'name' => 'Paris Pharmacy',
+            'coordinates' => [
+                'latitude' => 48.8566,
+                'longitude' => 2.3522,
+            ],
+            'services' => ['delivery', 'consultation'],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Lyon Pharmacy',
+            'coordinates' => [
+                'latitude' => 45.7640,
+                'longitude' => 4.8357,
+            ],
+            'services' => ['consultation'],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Marseille Pharmacy',
+            'coordinates' => [
+                'latitude' => 43.2965,
+                'longitude' => 5.3698,
+            ],
+            'services' => ['delivery'],
+        ]));
+
+        $result = $collection->whereAggregate(
+            '{DISTANCE(coordinates, 48.8566, 2.3522, km) < 500} & {HAS(services, "delivery")}'
+        );
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Paris Pharmacy', $result->first()->get('name'));
+    }
+
+    public function test_where_aggregate_with_distance_no_results(): void
+    {
+        $collection = new ClusterVOCollection;
+
+        $collection->add(new ClusterVO([
+            'name' => 'Paris Pharmacy',
+            'coordinates' => [
+                'latitude' => 48.8566,
+                'longitude' => 2.3522,
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Lyon Pharmacy',
+            'coordinates' => [
+                'latitude' => 45.7640,
+                'longitude' => 4.8357,
+            ],
+        ]));
+
+        // Distance < 1km de Paris -> seulement Paris si elle était incluse
+        $result = $collection->whereAggregate(
+            '{DISTANCE(coordinates, 48.8566, 2.3522, km) < 1}'
+        );
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Paris Pharmacy', $result->first()->get('name'));
+    }
+
+    public function test_where_aggregate_with_distance_and_count(): void
+    {
+        $collection = new ClusterVOCollection;
+
+        $collection->add(new ClusterVO([
+            'name' => 'Paris Pharmacy',
+            'coordinates' => [
+                'latitude' => 48.8566,
+                'longitude' => 2.3522,
+            ],
+            'addresses' => ['a', 'b', 'c'],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Lyon Pharmacy',
+            'coordinates' => [
+                'latitude' => 45.7640,
+                'longitude' => 4.8357,
+            ],
+            'addresses' => ['a', 'b'],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Marseille Pharmacy',
+            'coordinates' => [
+                'latitude' => 43.2965,
+                'longitude' => 5.3698,
+            ],
+            'addresses' => ['a'],
+        ]));
+
+        $result = $collection->whereAggregate(
+            '{DISTANCE(coordinates, 48.8566, 2.3522, km) < 500} & {COUNT(addresses) > 1}'
+        );
+
+        $this->assertCount(2, $result);
+        $this->assertEquals('Paris Pharmacy', $result->first()->get('name'));
+        $this->assertEquals('Lyon Pharmacy', $result->last()->get('name'));
+    }
+
+    public function test_where_aggregate_with_nested_coordinates(): void
+    {
+        $collection = new ClusterVOCollection;
+
+        $collection->add(new ClusterVO([
+            'name' => 'Paris Pharmacy',
+            'location' => [
+                'coordinates' => [
+                    'latitude' => 48.8566,
+                    'longitude' => 2.3522,
+                ],
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Lyon Pharmacy',
+            'location' => [
+                'coordinates' => [
+                    'latitude' => 45.7640,
+                    'longitude' => 4.8357,
+                ],
+            ],
+        ]));
+
+        $result = $collection->whereAggregate(
+            '{DISTANCE(location.coordinates, 48.8566, 2.3522, km) < 500}'
+        );
+
+        $this->assertCount(2, $result);
+        $this->assertEquals('Paris Pharmacy', $result->first()->get('name'));
+        $this->assertEquals('Lyon Pharmacy', $result->last()->get('name'));
+    }
+
+    public function test_where_aggregate_with_distance_between_300_and_500_km(): void
+    {
+        $collection = new ClusterVOCollection;
+
+        $collection->add(new ClusterVO([
+            'name' => 'Paris Pharmacy',
+            'coordinates' => [
+                'latitude' => 48.8566,
+                'longitude' => 2.3522,
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Lyon Pharmacy',
+            'coordinates' => [
+                'latitude' => 45.7640,
+                'longitude' => 4.8357,
+            ],
+        ]));
+        $collection->add(new ClusterVO([
+            'name' => 'Marseille Pharmacy',
+            'coordinates' => [
+                'latitude' => 43.2965,
+                'longitude' => 5.3698,
+            ],
+        ]));
+
+        $result = $collection->whereAggregate(
+            '{DISTANCE(coordinates, 48.8566, 2.3522, km) > 300} & {DISTANCE(coordinates, 48.8566, 2.3522, km) < 500}'
+        );
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('Lyon Pharmacy', $result->first()->get('name'));
+    }
 }
