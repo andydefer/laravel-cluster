@@ -9,7 +9,7 @@ use AndyDefer\LaravelCluster\Functions\ExtractKeyFunction;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 use PHPUnit\Framework\TestCase;
 
-final class ExtractKeyFunctionTest extends TestCase
+final class AggregateExtractKeyFunctionTest extends TestCase
 {
     // ==================== EXECUTE TESTS ====================
 
@@ -443,9 +443,10 @@ final class ExtractKeyFunctionTest extends TestCase
             ],
         ]));
 
-        $result = $collection->whereQuery(
-            '{EXTRACT_KEY(profile.name, pharmacy) = "Jean Dupont"} & pharmacy.status=active'
-        );
+        // ✅ Combiner whereAggregate et where
+        $result = $collection
+            ->whereAggregate('{EXTRACT_KEY(profile.name, pharmacy) = "Jean Dupont"}')
+            ->where('pharmacy.status', 'active');
 
         $this->assertCount(1, $result);
         $this->assertEquals('Offer 1', $result->first()->get('name'));

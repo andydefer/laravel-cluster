@@ -32,24 +32,14 @@ final class ExtractKeyFunction extends AbstractAggregateFunction
         $key = $args[0] ?? null;
         $objectPath = $args[1] ?? null;
 
-        dump('🔍 EXTRACT_KEY::execute');
-        dump('   key: '.$key);
-        dump('   objectPath: '.$objectPath);
-        dump('   data: ', $data);
-
         if ($key === null) {
-            dump('   ❌ key is null');
-
             return null;
         }
 
         // Si un objectPath est fourni, on commence par extraire l'objet
         if ($objectPath !== null) {
             $object = $this->resolveArg($data, $objectPath);
-            dump('   object resolved: '.json_encode($object));
             if (! is_array($object)) {
-                dump('   ❌ object is not array');
-
                 return null;
             }
             $target = $object;
@@ -61,20 +51,12 @@ final class ExtractKeyFunction extends AbstractAggregateFunction
         $parts = explode('.', $key);
         $current = $target;
 
-        dump('   parts: '.json_encode($parts));
-
         foreach ($parts as $part) {
-            dump('   part: '.$part);
-            dump('   current: '.json_encode($current));
             if (! is_array($current) || ! array_key_exists($part, $current)) {
-                dump('   ❌ key "'.$part.'" not found');
-
                 return null;
             }
             $current = $current[$part];
         }
-
-        dump('   ✅ result: '.json_encode($current));
 
         return $current;
     }

@@ -41,6 +41,7 @@ final class AggregateFunctionRegistryTest extends TestCase
             'MAX',
             'MIN',
             'SUM',
+            'EXTRACT_KEY',
         ];
 
         $names = $this->registry->getNames();
@@ -196,7 +197,7 @@ final class AggregateFunctionRegistryTest extends TestCase
         $numericFunctions = $this->registry->getNumericFunctions();
         $names = array_keys($numericFunctions);
 
-        $expected = ['AVG', 'COUNT', 'DISTANCE', 'LENGTH', 'MAX', 'MIN', 'SUM'];  // ✅ Ajout de DISTANCE
+        $expected = ['AVG', 'COUNT', 'DISTANCE', 'LENGTH', 'MAX', 'MIN', 'SUM', 'EXTRACT_KEY'];  // ✅ Ajout de DISTANCE
         sort($names);
         sort($expected);
 
@@ -226,7 +227,7 @@ final class AggregateFunctionRegistryTest extends TestCase
     {
         $all = $this->registry->all();
         $this->assertIsArray($all);
-        $this->assertCount(13, $all);  // ✅ 13 fonctions (DISTANCE ajoutée)
+        $this->assertCount(14, $all);  // ✅ 14 fonctions (DISTANCE ajoutée)
         $this->assertArrayHasKey('COUNT', $all);
         $this->assertArrayHasKey('EXISTS', $all);
         $this->assertArrayHasKey('GROUP', $all);
@@ -239,7 +240,7 @@ final class AggregateFunctionRegistryTest extends TestCase
     {
         $names = $this->registry->getNames();
         $this->assertIsArray($names);
-        $this->assertCount(13, $names);  // ✅ 13 fonctions (DISTANCE ajoutée)
+        $this->assertCount(14, $names);  // ✅ 14 fonctions (DISTANCE ajoutée)
         $this->assertContains('COUNT', $names);
         $this->assertContains('EXISTS', $names);
         $this->assertContains('HAS', $names);

@@ -173,6 +173,13 @@ final class AggregateEvaluatorService
      */
     public function validate(string $expression): bool
     {
+        // ✅ Vérifier l'équilibre des accolades
+        $openCount = substr_count($expression, '{');
+        $closeCount = substr_count($expression, '}');
+        if ($openCount !== $closeCount) {
+            return false;
+        }
+
         try {
             $parts = $this->parser->split($expression);
 

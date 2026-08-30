@@ -187,7 +187,11 @@ final class AggregateExpressionParser
             if (preg_match('/^([><=!]+)\s*(.+)$/', $remaining, $opMatch)) {
                 $operator = AggregateOperator::fromValue(trim($opMatch[1]));
                 if ($operator !== null) {
-                    $value = $this->castValue($functionName, trim($opMatch[2]));
+                    // ✅ Nettoyer la valeur : supprimer les accolades et les guillemets
+                    $rawValue = trim($opMatch[2]);
+                    $rawValue = trim($rawValue, ' {}');  // Supprime les espaces, { et }
+                    $rawValue = trim($rawValue, '"\'');
+                    $value = $this->castValue($functionName, $rawValue);
                 }
             }
         }
@@ -378,7 +382,11 @@ final class AggregateExpressionParser
                 return null;
             }
 
-            $value = $this->castValue($functionName, trim($matches[4]));
+            // ✅ Nettoyer la valeur
+            $rawValue = trim($matches[4]);
+            $rawValue = trim($rawValue, ' {}');
+            $rawValue = trim($rawValue, '"\'');
+            $value = $this->castValue($functionName, $rawValue);
         }
 
         return [
@@ -442,7 +450,11 @@ final class AggregateExpressionParser
             if (preg_match('/^([><=!]+)\s*(.+)$/', $remaining, $opMatch)) {
                 $operator = AggregateOperator::fromValue(trim($opMatch[1]));
                 if ($operator !== null) {
-                    $value = $this->castValue($functionName, trim($opMatch[2]));
+                    // ✅ Nettoyer la valeur
+                    $rawValue = trim($opMatch[2]);
+                    $rawValue = trim($rawValue, ' {}');
+                    $rawValue = trim($rawValue, '"\'');
+                    $value = $this->castValue($functionName, $rawValue);
                 }
             }
         }
