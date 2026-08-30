@@ -1,8 +1,10 @@
-# Aggregate Functions - Technical Reference
+# Functions d'agrégation sur les collections - Référence Technique Complète
 
 ## Description
 
-Les fonctions d'agrégation fournissent des opérations de calcul et de validation sur les données extraites des clusters. Elles permettent d'effectuer des analyses statistiques (moyenne, somme, min, max), des comptages, des vérifications d'existence, des recherches dans les structures de données et des correspondances par expressions régulières.
+Les fonctions d'agrégation permettent d'effectuer des calculs et des validations sur les données des clusters **en mémoire**, sans générer de SQL. Elles sont utilisées avec les méthodes `whereAggregate()`, `matchesAggregate()` et `getAggregateValue()` de `ClusterVOCollection`.
+
+---
 
 ## Hiérarchie
 
@@ -13,6 +15,7 @@ AggregateFunctionInterface
             ├── AvgFunction
             ├── CountFunction
             ├── ExistsFunction
+            ├── GroupFunction
             ├── HasFunction
             ├── IsEmptyFunction
             ├── LengthFunction
@@ -22,385 +25,455 @@ AggregateFunctionInterface
             └── SumFunction
 ```
 
+---
+
 ## Rôle principal
 
-Les fonctions d'agrégation sont utilisées dans les expressions de requête pour filtrer les clusters en fonction de propriétés calculées. Elles s'exécutent en mémoire sur les collections via le `AggregateEvaluatorService` et le registre `AggregateFunctionRegistry`.
+Les fonctions d'agrégation s'exécutent **exclusivement en mémoire** sur les collections PHP. Elles permettent de :
+
+1. **Filtrer** une collection avec `whereAggregate()`
+2. **Tester** un cluster individuel avec `matchesAggregate()`
+3. **Extraire** des valeurs calculées avec `getAggregateValue()`
 
 ---
 
-# AbstractAggregateFunction
+## Méthodes d'utilisation
 
-## Description
+### `whereAggregate(string $expression): self`
 
-Classe abstraite fournissant les fonctionnalités communes à toutes les fonctions d'agrégation : résolution des chemins, extraction de valeurs, décodage JSON et extraction de nombres.
-
-## API
-
-### `resolveArg(array $data, mixed $arg): mixed`
+Filtre la collection en fonction d'une expression d'agrégation.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$data` | `array<string, mixed>` | Les données source |
-| `$arg` | `mixed` | L'argument à résoudre |
+| `$expression` | `string` | Expression d'agrégation (ex: `{COUNT(addresses) > 2}`) |
 
-**Retourne :** `mixed` - La valeur résolue
+**Retourne :** `ClusterVOCollection` - Nouvelle collection filtrée
 
 **Exemple :**
 ```php
-$data = ['user' => ['profile' => ['age' => 30]]];
-$value = $this->resolveArg($data, 'user.profile.age');
-// $value = 30
+$result = $collection->whereAggregate('{COUNT(addresses) > 2}');
 ```
-
-### `resolvePath(array $data, string $path): mixed`
-
-Alias de `resolveArg()` pour une sémantique plus claire.
-
-### `extractValue(array $data, string $path): mixed`
-
-Extrait une valeur en utilisant la notation pointée.
-
-### `extractNumbers(array $array): array`
-
-Extrait toutes les valeurs numériques d'une structure de tableau imbriqué.
-
-### `isJson(string $string): bool`
-
-Vérifie si une chaîne est un JSON valide.
 
 ---
 
-# AllFunction
+### `whereAggregateDirect(string $function, array $args, ?string $operator = null, $value = null): self`
 
-## Description
-
-Vérifie que **tous** les éléments d'une collection satisfont une condition clé-valeur.
-
-## API
-
-### `execute(array $data, array $args): bool`
+Exécute une fonction d'agrégation directement sans parsing.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$data` | `array<string, mixed>` | Les données source |
-| `$args` | `array<int, string>` | Arguments : `[path, key, expectedValue]` |
+| `$function` | `string` | Nom de la fonction (ex: 'COUNT', 'AVG') |
+| `$args` | `array` | Arguments de la fonction |
+| `$operator` | `?string` | Opérateur de comparaison (optionnel) |
+| `$value` | `mixed` | Valeur de comparaison (optionnel) |
 
-**Retourne :** `bool` - `true` si tous les éléments satisfont la condition
+**Retourne :** `ClusterVOCollection` - Nouvelle collection filtrée
 
 **Exemple :**
 ```php
-$function = new AllFunction();
-$data = [
-    'items' => [
-        ['status' => 'active'],
-        ['status' => 'active'],
-    ],
-];
-$result = $function->execute($data, ['items', 'status', 'active']);
-// true
+// Filtre les clusters avec COUNT(addresses) > 0
+$result = $collection->whereAggregateDirect('COUNT', ['addresses']);
+
+// Filtre les clusters avec COUNT(addresses) > 2
+$result = $collection->whereAggregateDirect('COUNT', ['addresses'], '>', 2);
 ```
 
 ---
 
-# AvgFunction
+### `matchesAggregate(ClusterVO $cluster, string $expression): bool`
 
-## Description
-
-Calcule la moyenne arithmétique des valeurs numériques extraites d'une structure de données.
-
-## API
-
-### `execute(array $data, array $args): float`
+Vérifie si un cluster correspond à une expression d'agrégation.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$data` | `array<string, mixed>` | Les données source |
-| `$args` | `array<int, string>` | Arguments : `[path]` |
+| `$cluster` | `ClusterVO` | Le cluster à tester |
+| `$expression` | `string` | Expression d'agrégation |
 
-**Retourne :** `float` - La moyenne des valeurs numériques, ou `0.0` si aucune
+**Retourne :** `bool` - `true` si le cluster correspond
 
 **Exemple :**
 ```php
-$avg = new AvgFunction();
-$data = ['scores' => [80, 90, 100]];
-$result = $avg->execute($data, ['scores']);
-// 90.0
+$matches = $collection->matchesAggregate($cluster, '{COUNT(addresses) > 2}');
 ```
 
 ---
 
-# CountFunction
+### `getAggregateValue(ClusterVO $cluster, string $function, array $args): mixed`
 
-## Description
-
-Compte les éléments d'un tableau ou les caractères d'une chaîne.
-
-## API
-
-### `execute(array $data, array $args): int`
+Calcule et retourne la valeur d'agrégation pour un cluster spécifique.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$data` | `array<string, mixed>` | Les données source |
-| `$args` | `array<int, string>` | Arguments : `[path]` |
+| `$cluster` | `ClusterVO` | Le cluster à analyser |
+| `$function` | `string` | Nom de la fonction |
+| `$args` | `array` | Arguments de la fonction |
 
-**Retourne :** `int` - Le nombre d'éléments ou de caractères
+**Retourne :** `mixed` - La valeur calculée (int, float, bool, etc.)
 
 **Exemple :**
 ```php
-$count = new CountFunction();
-$data = ['tags' => ['php', 'js', 'css']];
-$result = $count->execute($data, ['tags']);
-// 3
+$count = $collection->getAggregateValue($cluster, 'COUNT', ['addresses']);
+$avg = $collection->getAggregateValue($cluster, 'AVG', ['scores']);
 ```
 
 ---
 
-# ExistsFunction
+### `validateAggregate(string $expression): bool`
 
-## Description
-
-Vérifie l'existence et la non-vacuité d'une valeur à un chemin donné.
-
-## API
-
-### `execute(array $data, array $args): bool`
+Valide la syntaxe d'une expression d'agrégation.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$data` | `array<string, mixed>` | Les données source |
-| `$args` | `array<int, string>` | Arguments : `[path]` |
+| `$expression` | `string` | Expression à valider |
 
-**Retourne :** `bool` - `true` si le chemin existe et contient une valeur non vide
+**Retourne :** `bool` - `true` si l'expression est valide
 
 **Exemple :**
 ```php
-$exists = new ExistsFunction();
-$data = ['user' => ['name' => 'John']];
-$result = $exists->execute($data, ['user.name']);
-// true
+$valid = $collection->validateAggregate('{COUNT(addresses) > 2}'); // true
+$valid = $collection->validateAggregate('{INVALID(addresses) > 2}'); // false
 ```
 
 ---
 
-# HasFunction
+## Fonctions disponibles
 
-## Description
+### 1. CountFunction - Compter les éléments
 
-Recherche une valeur dans un tableau ou une paire clé-valeur dans un tableau d'objets.
+**Description :** Compte les éléments d'un tableau ou les caractères d'une chaîne.
 
-## API
-
-### `execute(array $data, array $args): bool`
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$data` | `array<string, mixed>` | Les données source |
-| `$args` | `array<int, string>` | Arguments : `[path, key, value?]` |
-
-**Retourne :** `bool` - `true` si la valeur ou la paire clé-valeur est trouvée
-
-**Exemples :**
-```php
-$has = new HasFunction();
-
-// Recherche d'une valeur dans un tableau
-$data = ['tags' => ['php', 'js', 'css']];
-$result = $has->execute($data, ['tags', 'php']);
-// true
-
-// Recherche d'une paire clé-valeur
-$data = ['addresses' => [['city' => 'Kinshasa']]];
-$result = $has->execute($data, ['addresses', 'city', 'Kinshasa']);
-// true
-```
-
----
-
-# IsEmptyFunction
-
-## Description
-
-Détermine si une valeur extraite est considérée comme vide selon des règles spécifiques.
-
-## API
-
-### `execute(array $data, array $args): bool`
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$data` | `array<string, mixed>` | Les données source |
-| `$args` | `array<int, string>` | Arguments : `[path]` |
-
-**Retourne :** `bool` - `true` si la valeur est vide
+**Signature :** `COUNT(path)`
 
 **Exemple :**
 ```php
-$isEmpty = new IsEmptyFunction();
-$data = ['tags' => []];
-$result = $isEmpty->execute($data, ['tags']);
-// true
+// Compter les adresses
+$result = $collection->whereAggregate('{COUNT(addresses) > 2}');
+
+// Compter les caractères (si path est une chaîne)
+$result = $collection->whereAggregate('{COUNT(name) > 5}');
+```
+
+**Cas d'utilisation :**
+```php
+// Utilisateurs avec plus de 2 adresses
+$usersWithManyAddresses = $collection->whereAggregate('{COUNT(addresses) > 2}');
+
+// Produits avec au moins 3 photos
+$products = $collection->whereAggregate('{COUNT(photos) >= 3}');
 ```
 
 ---
 
-# LengthFunction
+### 2. AvgFunction - Calculer la moyenne
 
-## Description
+**Description :** Calcule la moyenne arithmétique des valeurs numériques.
 
-Calcule la longueur d'une chaîne ou le nombre d'éléments d'un tableau.
-
-## API
-
-### `execute(array $data, array $args): int`
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$data` | `array<string, mixed>` | Les données source |
-| `$args` | `array<int, string>` | Arguments : `[path]` |
-
-**Retourne :** `int` - La longueur de la chaîne ou le nombre d'éléments
+**Signature :** `AVG(path)`
 
 **Exemple :**
 ```php
-$length = new LengthFunction();
-$data = ['name' => 'John Doe'];
-$result = $length->execute($data, ['name']);
-// 8
+// Moyenne des scores >= 85
+$result = $collection->whereAggregate('{AVG(scores) >= 85}');
+
+// Moyenne des prix < 100
+$result = $collection->whereAggregate('{AVG(prices) < 100}');
+```
+
+**Cas d'utilisation :**
+```php
+// Étudiants avec moyenne générale >= 80
+$topStudents = $collection->whereAggregate('{AVG(grades) >= 80}');
+
+// Produits avec note moyenne > 4.5
+$bestProducts = $collection->whereAggregate('{AVG(ratings) > 4.5}');
 ```
 
 ---
 
-# MatchesFunction
+### 3. SumFunction - Calculer la somme
 
-## Description
+**Description :** Calcule la somme des valeurs numériques.
 
-Recherche une valeur correspondant à une expression régulière dans un tableau ou un tableau d'objets.
+**Signature :** `SUM(path)`
 
-Cette fonction supporte deux modes d'utilisation :
-- Avec 2 arguments : Recherche une regex dans un tableau de valeurs
-- Avec 3 arguments : Recherche une regex sur une clé spécifique dans un tableau d'objets
-
-## API
-
-### `execute(array $data, array $args): bool`
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$data` | `array<string, mixed>` | Les données source |
-| `$args` | `array<int, string>` | Arguments : `[path, key, pattern?]` |
-
-**Retourne :** `bool` - `true` si la regex correspond à une valeur
-
-**Exemples :**
+**Exemple :**
 ```php
-$matches = new MatchesFunction();
+// Somme des prix > 500
+$result = $collection->whereAggregate('{SUM(prices) > 500}');
 
-// Recherche d'une regex dans un tableau de valeurs
-$data = ['tags' => ['php', 'javascript', 'css']];
-$result = $matches->execute($data, ['tags', '/^ja.*/']);
-// true (javascript match)
+// Somme des commandes >= 1000
+$result = $collection->whereAggregate('{SUM(orders) >= 1000}');
+```
 
-// Recherche d'une regex sur une clé spécifique
-$data = ['addresses' => [['city' => 'Kinshasa'], ['city' => 'Paris']]];
-$result = $matches->execute($data, ['addresses', 'city', '/^Kin.*/']);
-// true (Kinshasa match)
+**Cas d'utilisation :**
+```php
+// Clients avec achats totaux > 1000€
+$bigSpenders = $collection->whereAggregate('{SUM(purchases) > 1000}');
+
+// Paniers avec total > 50€
+$carts = $collection->whereAggregate('{SUM(items.price) > 50}');
+```
+
+---
+
+### 4. MinFunction - Trouver le minimum
+
+**Description :** Trouve la valeur numérique minimale.
+
+**Signature :** `MIN(path)`
+
+**Exemple :**
+```php
+// Score minimum > 60
+$result = $collection->whereAggregate('{MIN(scores) > 60}');
+
+// Prix minimum >= 10
+$result = $collection->whereAggregate('{MIN(prices) >= 10}');
+```
+
+**Cas d'utilisation :**
+```php
+// Élèves avec toutes les notes > 50
+$consistentStudents = $collection->whereAggregate('{MIN(grades) > 50}');
+
+// Produits avec prix minimum > 5€
+$products = $collection->whereAggregate('{MIN(prices) > 5}');
+```
+
+---
+
+### 5. MaxFunction - Trouver le maximum
+
+**Description :** Trouve la valeur numérique maximale.
+
+**Signature :** `MAX(path)`
+
+**Exemple :**
+```php
+// Score maximum < 95
+$result = $collection->whereAggregate('{MAX(scores) < 95}');
+
+// Prix maximum <= 1000
+$result = $collection->whereAggregate('{MAX(prices) <= 1000}');
+```
+
+**Cas d'utilisation :**
+```php
+// Produits avec prix maximum < 1000€
+$affordableProducts = $collection->whereAggregate('{MAX(prices) < 1000}');
+
+// Étudiants avec aucune note > 90
+$nonEliteStudents = $collection->whereAggregate('{MAX(grades) <= 90}');
+```
+
+---
+
+### 6. LengthFunction - Longueur d'une chaîne
+
+**Description :** Calcule la longueur d'une chaîne ou le nombre d'éléments.
+
+**Signature :** `LENGTH(path)`
+
+**Exemple :**
+```php
+// Nom de plus de 5 caractères
+$result = $collection->whereAggregate('{LENGTH(name) > 5}');
+
+// Description de moins de 100 caractères
+$result = $collection->whereAggregate('{LENGTH(description) < 100}');
+```
+
+**Cas d'utilisation :**
+```php
+// Utilisateurs avec nom court (< 5 caractères)
+$shortNames = $collection->whereAggregate('{LENGTH(name) < 5}');
+
+// Produits avec code produit de 12 caractères
+$products = $collection->whereAggregate('{LENGTH(product_code) = 12}');
+```
+
+---
+
+### 7. ExistsFunction - Vérifier l'existence
+
+**Description :** Vérifie qu'un chemin existe et n'est pas vide.
+
+**Signature :** `EXISTS(path)`
+
+**Exemple :**
+```php
+// Profile existe
+$result = $collection->whereAggregate('{EXISTS(profile)}');
+
+// Email existe
+$result = $collection->whereAggregate('{EXISTS(email)}');
+```
+
+**Cas d'utilisation :**
+```php
+// Utilisateurs avec profil complet
+$completeProfiles = $collection->whereAggregate('{EXISTS(profile)}');
+
+// Commandes avec adresse de livraison
+$ordersWithAddress = $collection->whereAggregate('{EXISTS(shipping_address)}');
+```
+
+---
+
+### 8. HasFunction - Rechercher une valeur
+
+**Description :** Recherche une valeur dans un tableau ou une paire clé-valeur.
+
+**Signatures :**
+- `HAS(path, value)` - Recherche dans un tableau simple
+- `HAS(path, key, value)` - Recherche dans un tableau d'objets
+
+**Exemple :**
+```php
+// Tags contient 'php'
+$result = $collection->whereAggregate('{HAS(tags, "php")}');
+
+// Adresse avec ville 'Paris'
+$result = $collection->whereAggregate('{HAS(addresses, city, "Paris")}');
+```
+
+**Cas d'utilisation :**
+```php
+// Développeurs PHP
+$phpDevs = $collection->whereAggregate('{HAS(skills, "php")}');
+
+// Commandes avec produit 'Laptop'
+$laptopOrders = $collection->whereAggregate('{HAS(items, name, "Laptop")}');
+
+// Utilisateurs avec tag 'premium'
+$premiumUsers = $collection->whereAggregate('{HAS(tags, "premium")}');
+```
+
+---
+
+### 9. AllFunction - Tous les éléments
+
+**Description :** Vérifie que **tous** les éléments satisfont une condition.
+
+**Signature :** `ALL(path, key, expectedValue)`
+
+**Exemple :**
+```php
+// Toutes les adresses sont en RDC
+$result = $collection->whereAggregate('{ALL(addresses, country, "RDC")}');
+
+// Tous les produits sont disponibles
+$result = $collection->whereAggregate('{ALL(items, status, "available")}');
+```
+
+**Cas d'utilisation :**
+```php
+// Commandes avec tous les produits en stock
+$fullyInStock = $collection->whereAggregate('{ALL(items, in_stock, "yes")}');
+
+// Utilisateurs avec toutes les vérifications passées
+$fullyVerified = $collection->whereAggregate('{ALL(verifications, status, "passed")}');
+```
+
+---
+
+### 10. MatchesFunction - Expression régulière
+
+**Description :** Recherche une valeur correspondant à une regex.
+
+**Signatures :**
+- `MATCHES(path, regex)` - Regex sur un tableau simple
+- `MATCHES(path, key, regex)` - Regex sur une clé spécifique
+
+**Exemple :**
+```php
+// Tags commençant par 'ja'
+$result = $collection->whereAggregate('{MATCHES(tags, "/^ja.*/")}');
+
+// Villes commençant par 'Kin'
+$result = $collection->whereAggregate('{MATCHES(addresses, city, "/^Kin.*/")}');
 
 // Regex insensible à la casse
-$result = $matches->execute($data, ['tags', '/^ja.*/i']);
-// true
+$result = $collection->whereAggregate('{MATCHES(tags, "/^ja.*/i")}');
+```
 
-// Aucun match
-$result = $matches->execute($data, ['tags', '/^python.*/']);
-// false
+**Cas d'utilisation :**
+```php
+// Emails Gmail
+$gmailUsers = $collection->whereAggregate('{MATCHES(emails, "/.*@gmail\\.com$/")}');
+
+// Noms commençant par une majuscule
+$properNames = $collection->whereAggregate('{MATCHES(names, "/^[A-Z]/")}');
+
+// Codes postaux français
+$frenchPostal = $collection->whereAggregate('{MATCHES(postal_codes, "/^[0-9]{5}$/")}');
 ```
 
 ---
 
-# MaxFunction
+### 11. IsEmptyFunction - Vérifier le vide
 
-## Description
+**Description :** Détermine si une valeur est considérée comme vide.
 
-Trouve la valeur numérique maximale dans un tableau.
-
-## API
-
-### `execute(array $data, array $args): float|int`
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$data` | `array<string, mixed>` | Les données source |
-| `$args` | `array<int, string>` | Arguments : `[path]` |
-
-**Retourne :** `float|int` - La valeur maximale trouvée, ou `0` si aucune
+**Signature :** `IS_EMPTY(path)`
 
 **Exemple :**
 ```php
-$max = new MaxFunction();
-$data = ['scores' => [80, 90, 100]];
-$result = $max->execute($data, ['scores']);
-// 100
+// Panier vide
+$result = $collection->whereAggregate('{IS_EMPTY(cart)}');
+
+// Tags vides
+$result = $collection->whereAggregate('{IS_EMPTY(tags)}');
+```
+
+**Cas d'utilisation :**
+```php
+// Utilisateurs sans panier
+$emptyCarts = $collection->whereAggregate('{IS_EMPTY(cart)}');
+
+// Produits sans description
+$noDescription = $collection->whereAggregate('{IS_EMPTY(description)}');
 ```
 
 ---
 
-# MinFunction
+### 12. GroupFunction - Grouper des expressions
 
-## Description
+**Description :** Permet de grouper des expressions pour la logique booléenne.
 
-Trouve la valeur numérique minimale dans un tableau.
-
-## API
-
-### `execute(array $data, array $args): float|int`
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$data` | `array<string, mixed>` | Les données source |
-| `$args` | `array<int, string>` | Arguments : `[path]` |
-
-**Retourne :** `float|int` - La valeur minimale trouvée, ou `0` si aucune
+**Signature :** `GROUP({expression1} & {expression2})`
 
 **Exemple :**
 ```php
-$min = new MinFunction();
-$data = ['scores' => [80, 90, 70]];
-$result = $min->execute($data, ['scores']);
-// 70
+// Groupe avec AND
+$result = $collection->whereAggregate(
+    '{GROUP({COUNT(addresses) > 1} & {AVG(scores) >= 85})}'
+);
+
+// Groupe avec OR
+$result = $collection->whereAggregate(
+    '{GROUP({HAS(tags, "php")} | {HAS(tags, "javascript")})}'
+);
 ```
 
----
-
-# SumFunction
-
-## Description
-
-Calcule la somme des valeurs numériques dans un tableau.
-
-## API
-
-### `execute(array $data, array $args): float`
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$data` | `array<string, mixed>` | Les données source |
-| `$args` | `array<int, string>` | Arguments : `[path]` |
-
-**Retourne :** `float` - La somme des valeurs numériques trouvées, ou `0.0` si aucune
-
-**Exemple :**
+**Cas d'utilisation :**
 ```php
-$sum = new SumFunction();
-$data = ['prices' => [100, 200, 300]];
-$result = $sum->execute($data, ['prices']);
-// 600.0
+// Complexe : Plus de 2 adresses ET moyenne >= 85
+$result = $collection->whereAggregate(
+    '{GROUP({COUNT(addresses) > 2} & {AVG(scores) >= 85})}'
+);
+
+// OU : PHP OU JavaScript
+$result = $collection->whereAggregate(
+    '{GROUP({HAS(tags, "php")} | {HAS(tags, "javascript")})}'
+);
 ```
 
 ---
 
-## Cas d'utilisation
+## Exemples complets
 
-### Cas 1 : Filtrer les clusters avec plus de 2 adresses
+### Exemple 1 : Analyse de données étudiants
 
 ```php
 <?php
@@ -410,123 +483,247 @@ declare(strict_types=1);
 use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
 
-$collection = new ClusterVOCollection;
-$collection->add(new ClusterVO([
-    'name' => 'John',
-    'addresses' => ['a', 'b', 'c'],
+$students = new ClusterVOCollection();
+
+$students->add(new ClusterVO([
+    'name' => 'Alice',
+    'grades' => [85, 90, 88, 92],
+    'subjects' => ['Math', 'Physics', 'Chemistry'],
+    'attendance' => [95, 98, 97, 96],
 ]));
-$collection->add(new ClusterVO([
-    'name' => 'Jane',
-    'addresses' => ['a', 'b'],
+$students->add(new ClusterVO([
+    'name' => 'Bob',
+    'grades' => [70, 75, 65, 80],
+    'subjects' => ['Math', 'Biology'],
+    'attendance' => [80, 85, 90, 88],
+]));
+$students->add(new ClusterVO([
+    'name' => 'Charlie',
+    'grades' => [95, 92, 98, 94],
+    'subjects' => ['Math', 'Physics', 'Chemistry', 'Biology'],
+    'attendance' => [90, 92, 95, 93],
 ]));
 
-$result = $collection->whereAggregate('{COUNT(addresses) > 2}');
-// Retourne seulement John
-```
+// 1. Étudiants avec moyenne >= 85
+$topStudents = $students->whereAggregate('{AVG(grades) >= 85}');
+// Alice, Charlie
 
-### Cas 2 : Filtrer les clusters avec une moyenne de scores supérieure à 85
+// 2. Étudiants avec au moins 3 matières
+$busyStudents = $students->whereAggregate('{COUNT(subjects) >= 3}');
+// Alice, Charlie
 
-```php
-$result = $collection->whereAggregate('{AVG(scores) >= 85}');
-```
-
-### Cas 3 : Vérifier l'existence d'une clé dans chaque cluster
-
-```php
-$result = $collection->whereAggregate('{EXISTS(settings.notifications)}');
-```
-
-### Cas 4 : Rechercher une valeur dans un tableau
-
-```php
-$result = $collection->whereAggregate('{HAS(tags, "php")}');
-```
-
-### Cas 5 : Vérifier que tous les éléments satisfont une condition
-
-```php
-$result = $collection->whereAggregate('{ALL(addresses, country, "RDC")}');
-// Retourne les clusters où toutes les adresses sont en RDC
-```
-
-### Cas 6 : Recherche par expression régulière sur un tableau
-
-```php
-// Tags commençant par "ja"
-$result = $collection->whereAggregate('{MATCHES(tags, "/^ja.*/")}');
-
-// Tags insensibles à la casse
-$result = $collection->whereAggregate('{MATCHES(tags, "/^ja.*/i")}');
-
-// Villes commençant par "Kin" dans un tableau d'objets
-$result = $collection->whereAggregate('{MATCHES(addresses, city, "/^Kin.*/")}');
-
-// Regex avec caractères spéciaux
-$result = $collection->whereAggregate('{MATCHES(codes, "/^[A-Z]{3}-\\d{3}$/")}');
-```
-
-### Cas 7 : Combinaison d'expressions complexes
-
-```php
-// Combinaison avec AND
-$result = $collection->whereAggregate(
-    '{COUNT(addresses) > 1} & {AVG(scores) >= 80}'
+// 3. Étudiants avec moyenne >= 85 ET au moins 3 matières
+$excellentStudents = $students->whereAggregate(
+    '{GROUP({AVG(grades) >= 85} & {COUNT(subjects) >= 3})}'
 );
+// Alice, Charlie
 
-// Combinaison avec OR
-$result = $collection->whereAggregate(
-    '{HAS(tags, "php")} | {HAS(tags, "python")}'
-);
+// 4. Étudiants avec présence moyenne > 90
+$presentStudents = $students->whereAggregate('{AVG(attendance) > 90}');
+// Alice, Charlie
 
-// Combinaison de fonctions booléennes
-$result = $collection->whereAggregate(
-    '{EXISTS(profile)} & {IS_EMPTY(cart)}'
-);
+// 5. Étudiants avec note minimale > 80 (consistants)
+$consistentStudents = $students->whereAggregate('{MIN(grades) > 80}');
+// Alice, Charlie
 
-// Combinaison avec regex
-$result = $collection->whereAggregate(
-    '{MATCHES(tags, "/^ja.*/")} & {COUNT(addresses) > 2}'
-);
+// 6. Étudiants avec une note parfaite (max = 100)
+$perfectStudents = $students->whereAggregate('{MAX(grades) = 100}');
+// Aucun
 
-// Nested complexe
-$result = $collection->whereAggregate(
-    '({COUNT(addresses) > 1} & {AVG(scores) >= 80}) | {HAS(tags, "php")}'
-);
+// 7. Utilisation de getAggregateValue
+foreach ($students as $student) {
+    $avg = $students->getAggregateValue($student, 'AVG', ['grades']);
+    $min = $students->getAggregateValue($student, 'MIN', ['grades']);
+    $max = $students->getAggregateValue($student, 'MAX', ['grades']);
+    $count = $students->getAggregateValue($student, 'COUNT', ['subjects']);
+    
+    echo $student->get('name') . ": Avg={$avg}, Min={$min}, Max={$max}, Subjects={$count}\n";
+}
+// Alice: Avg=88.75, Min=85, Max=92, Subjects=3
+// Bob: Avg=72.5, Min=65, Max=80, Subjects=2
+// Charlie: Avg=94.75, Min=92, Max=98, Subjects=4
 ```
 
-### Cas 8 : Utilisation avec `whereAggregateDirect`
+---
+
+### Exemple 2 : Analyse de ventes
 
 ```php
-// Exécution directe sans parsing
-$result = $collection->whereAggregateDirect('COUNT', ['addresses']);
-// Retourne les clusters où COUNT(addresses) > 0
+<?php
 
-$result = $collection->whereAggregateDirect('EXISTS', ['profile']);
-// Retourne les clusters où profile existe
+declare(strict_types=1);
 
-$result = $collection->whereAggregateDirect('HAS', ['tags', 'php']);
-// Retourne les clusters où tags contient 'php'
+$products = new ClusterVOCollection();
+
+$products->add(new ClusterVO([
+    'name' => 'Laptop Pro',
+    'sales' => [100, 150, 120, 90, 110, 130],
+    'prices' => [1200, 1100, 1300, 1250],
+    'ratings' => [4.5, 5.0, 4.0, 4.8],
+]));
+$products->add(new ClusterVO([
+    'name' => 'Phone X',
+    'sales' => [200, 180, 220, 190, 210, 195],
+    'prices' => [800, 750, 850, 780],
+    'ratings' => [4.2, 4.5, 4.0, 4.3],
+]));
+$products->add(new ClusterVO([
+    'name' => 'Tablet Z',
+    'sales' => [50, 60, 55, 45, 48, 52],
+    'prices' => [500, 480, 520, 490],
+    'ratings' => [3.8, 4.0, 3.5, 4.2],
+]));
+
+// 1. Produits avec ventes moyennes > 150
+$topSellers = $products->whereAggregate('{AVG(sales) > 150}');
+// Phone X (200.8)
+
+// 2. Produits avec ventes stables (min > 100)
+$stableProducts = $products->whereAggregate('{MIN(sales) > 100}');
+// Laptop Pro (90) -> false, Phone X (180) -> true, Tablet Z (45) -> false
+
+// 3. Produits avec prix moyen < 1000
+$affordableProducts = $products->whereAggregate('{AVG(prices) < 1000}');
+// Phone X, Tablet Z
+
+// 4. Produits avec note moyenne > 4.0
+$highRated = $products->whereAggregate('{AVG(ratings) > 4.0}');
+// Laptop Pro (4.575), Phone X (4.25)
+
+// 5. Combinaison complexe
+$bestProducts = $products->whereAggregate(
+    '{GROUP({AVG(sales) > 100} & {AVG(ratings) > 4.0} & {AVG(prices) < 1500})}'
+);
+// Laptop Pro, Phone X
+
+// 6. Utilisation de whereAggregateDirect
+$filtered = $products->whereAggregateDirect('AVG', ['sales'], '>', 100)
+    ->whereAggregateDirect('AVG', ['ratings'], '>', 4.0);
+
+// 7. Validation avant utilisation
+$expression = '{AVG(sales) > 100}';
+if ($products->validateAggregate($expression)) {
+    $result = $products->whereAggregate($expression);
+}
+
+// 8. Calculs individuels avec getAggregateValue
+foreach ($products as $product) {
+    $avgSales = $products->getAggregateValue($product, 'AVG', ['sales']);
+    $avgRating = $products->getAggregateValue($product, 'AVG', ['ratings']);
+    $totalRevenue = $products->getAggregateValue($product, 'SUM', ['prices']);
+    $productCount = $products->getAggregateValue($product, 'COUNT', ['prices']);
+    
+    echo $product->get('name') . ":\n";
+    echo "  Ventes moyennes: {$avgSales}\n";
+    echo "  Note moyenne: {$avgRating}\n";
+    echo "  Revenu total: {$totalRevenue}\n";
+    echo "  Nombre de prix: {$productCount}\n";
+}
 ```
 
-### Cas 9 : Utilisation avec `matchesAggregate`
+---
+
+### Exemple 3 : Filtrage de données complexes
 
 ```php
-// Vérifier si un cluster spécifique correspond
-$cluster = $collection->first();
-$matches = $collection->matchesAggregate($cluster, '{COUNT(addresses) > 2}');
+<?php
 
-// Utilisation directe
-$matches = $collection->matchesAggregateDirect($cluster, 'COUNT', ['addresses']);
-```
+declare(strict_types=1);
 
-### Cas 10 : Utilisation avec `getAggregateValue`
+$users = new ClusterVOCollection();
 
-```php
-// Obtenir la valeur d'agrégation pour un cluster
-$cluster = $collection->first();
-$count = $collection->getAggregateValue($cluster, 'COUNT', ['addresses']);
-$avg = $collection->getAggregateValue($cluster, 'AVG', ['scores']);
-$exists = $collection->getAggregateValue($cluster, 'EXISTS', ['profile']);
+$users->add(new ClusterVO([
+    'id' => 1,
+    'name' => 'John Doe',
+    'profile' => [
+        'age' => 30,
+        'city' => 'Paris',
+        'verified' => true,
+        'interests' => ['php', 'laravel', 'docker'],
+    ],
+    'orders' => [
+        ['amount' => 100, 'status' => 'completed'],
+        ['amount' => 200, 'status' => 'completed'],
+        ['amount' => 150, 'status' => 'pending'],
+    ],
+    'ratings' => [4.5, 5.0, 4.0, 4.8],
+]));
+
+$users->add(new ClusterVO([
+    'id' => 2,
+    'name' => 'Jane Smith',
+    'profile' => [
+        'age' => 25,
+        'city' => 'London',
+        'verified' => false,
+        'interests' => ['python', 'django', 'react'],
+    ],
+    'orders' => [
+        ['amount' => 50, 'status' => 'completed'],
+        ['amount' => 75, 'status' => 'pending'],
+    ],
+    'ratings' => [4.0, 4.2, 4.5],
+]));
+
+$users->add(new ClusterVO([
+    'id' => 3,
+    'name' => 'Bob Johnson',
+    'profile' => [
+        'age' => 35,
+        'city' => 'Paris',
+        'verified' => true,
+        'interests' => ['javascript', 'vuejs', 'node'],
+    ],
+    'orders' => [
+        ['amount' => 300, 'status' => 'completed'],
+        ['amount' => 250, 'status' => 'completed'],
+        ['amount' => 200, 'status' => 'completed'],
+    ],
+    'ratings' => [5.0, 4.8, 5.0, 4.9],
+]));
+
+// 1. Filtres complexes avec GROUP
+$results = $users->whereAggregate(
+    '{GROUP({EXISTS(profile.verified)} & {EXISTS(profile.city)} & {COUNT(orders) > 1})}'
+);
+// John, Bob (vérifiés, avec ville, plus de 1 commande)
+
+// 2. HAS sur tableau d'objets
+$phpUsers = $users->whereAggregate('{HAS(profile.interests, "php")}');
+// John
+
+// 3. ALL avec conditions
+$allCompleted = $users->whereAggregate('{ALL(orders, status, "completed")}');
+// Bob (toutes ses commandes sont completed)
+
+// 4. MATCHES sur tableau simple
+$laravelUsers = $users->whereAggregate('{MATCHES(profile.interests, "/laravel/")}');
+// John
+
+// 5. Combinaison HAS + MATCHES
+$techUsers = $users->whereAggregate(
+    '{GROUP({HAS(profile.interests, "php")} | {MATCHES(profile.interests, "/java.*/")})}'
+);
+// John (php), Bob (javascript)
+
+// 6. Métriques complètes avec getAggregateValue
+$metrics = [];
+foreach ($users as $user) {
+    $metrics[$user->get('id')] = [
+        'avg_order' => $users->getAggregateValue($user, 'AVG', ['orders.*.amount']),
+        'total_spent' => $users->getAggregateValue($user, 'SUM', ['orders.*.amount']),
+        'order_count' => $users->getAggregateValue($user, 'COUNT', ['orders']),
+        'avg_rating' => $users->getAggregateValue($user, 'AVG', ['ratings']),
+        'has_verified' => $users->getAggregateValue($user, 'EXISTS', ['profile.verified']),
+    ];
+}
+
+print_r($metrics);
+// [
+//   1 => ['avg_order' => 150, 'total_spent' => 450, 'order_count' => 3, 'avg_rating' => 4.575, 'has_verified' => true],
+//   2 => ['avg_order' => 62.5, 'total_spent' => 125, 'order_count' => 2, 'avg_rating' => 4.233, 'has_verified' => false],
+//   3 => ['avg_order' => 250, 'total_spent' => 750, 'order_count' => 3, 'avg_rating' => 4.925, 'has_verified' => true],
+// ]
 ```
 
 ---
@@ -539,33 +736,7 @@ $exists = $collection->getAggregateValue($cluster, 'EXISTS', ['profile']);
 | Nombre d'arguments invalide | `InvalidArgumentException` | Message personnalisé selon la fonction |
 | Chemin inexistant | Retourne `null` ou valeur par défaut | - |
 | Regex invalide | Retourne `false` | - |
-
----
-
-## Intégration
-
-Les fonctions d'agrégation sont utilisées par :
-
-- **`ClusterVOCollection`** : via les méthodes `whereAggregate()`, `whereAggregateDirect()`, `matchesAggregate()`, `getAggregateValue()`
-- **`AggregateEvaluatorService`** : pour l'évaluation des expressions
-- **`AggregateFunctionRegistry`** : pour l'enregistrement et la résolution des fonctions
-- **`ClusterQuery`** : pour le filtrage des collections
-
-### Cycle de vie d'une expression d'agrégation
-
-```
-1. Expression textuelle: '{COUNT(addresses) > 2}'
-   ↓
-2. AggregateExpressionParser parse l'expression
-   ↓
-3. Détection de la fonction COUNT
-   ↓
-4. Validation des arguments via validateArgs()
-   ↓
-5. Exécution via AggregateFunctionRegistry::execute()
-   ↓
-6. Résultat retourné à l'appelant
-```
+| Expression mal formée | `RuntimeException` | `Invalid aggregate expression` |
 
 ---
 
@@ -573,8 +744,8 @@ Les fonctions d'agrégation sont utilisées par :
 
 - **Complexité :** O(n) où n est le nombre d'éléments dans le tableau cible
 - **Extraction des nombres :** Récursive, peut être coûteuse pour des structures profondément imbriquées
-- **Cache :** Les expressions sont parsées et mises en cache par `AggregateEvaluatorService`
-- **MATCHES :** Les regex sont compilées à chaque exécution, utilisez avec parcimonie sur de grands ensembles de données
+- **Cache :** Les expressions sont parsées et mises en cache
+- **MATCHES :** Les regex sont compilées à chaque exécution
 - **Recommandation :** Éviter les fonctions d'agrégation sur de très grands tableaux (> 10 000 éléments) en mémoire
 
 ---
@@ -643,53 +814,52 @@ $collection->add(new ClusterVO([
 ]));
 
 // 1. Filtrer avec COUNT
-$result = $collection->whereAggregate('{COUNT(addresses) > 2}');
-// John, Bob
+$result = $collection->whereAggregate('{COUNT(addresses) > 2}'); // John, Bob
 
 // 2. Filtrer avec AVG
-$result = $collection->whereAggregate('{AVG(scores) >= 85}');
-// John, Bob
+$result = $collection->whereAggregate('{AVG(scores) >= 85}'); // John, Bob
 
 // 3. Filtrer avec SUM
-$result = $collection->whereAggregate('{SUM(prices) > 500}');
-// John, Bob
+$result = $collection->whereAggregate('{SUM(prices) > 500}'); // John, Bob
 
 // 4. Filtrer avec MIN
-$result = $collection->whereAggregate('{MIN(scores) > 75}');
-// John, Bob
+$result = $collection->whereAggregate('{MIN(scores) > 75}'); // John, Bob
 
 // 5. Filtrer avec MAX
-$result = $collection->whereAggregate('{MAX(scores) < 95}');
-// John, Jane
+$result = $collection->whereAggregate('{MAX(scores) < 95}'); // John, Jane
 
 // 6. Filtrer avec EXISTS
-$result = $collection->whereAggregate('{EXISTS(profile)}');
-// John, Jane, Bob
+$result = $collection->whereAggregate('{EXISTS(profile)}'); // John, Jane, Bob
 
 // 7. Filtrer avec IS_EMPTY
-$result = $collection->whereAggregate('{IS_EMPTY(cart)}');
-// Jane
+$result = $collection->whereAggregate('{IS_EMPTY(cart)}'); // Jane
 
 // 8. Filtrer avec HAS
-$result = $collection->whereAggregate('{HAS(tags, "php")}');
-// John, Bob
+$result = $collection->whereAggregate('{HAS(tags, "php")}'); // John, Bob
 
 // 9. Filtrer avec ALL
-$result = $collection->whereAggregate('{ALL(addresses_detail, country, "RDC")}');
-// John
+$result = $collection->whereAggregate('{ALL(addresses_detail, country, "RDC")}'); // John
 
 // 10. Filtrer avec MATCHES
-$result = $collection->whereAggregate('{MATCHES(tags, "/^ja.*/")}');
-// John (javascript)
+$result = $collection->whereAggregate('{MATCHES(tags, "/^ja.*/")}'); // John (javascript)
 
-// 11. Combinaison complexe
+// 11. Combinaison complexe avec GROUP
 $result = $collection->whereAggregate(
-    '{COUNT(addresses) > 1} & {AVG(scores) >= 80} & {HAS(tags, "php")}'
-);
-// John, Bob
+    '{GROUP({COUNT(addresses) > 1} & {AVG(scores) >= 80} & {HAS(tags, "php")})}'
+); // John, Bob
 
-// 12. Utilisation directe avec getAggregateValue
+// 12. Validation
+$valid = $collection->validateAggregate('{COUNT(addresses) > 2}'); // true
+$invalid = $collection->validateAggregate('{INVALID(addresses) > 2}'); // false
+
+// 13. Utilisation directe
+$result = $collection->whereAggregateDirect('COUNT', ['addresses'], '>', 2);
+
+// 14. Tests individuels
 $cluster = $collection->first();
+$matches = $collection->matchesAggregate($cluster, '{COUNT(addresses) > 2}');
+
+// 15. Obtention de valeurs
 $count = $collection->getAggregateValue($cluster, 'COUNT', ['addresses']);
 $avg = $collection->getAggregateValue($cluster, 'AVG', ['scores']);
 $hasPhp = $collection->getAggregateValue($cluster, 'HAS', ['tags', 'php']);
@@ -703,11 +873,7 @@ echo "John: COUNT={$count}, AVG={$avg}, HAS_PHP=" . ($hasPhp ? 'yes' : 'no') . "
 
 ## Voir aussi
 
-- [`AggregateEvaluatorService`](Services/AggregateEvaluatorService.md) - Service d'évaluation des expressions
-- [`AggregateFunctionRegistry`](Registry/AggregateFunctionRegistry.md) - Registre des fonctions d'agrégation
-- [`AggregateExpressionParser`](Parser/AggregateExpressionParser.md) - Parser des expressions d'agrégation
-- [`ClusterVOCollection::whereAggregate()`](Collections/ClusterVOCollection.md#whereaggregate) - Filtrage par expression d'agrégation
-- [`ClusterVOCollection::whereAggregateDirect()`](Collections/ClusterVOCollection.md#whereaggregatedirect) - Exécution directe
-- [`ClusterVOCollection::matchesAggregate()`](Collections/ClusterVOCollection.md#matchesaggregate) - Vérification de cluster
-- [`ClusterVOCollection::getAggregateValue()`](Collections/ClusterVOCollection.md#getaggregatevalue) - Obtention de valeur
-- [`MatchesFunction`](Functions/MatchesFunction.md) - Fonction d'agrégation pour les expressions régulières
+- [`ClusterVOCollection`](Collections/ClusterVOCollection.md) - Collection de clusters
+- [`ClusterVO`](ValueObjects/ClusterVO.md) - Conteneur de données
+- [`ClusterQuery`](ClusterQuery.md) - Moteur de requêtes
+- [`AggregateFunctionRegistry`](Registry/AggregateFunctionRegistry.md) - Registre des fonctions

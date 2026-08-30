@@ -20,7 +20,7 @@
 16. [Les opérateurs LIKE et NOT_LIKE](#16-les-opérateurs-like-et-not-like)
 17. [Les fonctions d'agrégation en mémoire](#17-les-fonctions-dagrégation-en-mémoire)
 18. [Créer des fonctions personnalisées](#18-créer-des-fonctions-personnalisées)
-19. [Parser et AST (Arbre Syntaxique Abstrait)](#19-parser-et-ast-arbre-syntaxique-abstrait)
+19. [Parser et AST](#19-parser-et-ast)
 20. [Référence des opérateurs](#20-référence-des-opérateurs)
 21. [Référence des méthodes de ClusterVOCollection](#21-référence-des-méthodes-de-clustervocollection)
 22. [Cas d'usage concrets](#22-cas-dusage-concrets)
@@ -56,8 +56,6 @@ Le package s'enregistre automatiquement. Si vous utilisez une version de Laravel
 
 ### 1.4 Structure du Service Provider
 
-Le package est organisé de manière modulaire :
-
 ```
 src/
 ├── Providers/
@@ -68,21 +66,6 @@ src/
 ├── Casts/
 │   └── ClusterCast.php              # Cast Eloquent
 └── ...
-```
-
-Le `ClusterServiceProvider` :
-
-1. Enregistre les services dans le conteneur
-2. Enregistre les fonctions SQLite via `SqliteFunctionRegistrar`
-3. Enregistre les macros via `ClusterMacroRegistrar`
-
-```php
-// ClusterServiceProvider::boot()
-public function boot(): void
-{
-    SqliteFunctionRegistrar::register();    // Fonctions SQLite
-    ClusterMacroRegistrar::register();      // Macros Laravel
-}
 ```
 
 ### 1.5 Injection de dépendances
@@ -117,8 +100,6 @@ class UserFilterService
 
 ### 2.1 Flux de traitement d'une requête
 
-Voici comment une requête textuelle est transformée en action concrète :
-
 ```php
 use AndyDefer\LaravelCluster\Lexer;
 use AndyDefer\LaravelCluster\Parser;
@@ -130,15 +111,10 @@ $query = 'status=active & age>25 & COUNT(addresses)>2';
 // 2. Le Lexer tokenise l'expression
 $lexer = new Lexer();
 $tokens = $lexer->tokenize($query);
-// Tokens: [status, =, active, &, age, >, 25, &, COUNT, (, addresses, ), >, 2]
 
 // 3. Le Parser construit l'AST
 $parser = new Parser();
 $ast = $parser->parse($query);
-// AST: GroupNode(AND) 
-//   ├── ConditionNode(status, =, active)
-//   ├── ConditionNode(age, >, 25)
-//   └── FunctionNode(COUNT, addresses, >, 2)
 
 // 4. Le ClusterQuery exécute l'AST
 $clusterQuery = new ClusterQuery();
@@ -165,15 +141,12 @@ use AndyDefer\LaravelCluster\Registry\AggregateFunctionRegistry;
 
 // 1. Lexer - Tokenise une expression
 $tokens = (new Lexer())->tokenize('status=active');
-// Retourne une TokenRecordCollection
 
 // 2. Parser - Construit l'AST
 $ast = (new Parser())->parse('status=active');
-// Retourne un ConditionNode
 
 // 3. ClusterQuery - Moteur central
 $engine = new ClusterQuery();
-$ast = $engine->parse('status=active');
 $filtered = $engine->filter($clusters, 'status=active');
 
 // 4. ClusterService - Façade
@@ -325,7 +298,7 @@ $users = $query->get();
 
 ## 4. Le service façade : ClusterService
 
-`ClusterService` est une façade qui délègue à `ClusterQuery`. Il est utile pour l'injection de dépendances dans les services Laravel.
+`ClusterService` est une façade qui délègue à `ClusterQuery`.
 
 ### 4.1 Création
 
@@ -355,7 +328,6 @@ $ast = $service->parse('status=active');
 
 // 2. Filtrer une collection
 $clusters = new ClusterVOCollection();
-// ... ajout des clusters ...
 $filtered = $service->filter($clusters, 'status=active');
 
 // 3. Tester un cluster
@@ -473,16 +445,13 @@ if ($cluster->has('address.city')) {
 
 // Récupération de toutes les clés
 $keys = $cluster->keys();
-// ['id', 'name', 'age', 'is_active', 'address.city', 'address.country', ...]
 
 // Récupération des données brutes
 $flatData = $cluster->toArray();
 $nestedData = $cluster->getUnflattened()->toArray();
 ```
 
-### 5.3 ArrayAccess (Accès comme un tableau)
-
-`ClusterVO` implémente `ArrayAccess`, ce qui permet d'accéder aux données avec la syntaxe des tableaux :
+### 5.3 ArrayAccess
 
 ```php
 $cluster = new ClusterVO([
@@ -500,7 +469,7 @@ if (isset($cluster['user.email'])) {
     echo $cluster['user.email'];
 }
 
-// Le cluster est immutable - les modifications sont bloquées
+// Le cluster est immutable
 try {
     $cluster['status'] = 'inactive'; // Lance une RuntimeException
 } catch (RuntimeException $e) {
@@ -508,40 +477,7 @@ try {
 }
 ```
 
-### 5.4 Cas d'utilisation
-
-```php
-// 1. Dans une collection
-$collection = new ClusterVOCollection();
-$collection->add($cluster);
-
-// 2. Dans un service
-class UserService
-{
-    public function processUser(array $userData): void
-    {
-        $cluster = new ClusterVO($userData);
-
-        if ($cluster->get('status') === 'active') {
-            // Traitement pour les utilisateurs actifs
-        }
-
-        if ($cluster->has('address.city')) {
-            $city = $cluster->get('address.city');
-            // Traitement selon la ville
-        }
-    }
-}
-
-// 3. Dans une validation
-$cluster = new ClusterVO($input);
-if ($cluster->get('age') >= 18 && $cluster->get('verified') === 'yes') {
-    // Valider l'utilisateur
-}
-```
-## 5.5 Création simplifiée avec ClusterVOProxy
-
-`ClusterVOProxy` est un proxy qui simplifie la création de `ClusterVO` en normalisant automatiquement les valeurs booléennes. Il convertit récursivement les booléens PHP (`true`/`false`) et les chaînes booléennes (`'true'`/`'false'`) en `'yes'`/`'no'`, évitant ainsi les exceptions de `ClusterVO`.
+### 5.4 Création simplifiée avec ClusterVOProxy
 
 ```php
 use AndyDefer\LaravelCluster\Proxies\ClusterVOProxy;
@@ -568,13 +504,6 @@ $cluster = ClusterVOProxy::make([
     ],
 ]);
 
-// Création avec chaînes booléennes
-$cluster = ClusterVOProxy::make([
-    'active' => 'true',         // → 'yes'
-    'verified' => 'false',      // → 'no'
-    'status' => 'active',       // Préservé
-]);
-
 // Accès normalisé
 $cluster->get('is_active'); // 'yes'
 $cluster->get('is_verified'); // 'no'
@@ -582,63 +511,9 @@ $cluster->get('settings.notifications.email'); // 'yes'
 $cluster->get('settings.notifications.sms'); // 'no'
 ```
 
-### Avantages du proxy
-
-- **Normalisation automatique** : Plus besoin de convertir manuellement les booléens
-- **Support récursif** : Traite les structures profondément imbriquées
-- **Préservation des valeurs** : Les chaînes 'yes'/'no' sont conservées
-- **Validation intégrée** : Hérite de la validation de `ClusterVO`
-
-### Utilisation dans un modèle
-
-```php
-class Doctor extends Model
-{
-    public function getIndexableCluster(): ClusterVO
-    {
-        return ClusterVOProxy::make([
-            'status' => $this->is_active,
-            'verified' => $this->email_verified_at !== null,
-            'has_patients' => $this->patients()->exists(),
-            'profile' => $this->profile ? [
-                'is_verified' => $this->profile->is_verified,
-                'is_accepting' => $this->profile->is_accepting_new_patients,
-                'years_experience' => $this->profile->years_of_experience,
-            ] : null,
-            'specialties' => $this->specialties->pluck('name')->toArray(),
-        ]);
-    }
-}
-```
-
-### ArrayAccess avec le proxy
-
-```php
-$cluster = ClusterVOProxy::make([
-    'active' => true,
-    'verified' => false,
-]);
-
-echo $cluster['active']; // 'yes'
-echo $cluster['verified']; // 'no'
-
-// Vérification d'existence
-if (isset($cluster['active'])) {
-    // La clé existe
-}
-
-// Immutable - modification bloquée
-try {
-    $cluster['active'] = 'inactive';
-} catch (RuntimeException $e) {
-    echo "ClusterVO is immutable";
-}
-```
 ---
 
 ## 6. Eloquent Cast : ClusterCast
-
-Le package fournit un cast Eloquent `ClusterCast` qui permet d'utiliser `ClusterVO` directement dans vos modèles Laravel.
 
 ### 6.1 Installation dans un modèle
 
@@ -684,11 +559,6 @@ $theme = $cluster['preferences.theme']; // 'dark'
 // Accès via get()
 $role = $cluster->get('role'); // 'admin'
 
-// Vérification d'existence
-if (isset($cluster['preferences.notifications'])) {
-    // ...
-}
-
 // Mise à jour
 $user->metadata = [
     'status' => 'inactive',
@@ -696,30 +566,15 @@ $user->metadata = [
 ];
 $user->save();
 
-// Le cast est immutable - pour modifier une valeur spécifique
-$data = $user->metadata->toArray();
-$data['status'] = 'pending';
-$user->metadata = $data;
-$user->save();
-
 // Filtrage Eloquent avec whereCluster
 $activeAdmins = User::whereCluster('metadata', 'status=active & role=admin')->get();
 ```
-
-### 6.3 Avantages
-
-- **Transparence** : Les données sont automatiquement converties en ClusterVO
-- **ArrayAccess** : Accès natif comme un tableau `$model->metadata['key']`
-- **Validation** : Les données sont validées par ClusterVO à l'écriture
-- **Compatibilité** : Fonctionne avec toutes les méthodes du package (whereCluster, etc.)
 
 ---
 
 ## 7. La collection intelligente : ClusterVOCollection
 
-`ClusterVOCollection` offre une API fluide pour filtrer des clusters.
-
-### 7.1 Création d'une collection
+### 7.1 Création
 
 ```php
 use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
@@ -991,46 +846,11 @@ $filtered = $clusters->whereQuery(
 // Bob Johnson uniquement
 ```
 
-### 8.2 Chaînage de filtres
-
-```php
-// Chaînage avec méthodes de collection
-$result = $clusters
-    ->where('status', 'active')
-    ->whereGreaterThan('age', 25)
-    ->whereArrayContains('tags', 'php');
-
-// Chaînage avec whereQuery
-$result = $clusters
-    ->whereQuery('status=active')
-    ->whereQuery('age>25')
-    ->whereQuery('tags_php=yes');
-
-// Mélange des deux
-$result = $clusters
-    ->where('status', 'active')
-    ->whereQuery('age>25')
-    ->whereArrayContains('tags', 'php');
-```
-
-### 8.3 Conservation des clés
-
-```php
-// Les clés originales sont conservées
-$filtered = $clusters->where('status', 'active');
-$filtered->keys(); // [0, 2] (si les indices 0 et 2 correspondent)
-
-// Pour récupérer un tableau indexé normal
-$array = $filtered->values()->toArray();
-```
-
 ---
 
 ## 9. Générer du SQL pour différents drivers
 
 ### 9.1 Drivers supportés
-
-Le package génère du SQL adapté à chaque driver de base de données :
 
 ```php
 use AndyDefer\LaravelCluster\ClusterQuery;
@@ -1123,8 +943,6 @@ $sql = $engine->toSql('clusters', 'addresses[city=Kinshasa & country=RDC]', Data
 
 ## 10. Fonctions SQLite personnalisées
 
-Pour assurer la compatibilité entre les drivers, le package enregistre automatiquement des fonctions SQLite qui imitent les fonctionnalités natives de MySQL et PostgreSQL.
-
 ### 10.1 Fonctions disponibles
 
 | Fonction | Description | Exemple |
@@ -1143,15 +961,6 @@ $users = User::whereRaw('JSON_LENGTH(clusters, \'$.addresses\') > 2')->get();
 
 // Ou via whereCluster
 $users = User::whereCluster('clusters', 'COUNT(addresses) > 2')->get();
-```
-
-### 10.3 Enregistrement
-
-Les fonctions sont enregistrées uniquement si le driver est SQLite, via `SqliteFunctionRegistrar` :
-
-```php
-// src/Utilities/SqliteFunctionRegistrar.php
-SqliteFunctionRegistrar::register();
 ```
 
 ---
@@ -1233,8 +1042,6 @@ $users = $query->get();
 
 ## 12. Les Macros Laravel
 
-Le package ajoute automatiquement deux macros : `whereCluster` sur `Builder` et `Collection`.
-
 ### 12.1 Macro sur Eloquent Builder
 
 ```php
@@ -1294,8 +1101,6 @@ $usersWithManyAddresses = $users->whereCluster('clusters', 'COUNT(addresses) > 2
 
 ### 12.3 Détection automatique du driver
 
-La macro `whereCluster` détecte automatiquement le driver de la connexion :
-
 ```php
 // Detection automatique (MySQL, PostgreSQL, SQLite)
 User::whereCluster('clusters', 'status=active')->get();
@@ -1307,14 +1112,10 @@ User::whereCluster('clusters', 'status=active')->get();
 ```
 
 ---
-`
-## 13. Les fonctions SQL
 
-Les fonctions SQL permettent d'effectuer des opérations de calcul et d'analyse sur les données JSON directement au niveau de la base de données. Elles génèrent du SQL adapté à chaque driver (SQLite, MySQL, PostgreSQL) et s'exécutent aussi bien en mémoire que dans les requêtes Eloquent.
+## 13. Les fonctions SQL d'agrégation
 
-### 13.1 Fonctions d'agrrégation
-
-Les fonctions d'agrégation effectuent des calculs sur des ensembles de valeurs (tableaux JSON) et retournent un résultat unique.
+### 13.1 Fonctions disponibles
 
 | Fonction | Description | Exemple |
 |----------|-------------|---------|
@@ -1326,7 +1127,7 @@ Les fonctions d'agrégation effectuent des calculs sur des ensembles de valeurs 
 | `LENGTH(path)` | Longueur d'une chaîne | `LENGTH(name) > 5` |
 | `JSON_LENGTH(path)` | Longueur d'un tableau JSON | `JSON_LENGTH(addresses) > 2` |
 
-#### Utilisation en mémoire
+### 13.2 Utilisation en mémoire
 
 ```php
 use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
@@ -1362,7 +1163,7 @@ $result = $collection->whereQuery('LENGTH(name) > 5');
 $result = $collection->whereQuery('JSON_LENGTH(addresses) > 2');
 ```
 
-#### Utilisation avec Eloquent
+### 13.3 Utilisation avec Eloquent
 
 ```php
 use App\Models\User;
@@ -1387,12 +1188,9 @@ $users = User::whereCluster('clusters', 'LENGTH(name) > 5')->get();
 
 // JSON_LENGTH
 $users = User::whereCluster('clusters', 'JSON_LENGTH(addresses) > 2')->get();
-
-// Combinaison avec d'autres conditions
-$users = User::whereCluster('clusters', 'status=active & COUNT(addresses) > 1')->get();
 ```
 
-#### SQL généré par driver
+### 13.4 SQL généré par driver
 
 | Fonction | SQLite | MySQL | PostgreSQL |
 |----------|--------|-------|------------|
@@ -1406,219 +1204,7 @@ $users = User::whereCluster('clusters', 'status=active & COUNT(addresses) > 1')-
 
 ---
 
-### 13.2 Fonctions booléennes
-
-Les fonctions booléennes retournent `true` ou `false` et peuvent être utilisées avec des opérateurs de comparaison (`=`, `!=`, etc.).
-
-| Fonction | Description | Exemple |
-|----------|-------------|---------|
-| `CONTAINS(path, value)` | Vérifie si un tableau contient une valeur | `CONTAINS(languages, fr)` |
-| `REGEXP(path, pattern)` | Vérifie si une chaîne correspond à une regex | `REGEXP(name, "^John.*")` |
-
-#### 13.2.1 Fonction CONTAINS
-
-La fonction `CONTAINS` vérifie si un tableau JSON contient une valeur spécifique.
-
-**Syntaxe :**
-```php
-CONTAINS(path, value)
-```
-
-**Paramètres :**
-- `path` : Le chemin vers le tableau dans les données JSON
-- `value` : La valeur à rechercher dans le tableau
-
-**Utilisation en mémoire :**
-```php
-$filtered = $collection->whereQuery('CONTAINS(languages, fr)');
-// Retourne les clusters dont le tableau 'languages' contient 'fr'
-
-// Avec opérateur de comparaison
-$filtered = $collection->whereQuery('CONTAINS(languages, fr) = true');
-$filtered = $collection->whereQuery('CONTAINS(languages, fr) = false');
-
-// Combinaison avec AND
-$filtered = $collection->whereQuery('CONTAINS(languages, fr) & status=active');
-
-// Combinaison avec OR
-$filtered = $collection->whereQuery('CONTAINS(languages, fr) | CONTAINS(languages, en)');
-```
-
-**Utilisation avec Eloquent :**
-```php
-use App\Models\User;
-
-// Utilisateurs qui parlent français
-$users = User::whereCluster('clusters', 'CONTAINS(languages, fr)')->get();
-
-// Utilisateurs qui parlent français ET anglais
-$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) & CONTAINS(languages, en)')->get();
-
-// Utilisateurs qui parlent français OU anglais
-$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) | CONTAINS(languages, en)')->get();
-
-// Utilisateurs qui parlent français ET sont actifs
-$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) & status=active')->get();
-
-// Utilisateurs qui parlent français = true
-$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) = true')->get();
-
-// Utilisateurs qui parlent français = false (ne parlent pas français)
-$users = User::whereCluster('clusters', 'CONTAINS(languages, fr) = false')->get();
-```
-
-**SQL généré :**
-| Driver | SQL |
-|--------|-----|
-| SQLite | `EXISTS (SELECT 1 FROM json_each(clusters, '$.languages') WHERE value = 'fr')` |
-| MySQL | `JSON_SEARCH(clusters, 'one', 'fr', NULL, '$."languages"') IS NOT NULL` |
-| PostgreSQL | `EXISTS (SELECT 1 FROM json_array_elements_text(clusters->'languages') AS elem WHERE elem = 'fr')` |
-
-**Exemples de requêtes complexes avec CONTAINS :**
-```php
-// Docteurs qui parlent français ET ont plus de 5 ans d'expérience
-$results = $collection->whereQuery('CONTAINS(languages, fr) & experience > 5');
-
-// Produits avec le tag "promo" OU "new"
-$results = $collection->whereQuery('CONTAINS(tags, promo) | CONTAINS(tags, new)');
-
-// Utilisateurs qui parlent français ET sont vérifiés
-$results = $collection->whereQuery('CONTAINS(languages, fr) & verified=yes');
-```
-
-#### 13.2.2 Fonction REGEXP
-
-La fonction `REGEXP` vérifie si une chaîne correspond à une expression régulière.
-
-**Syntaxe :**
-```php
-REGEXP(path, pattern)
-```
-
-**Paramètres :**
-- `path` : Le chemin vers la chaîne dans les données JSON
-- `pattern` : L'expression régulière à tester
-
-**Utilisation en mémoire :**
-```php
-// Noms commençant par "John"
-$filtered = $collection->whereQuery('REGEXP(name, "^John.*")');
-
-// Noms contenant "Smith"
-$filtered = $collection->whereQuery('REGEXP(name, "Smith")');
-
-// Noms se terminant par "son"
-$filtered = $collection->whereQuery('REGEXP(name, "son$")');
-
-// Noms commençant par "J" et contenant "e"
-$filtered = $collection->whereQuery('REGEXP(name, "^J.*e.*")');
-
-// Combinaison avec d'autres conditions
-$filtered = $collection->whereQuery('REGEXP(name, "^John.*") & status=active');
-```
-
-**Utilisation avec Eloquent :**
-```php
-use App\Models\User;
-
-// Noms commençant par "John"
-$users = User::whereCluster('clusters', 'REGEXP(name, "^John.*")')->get();
-
-// Noms contenant "Smith"
-$users = User::whereCluster('clusters', 'REGEXP(name, "Smith")')->get();
-
-// Noms se terminant par "son"
-$users = User::whereCluster('clusters', 'REGEXP(name, "son$")')->get();
-
-// Noms commençant par "J" et contenant "e"
-$users = User::whereCluster('clusters', 'REGEXP(name, "^J.*e.*")')->get();
-
-// Combinaison avec d'autres conditions
-$users = User::whereCluster('clusters', 'REGEXP(name, "^John.*") & status=active')->get();
-
-// Utilisateurs avec email Gmail
-$users = User::whereCluster('clusters', 'REGEXP(email, ".*@gmail\.com$")')->get();
-
-// Utilisateurs avec un nom contenant des lettres uniquement
-$users = User::whereCluster('clusters', 'REGEXP(name, "^[A-Za-z]+$")')->get();
-```
-
-**SQL généré :**
-| Driver | SQL |
-|--------|-----|
-| SQLite | `json_extract(clusters, '$.name') REGEXP '^John.*'` |
-| MySQL | `JSON_EXTRACT(clusters, '$.name') REGEXP '^John.*'` |
-| PostgreSQL | `clusters->>'name' ~ '^John.*'` |
-
-**Note sur SQLite :** La fonction `REGEXP` n'est pas native dans SQLite. Le package l'enregistre automatiquement via `SqliteFunctionRegistrar`. Si vous utilisez SQLite, assurez-vous que la fonction est bien enregistrée.
-
----
-
-### 13.3 Combinaison de fonctions
-
-Les fonctions SQL peuvent être combinées entre elles et avec d'autres conditions :
-
-```php
-// Combinaison de fonctions d'agrégation
-$result = $collection->whereQuery('COUNT(addresses) > 2 & AVG(scores) >= 85 & SUM(prices) > 400');
-
-// Combinaison de fonctions booléennes
-$result = $collection->whereQuery('CONTAINS(languages, fr) & REGEXP(name, "^J.*")');
-
-// Combinaison de fonctions d'agrégation et booléennes
-$result = $collection->whereQuery('CONTAINS(languages, fr) & COUNT(addresses) > 1 & AVG(scores) >= 85');
-
-// Avec des conditions classiques
-$result = $collection->whereQuery('COUNT(addresses) > 2 & status=active & verified=yes');
-
-// Avec des parenthèses pour la priorité
-$result = $collection->whereQuery('(COUNT(addresses) > 2 | SUM(prices) > 500) & status=active');
-```
-
----
-
-### 13.4 Comparaison des fonctions
-
-| Fonction | Type | Arguments | Retourne | Utilisation typique |
-|----------|------|-----------|----------|---------------------|
-| `COUNT` | Agrégation | 1 | `int` | Nombre d'éléments |
-| `SUM` | Agrégation | 1 | `float` | Somme des valeurs |
-| `AVG` | Agrégation | 1 | `float` | Moyenne des valeurs |
-| `MIN` | Agrégation | 1 | `float` | Valeur minimale |
-| `MAX` | Agrégation | 1 | `float` | Valeur maximale |
-| `LENGTH` | Agrégation | 1 | `int` | Longueur d'une chaîne |
-| `JSON_LENGTH` | Agrégation | 1 | `int` | Longueur d'un tableau |
-| `CONTAINS` | Booléenne | 2 | `bool` | Présence dans un tableau |
-| `REGEXP` | Booléenne | 2 | `bool` | Correspondance regex |
-
----
-
-### 13.5 Bonnes pratiques
-
-```php
-// ✅ Utiliser des index pour les champs JSON fréquemment filtrés
-// Migration :
-DB::statement('ALTER TABLE users ADD INDEX idx_clusters_status ((JSON_EXTRACT(clusters, "$.status")))');
-
-// ✅ Préférer les fonctions booléennes pour les vérifications d'existence
-$users = User::whereCluster('clusters', 'CONTAINS(languages, fr)')->get();
-
-// ✅ Combiner les fonctions avec des conditions classiques pour des filtres précis
-$users = User::whereCluster('clusters', 'status=active & COUNT(addresses) > 1')->get();
-
-// ❌ Éviter les fonctions d'agrégation sur de grandes collections en mémoire
-$allUsers = User::all(); // ❌
-$filtered = $allUsers->whereCluster('clusters', 'COUNT(addresses) > 2'); // ❌
-
-// ✅ Utiliser le filtrage en base de données pour les grandes collections
-$filtered = User::whereCluster('clusters', 'COUNT(addresses) > 2')->get(); // ✅
-```
-
----
-
 ## 14. Les sous-conditions sur tableaux
-
-Les sous-conditions permettent de filtrer sur des tableaux d'objets.
 
 ### 14.1 Syntaxe
 
@@ -1710,25 +1296,11 @@ $users = User::whereCluster('clusters', 'addresses[]')->get();
 $users = User::whereCluster('clusters', 'addresses[#city]')->get();
 ```
 
-### 14.4 Chemins imbriqués
-
-```php
-// Structure : settings.notifications.email
-$result = $collection->whereQuery('settings.notifications[email=yes]');
-// John, Bob (email=yes)
-
-// Structure : settings.notifications[email=yes & sms=no]
-$result = $collection->whereQuery('settings.notifications[email=yes & sms=no]');
-// John uniquement
-```
-
 ---
 
 ## 15. Les opérateurs EXISTS et NOT_EXISTS
 
 ### 15.1 EXISTS (*)
-
-Vérifie si une clé existe dans les données.
 
 ```php
 use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
@@ -1749,8 +1321,6 @@ $result = $collection->whereQuery('*email & name=John');
 ```
 
 ### 15.2 NOT_EXISTS (#)
-
-Vérifie si une clé est absente.
 
 ```php
 // NOT_EXISTS
@@ -1783,8 +1353,6 @@ $users = User::whereCluster('clusters', '*email & status=active')->get();
 
 ### 16.1 LIKE (=~)
 
-Recherche insensible à la casse.
-
 ```php
 use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
 use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
@@ -1812,8 +1380,6 @@ $result = $collection->whereQuery('name=~%John%');
 ```
 
 ### 16.2 NOT_LIKE (!~)
-
-Exclusion insensible à la casse.
 
 ```php
 // Ne contient pas "John"
@@ -1848,7 +1414,28 @@ $users = User::whereCluster('clusters', 'name=~%John%')->get();
 
 ## 17. Les fonctions d'agrégation en mémoire
 
-### 17.1 Utilisation de whereAggregate
+### 17.1 Présentation des fonctions
+
+Les fonctions d'agrégation en mémoire permettent d'effectuer des calculs sur les données des clusters **sans générer de SQL**. Elles sont utilisées avec les méthodes `whereAggregate()`, `matchesAggregate()` et `getAggregateValue()` de `ClusterVOCollection`.
+
+### 17.2 Liste des fonctions d'agrégation
+
+| Fonction | Description | Signature | Retourne |
+|----------|-------------|-----------|----------|
+| `COUNT` | Compte les éléments d'un tableau ou les caractères d'une chaîne | `COUNT(path)` | `int` |
+| `AVG` | Calcule la moyenne des valeurs numériques | `AVG(path)` | `float` |
+| `SUM` | Calcule la somme des valeurs numériques | `SUM(path)` | `float` |
+| `MIN` | Trouve la valeur numérique minimale | `MIN(path)` | `float` |
+| `MAX` | Trouve la valeur numérique maximale | `MAX(path)` | `float` |
+| `LENGTH` | Calcule la longueur d'une chaîne ou le nombre d'éléments | `LENGTH(path)` | `int` |
+| `EXISTS` | Vérifie qu'un chemin existe et n'est pas vide | `EXISTS(path)` | `bool` |
+| `IS_EMPTY` | Détermine si une valeur est vide | `IS_EMPTY(path)` | `bool` |
+| `HAS` | Recherche une valeur dans un tableau | `HAS(path, value)` ou `HAS(path, key, value)` | `bool` |
+| `ALL` | Vérifie que tous les éléments satisfont une condition | `ALL(path, key, expectedValue)` | `bool` |
+| `MATCHES` | Recherche une valeur correspondant à une regex | `MATCHES(path, regex)` ou `MATCHES(path, key, regex)` | `bool` |
+| `GROUP` | Groupe des expressions pour la logique booléenne | `GROUP({expr1} & {expr2})` | `bool` |
+
+### 17.3 Utilisation de whereAggregate
 
 ```php
 use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
@@ -1859,30 +1446,79 @@ $collection->add(new ClusterVO([
     'name' => 'John',
     'addresses' => ['a', 'b', 'c'],
     'scores' => [80, 90, 85],
+    'prices' => [100, 200, 300],
+    'tags' => ['php', 'javascript', 'docker'],
+    'addresses_detail' => [
+        ['city' => 'Kinshasa', 'country' => 'RDC'],
+        ['city' => 'Paris', 'country' => 'France'],
+    ],
+    'profile' => ['age' => 30, 'verified' => true],
+    'cart' => ['item1', 'item2'],
 ]));
 
-// COUNT
+// COUNT - Compter les éléments
 $result = $collection->whereAggregate('{COUNT(addresses) > 2}');
 
-// AVG
+// AVG - Moyenne
 $result = $collection->whereAggregate('{AVG(scores) >= 85}');
 
-// Combinaison
-$result = $collection->whereAggregate('{COUNT(addresses) > 1} & {AVG(scores) >= 85}');
+// SUM - Somme
+$result = $collection->whereAggregate('{SUM(prices) > 500}');
+
+// MIN - Valeur minimale
+$result = $collection->whereAggregate('{MIN(scores) > 75}');
+
+// MAX - Valeur maximale
+$result = $collection->whereAggregate('{MAX(scores) < 95}');
+
+// LENGTH - Longueur
+$result = $collection->whereAggregate('{LENGTH(name) > 5}');
+
+// EXISTS - Existence
+$result = $collection->whereAggregate('{EXISTS(profile)}');
+
+// IS_EMPTY - Vide
+$result = $collection->whereAggregate('{IS_EMPTY(cart)}');
+
+// HAS - Recherche simple
+$result = $collection->whereAggregate('{HAS(tags, "php")}');
+
+// HAS - Recherche dans tableau d'objets
+$result = $collection->whereAggregate('{HAS(addresses_detail, city, "Kinshasa")}');
+
+// ALL - Tous les éléments
+$result = $collection->whereAggregate('{ALL(addresses_detail, country, "RDC")}');
+
+// MATCHES - Regex simple
+$result = $collection->whereAggregate('{MATCHES(tags, "/^ja.*/")}');
+
+// MATCHES - Regex sur tableau d'objets
+$result = $collection->whereAggregate('{MATCHES(addresses_detail, city, "/^Kin.*/")}');
+
+// GROUP - Combinaison complexe
+$result = $collection->whereAggregate(
+    '{GROUP({COUNT(addresses) > 1} & {AVG(scores) >= 80} & {HAS(tags, "php")})}'
+);
 ```
 
-### 17.2 Utilisation de whereAggregateDirect
+### 17.4 Utilisation de whereAggregateDirect
 
 ```php
 // Exécution directe sans parsing
 $result = $collection->whereAggregateDirect('COUNT', ['addresses']);
-// John (3 > 0)
+// Retourne les clusters avec COUNT(addresses) > 0
 
-$result = $collection->whereAggregateDirect('EXISTS', ['addresses']);
-// John (addresses existe)
+// Avec opérateur et valeur
+$result = $collection->whereAggregateDirect('COUNT', ['addresses'], '>', 2);
+// Retourne les clusters avec COUNT(addresses) > 2
+
+$result = $collection->whereAggregateDirect('AVG', ['scores'], '>=', 85);
+$result = $collection->whereAggregateDirect('HAS', ['tags', 'php']);
+$result = $collection->whereAggregateDirect('EXISTS', ['profile']);
+$result = $collection->whereAggregateDirect('MATCHES', ['tags', '/^ja.*/']);
 ```
 
-### 17.3 Évaluation sur un cluster spécifique
+### 17.5 Évaluation sur un cluster spécifique
 
 ```php
 // matchesAggregate - Vérifier si un cluster correspond
@@ -1895,14 +1531,144 @@ $matches = $collection->matchesAggregateDirect($cluster, 'COUNT', ['addresses'])
 // getAggregateValue - Obtenir la valeur
 $count = $collection->getAggregateValue($cluster, 'COUNT', ['addresses']);
 $avg = $collection->getAggregateValue($cluster, 'AVG', ['scores']);
+$hasPhp = $collection->getAggregateValue($cluster, 'HAS', ['tags', 'php']);
+$matches = $collection->getAggregateValue($cluster, 'MATCHES', ['tags', '/^ja.*/']);
 ```
 
-### 17.4 Validation d'expressions
+### 17.6 Validation d'expressions
 
 ```php
 // validateAggregate - Vérifier la syntaxe
 $valid = $collection->validateAggregate('{COUNT(addresses) > 2}'); // true
 $valid = $collection->validateAggregate('{INVALID(addresses) > 2}'); // false
+
+// Validation avant utilisation
+if ($collection->validateAggregate($expression)) {
+    $result = $collection->whereAggregate($expression);
+} else {
+    // Gérer l'erreur
+}
+```
+
+### 17.7 Exemple complet avec toutes les fonctions
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use AndyDefer\LaravelCluster\Collections\ClusterVOCollection;
+use AndyDefer\LaravelCluster\ValueObjects\ClusterVO;
+
+$collection = new ClusterVOCollection();
+
+$collection->add(new ClusterVO([
+    'name' => 'John',
+    'addresses' => ['a', 'b', 'c'],
+    'scores' => [80, 90, 85],
+    'prices' => [100, 200, 300],
+    'tags' => ['php', 'javascript', 'docker'],
+    'addresses_detail' => [
+        ['city' => 'Kinshasa', 'country' => 'RDC'],
+        ['city' => 'Paris', 'country' => 'France'],
+    ],
+    'profile' => ['age' => 30, 'verified' => true],
+    'cart' => ['item1', 'item2'],
+]));
+
+$collection->add(new ClusterVO([
+    'name' => 'Jane',
+    'addresses' => ['a', 'b'],
+    'scores' => [70, 75, 80],
+    'prices' => [50, 75],
+    'tags' => ['python'],
+    'addresses_detail' => [
+        ['city' => 'Paris', 'country' => 'France'],
+    ],
+    'profile' => ['age' => 25, 'verified' => false],
+    'cart' => [],
+]));
+
+$collection->add(new ClusterVO([
+    'name' => 'Bob',
+    'addresses' => ['a'],
+    'scores' => [95, 98, 92],
+    'prices' => [500, 600, 700],
+    'tags' => ['php', 'laravel', 'vuejs'],
+    'addresses_detail' => [
+        ['city' => 'Kinshasa', 'country' => 'RDC'],
+        ['city' => 'London', 'country' => 'UK'],
+        ['city' => 'Paris', 'country' => 'France'],
+    ],
+    'profile' => ['age' => 35, 'verified' => true],
+    'cart' => ['item3'],
+]));
+
+// 1. Filtrer avec COUNT
+$result = $collection->whereAggregate('{COUNT(addresses) > 2}');
+// John, Bob
+
+// 2. Filtrer avec AVG
+$result = $collection->whereAggregate('{AVG(scores) >= 85}');
+// John, Bob
+
+// 3. Filtrer avec SUM
+$result = $collection->whereAggregate('{SUM(prices) > 500}');
+// John, Bob
+
+// 4. Filtrer avec MIN
+$result = $collection->whereAggregate('{MIN(scores) > 75}');
+// John, Bob
+
+// 5. Filtrer avec MAX
+$result = $collection->whereAggregate('{MAX(scores) < 95}');
+// John, Jane
+
+// 6. Filtrer avec EXISTS
+$result = $collection->whereAggregate('{EXISTS(profile)}');
+// John, Jane, Bob
+
+// 7. Filtrer avec IS_EMPTY
+$result = $collection->whereAggregate('{IS_EMPTY(cart)}');
+// Jane
+
+// 8. Filtrer avec HAS
+$result = $collection->whereAggregate('{HAS(tags, "php")}');
+// John, Bob
+
+// 9. Filtrer avec ALL
+$result = $collection->whereAggregate('{ALL(addresses_detail, country, "RDC")}');
+// John
+
+// 10. Filtrer avec MATCHES
+$result = $collection->whereAggregate('{MATCHES(tags, "/^ja.*/")}');
+// John (javascript)
+
+// 11. Combinaison complexe avec GROUP
+$result = $collection->whereAggregate(
+    '{GROUP({COUNT(addresses) > 1} & {AVG(scores) >= 80} & {HAS(tags, "php")})}'
+);
+// John, Bob
+
+// 12. Utilisation directe
+$result = $collection->whereAggregateDirect('COUNT', ['addresses'], '>', 2);
+
+// 13. Tests individuels
+$cluster = $collection->first();
+$matches = $collection->matchesAggregate($cluster, '{COUNT(addresses) > 2}');
+
+// 14. Obtention de valeurs
+$count = $collection->getAggregateValue($cluster, 'COUNT', ['addresses']);
+$avg = $collection->getAggregateValue($cluster, 'AVG', ['scores']);
+$hasPhp = $collection->getAggregateValue($cluster, 'HAS', ['tags', 'php']);
+$matches = $collection->getAggregateValue($cluster, 'MATCHES', ['tags', '/^ja.*/']);
+
+echo "John: COUNT={$count}, AVG={$avg}, HAS_PHP=" . ($hasPhp ? 'yes' : 'no') . ", MATCHES=" . ($matches ? 'yes' : 'no') . "\n";
+// John: COUNT=3, AVG=85, HAS_PHP=yes, MATCHES=yes
+
+// 15. Validation d'expression
+$valid = $collection->validateAggregate('{COUNT(addresses) > 2}'); // true
+$invalid = $collection->validateAggregate('{INVALID(addresses) > 2}'); // false
 ```
 
 ---
@@ -2054,11 +1820,9 @@ $query = User::whereCluster('clusters', 'CUSTOM(addresses) > 4');
 
 ---
 
-## 19. Parser et AST (Arbre Syntaxique Abstrait)
+## 19. Parser et AST
 
 ### 19.1 Structure de l'AST
-
-L'AST est composé de différents types de nœuds :
 
 ```php
 use AndyDefer\LaravelCluster\ClusterQuery;
@@ -2130,8 +1894,6 @@ $users = $query->get();
 ```
 
 ### 19.4 Cache du Parser
-
-Le parser met en cache les résultats pour les requêtes identiques :
 
 ```php
 $ast1 = $engine->parse('status=active');
@@ -2322,7 +2084,7 @@ $collection->orWhereClosure(Closure $callback): self
 $collection->whereQuery(string $query): self
 ```
 
-### 21.8 Agrégations
+### 21.8 Agrégations en mémoire
 
 ```php
 // whereAggregate - Expression d'agrégation
@@ -2330,6 +2092,7 @@ $collection->whereAggregate(string $expression): self
 
 // whereAggregateDirect - Appel direct
 $collection->whereAggregateDirect(string $functionName, array $args = []): self
+$collection->whereAggregateDirect(string $functionName, array $args, string $operator, mixed $value): self
 
 // matchesAggregate - Vérifier un cluster
 $collection->matchesAggregate(ClusterVO $cluster, string $expression): bool
@@ -2410,16 +2173,6 @@ class CustomerFilterService
         return $query->get()->toArray();
     }
 }
-
-// Utilisation
-$service = new CustomerFilterService(app(ClusterService::class));
-$customers = $service->findCustomers([
-    'min_revenue' => 1000000,
-    'industry' => 'technology',
-    'country' => 'France',
-    'is_active' => true,
-    'has_contract' => true,
-]);
 ```
 
 ### 22.2 Filtrage de produits e-commerce
@@ -2493,17 +2246,6 @@ class ProductSearchService
         return $query->get()->toArray();
     }
 }
-
-// Utilisation
-$service = new ProductSearchService(app(ClusterService::class));
-$products = $service->searchProducts([
-    'categories' => ['electronics', 'computers'],
-    'tags' => ['new', 'best-seller'],
-    'min_price' => 500,
-    'max_price' => 2000,
-    'in_stock' => true,
-    'on_promotion' => true,
-]);
 ```
 
 ### 22.3 Filtrage d'utilisateurs avec compétences
@@ -2570,16 +2312,6 @@ class DeveloperFilterService
         return $collection->get();
     }
 }
-
-// Utilisation
-$service = new DeveloperFilterService(app(ClusterService::class));
-$developers = $service->findDevelopers($candidates, [
-    'required_skills' => ['php', 'laravel'],
-    'optional_skills' => ['docker', 'vuejs'],
-    'min_experience' => 3,
-    'city' => 'Paris',
-    'available' => true,
-]);
 ```
 
 ### 22.4 API REST avec filtrage dynamique
@@ -2627,12 +2359,6 @@ class ResourceController extends Controller
         return $query->paginate(20);
     }
 }
-
-// Exemples d'appels API
-// GET /api/resources?filter=status=active AND category=documents
-// GET /api/resources?filter=(status=active | status=pending) & tags_php=yes
-// GET /api/resources?filter=COUNT(addresses) > 2
-// GET /api/resources?search=John&filter=role=admin
 ```
 
 ### 22.5 Filtrage en mémoire pour export
@@ -2680,14 +2406,6 @@ class DataExportService
         return $result;
     }
 }
-
-// Utilisation
-$service = new DataExportService(app(ClusterService::class));
-$data = $service->exportFilteredData(
-    $sourceData,
-    'status=active & COUNT(addresses) > 1',
-    ['name', 'email', 'status', 'age']
-);
 ```
 
 ---

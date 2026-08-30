@@ -10,6 +10,7 @@ use AndyDefer\LaravelCluster\Functions\AvgFunction;
 use AndyDefer\LaravelCluster\Functions\CountFunction;
 use AndyDefer\LaravelCluster\Functions\DistanceFunction;
 use AndyDefer\LaravelCluster\Functions\ExistsFunction;
+use AndyDefer\LaravelCluster\Functions\ExtractKeyFunction;
 use AndyDefer\LaravelCluster\Functions\GroupFunction;
 use AndyDefer\LaravelCluster\Functions\HasFunction;
 use AndyDefer\LaravelCluster\Functions\IsEmptyFunction;
@@ -221,5 +222,6 @@ final class AggregateFunctionRegistry
         $this->register(new MatchesFunction);
         $this->register(new DistanceFunction);
         $this->register(new GroupFunction);
+        $this->register(new ExtractKeyFunction);
     }
 }

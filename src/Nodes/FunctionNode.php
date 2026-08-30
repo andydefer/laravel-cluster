@@ -34,7 +34,15 @@ final class FunctionNode extends Node
         }
 
         $data = $cluster->getUnflattened()->toArray();
-        $actual = $this->extractValue($data, $this->path);
+
+        // ✅ Pour EXTRACT_KEY, le path est le deuxième argument (objectPath)
+        // Pour les autres fonctions, le path est le premier argument
+        $extractPath = $this->path;
+        if ($this->functionName === 'EXTRACT_KEY' && count($this->args) >= 2) {
+            $extractPath = $this->args[1]; // 'pharmacy'
+        }
+
+        $actual = $this->extractValue($data, $extractPath);
 
         if ($actual === null) {
             return false;

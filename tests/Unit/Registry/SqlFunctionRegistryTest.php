@@ -39,6 +39,7 @@ final class SqlFunctionRegistryTest extends TestCase
             'MIN',
             'REGEXP',
             'SUM',
+            'EXTRACT_KEY',
         ];
 
         $names = $this->registry->getNames();
@@ -264,7 +265,7 @@ final class SqlFunctionRegistryTest extends TestCase
     {
         $all = $this->registry->all();
         $this->assertIsArray($all);
-        $this->assertCount(10, $all);
+        $this->assertCount(11, $all);
         $this->assertArrayHasKey('COUNT', $all);
         $this->assertArrayHasKey('CONTAINS', $all);
         $this->assertArrayHasKey('DISTANCE', $all);
@@ -276,7 +277,7 @@ final class SqlFunctionRegistryTest extends TestCase
     {
         $names = $this->registry->getNames();
         $this->assertIsArray($names);
-        $this->assertCount(10, $names);
+        $this->assertCount(11, $names);
         $this->assertContains('COUNT', $names);
         $this->assertContains('CONTAINS', $names);
         $this->assertContains('DISTANCE', $names);
