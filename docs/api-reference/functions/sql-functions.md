@@ -11,6 +11,7 @@ SqlFunctionInterface
     └── AbstractSqlFunction (classe abstraite)
             ├── AvgFunction
             ├── CountFunction
+            ├── ExtractKeyFunction
             ├── JsonLengthFunction
             ├── LengthFunction
             ├── MaxFunction
@@ -155,6 +156,147 @@ $count->execute('hello'); // 5
 // Génération SQL SQLite
 $sql = $count->toSql('clusters', 'addresses', DatabaseDriver::SQLITE);
 // json_array_length(clusters, '$.addresses')
+```
+
+---
+
+# ExtractKeyFunction
+
+## Description
+
+Extrait une valeur spécifique d'un objet JSON imbriqué dans le cluster. Supporte les chemins avec notation pointée pour accéder à des propriétés profondément imbriquées.
+
+Cette fonction est particulièrement utile pour :
+- Filtrer sur des propriétés d'objets associés (ex: `pharmacy.slug`, `drug.name`)
+- Accéder à des données dans des structures JSON complexes
+- Effectuer des recherches sur des champs imbriqués sans avoir à dénormaliser les données
+
+## API
+
+### `getName(): string`
+
+**Retourne :** `string` - Le nom de la fonction : `'EXTRACT_KEY'`
+
+### `toSql(string $column, string $path, DatabaseDriver $driver, array $args = []): string`
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$column` | `string` | La colonne contenant les données JSON |
+| `$path` | `string` | Le chemin JSON (non utilisé, car le chemin complet est construit à partir des arguments) |
+| `$driver` | `DatabaseDriver` | Le driver de base de données |
+| `$args` | `array` | Arguments : `[key, objectPath]` |
+
+**Retourne :** `string` - L'expression SQL
+
+**SQL généré :**
+| Driver | SQL |
+|--------|-----|
+| **SQLite** | `json_extract(column, '$.objectPath.key')` |
+| **MySQL** | `JSON_EXTRACT(column, '$.objectPath.key')` |
+| **PostgreSQL** | `column->>'objectPath.key'` |
+
+### `execute(mixed $value, array $args = []): mixed`
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$value` | `mixed` | La valeur à traiter (doit être un tableau) |
+| `$args` | `array` | Arguments : `[key, objectPath]` |
+
+**Retourne :** `mixed` - La valeur extraite, ou `null` si non trouvée
+
+### `validateArgs(array $args): bool`
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$args` | `array<mixed>` | Les arguments à valider |
+
+**Retourne :** `bool` - `true` si exactement 2 arguments sont fournis et sont des chaînes non vides
+
+### `getMinArgs(): int`
+
+**Retourne :** `int` - `2` (exige exactement 2 arguments)
+
+### `getMaxArgs(): int`
+
+**Retourne :** `int` - `2` (exige exactement 2 arguments)
+
+### `getReturnType(): string`
+
+**Retourne :** `string` - `'string'`
+
+### `getDefaultValue(): mixed`
+
+**Retourne :** `null`
+
+**Exemples :**
+```php
+use AndyDefer\LaravelCluster\SqlFunctions\ExtractKeyFunction;
+use AndyDefer\LaravelCluster\Enums\DatabaseDriver;
+
+$extract = new ExtractKeyFunction();
+
+// Évaluation en mémoire - extraction simple
+$data = [
+    'pharmacy' => [
+        'name' => 'Pharmacie A',
+        'slug' => 'pharma-a',
+    ],
+];
+$result = $extract->execute($data, ['slug', 'pharmacy']); // 'pharma-a'
+
+// Extraction avec chemin imbriqué
+$data = [
+    'pharmacy' => [
+        'profile' => [
+            'name' => 'Jean Dupont',
+            'email' => 'jean@example.com',
+        ],
+    ],
+];
+$result = $extract->execute($data, ['profile.name', 'pharmacy']); // 'Jean Dupont'
+
+// Génération SQL SQLite
+$sql = $extract->toSql('clusters', 'pharmacy', DatabaseDriver::SQLITE, ['slug', 'pharmacy']);
+// "json_extract(clusters, '$.pharmacy.slug')"
+
+// Génération SQL MySQL
+$sql = $extract->toSql('clusters', 'pharmacy', DatabaseDriver::MYSQL, ['slug', 'pharmacy']);
+// "JSON_EXTRACT(clusters, '$.pharmacy.slug')"
+
+// Génération SQL PostgreSQL
+$sql = $extract->toSql('clusters', 'pharmacy', DatabaseDriver::PGSQL, ['slug', 'pharmacy']);
+// "clusters->>'pharmacy.slug'"
+
+// Validation des arguments
+$extract->validateArgs(['slug', 'pharmacy']); // true
+$extract->validateArgs(['slug']); // false
+$extract->validateArgs(['', 'pharmacy']); // false
+```
+
+**Utilisation dans une requête Eloquent :**
+```php
+use App\Models\Offer;
+
+// Filtrer les offres par pharmacie
+$offers = Offer::whereCluster('clusters', 'EXTRACT_KEY(slug, pharmacy) = pharma-a')->get();
+
+// Filtrer par nom de pharmacie
+$offers = Offer::whereCluster('clusters', 'EXTRACT_KEY(name, pharmacy) = "Pharmacie A"')->get();
+
+// Filtrer par propriété imbriquée
+$offers = Offer::whereCluster('clusters', 'EXTRACT_KEY(profile.name, pharmacy) = "Jean Dupont"')->get();
+
+// Combinaison avec d'autres conditions
+$offers = Offer::whereCluster('clusters', 'EXTRACT_KEY(slug, pharmacy) = pharma-a & status=active')->get();
+
+// Utilisation avec OR
+$offers = Offer::whereCluster(
+    'clusters', 
+    'EXTRACT_KEY(slug, pharmacy) = pharma-a | EXTRACT_KEY(slug, pharmacy) = pharma-b'
+)->get();
+
+// Utilisation avec NOT EQUAL
+$offers = Offer::whereCluster('clusters', 'EXTRACT_KEY(slug, pharmacy) != pharma-a')->get();
 ```
 
 ---
@@ -576,6 +718,7 @@ $contains->validateArgs(['fr']); // false
 | `MAX` | Agrégation | 1 | `float` | Valeur maximale |
 | `LENGTH` | Agrégation | 1 | `int` | Longueur d'une chaîne |
 | `JSON_LENGTH` | Agrégation | 1 | `int` | Longueur d'un tableau |
+| `EXTRACT_KEY` | Extraction | 2 | `mixed` | Extraction d'une valeur imbriquée |
 | `CONTAINS` | Booléenne | 2 | `bool` | Présence dans un tableau |
 | `REGEXP` | Booléenne | 2 | `bool` | Correspondance regex |
 
@@ -618,7 +761,28 @@ $clusterQuery->applyToEloquent(
 );
 ```
 
-### Cas 3 : Utiliser CONTAINS avec Eloquent
+### Cas 3 : Utiliser EXTRACT_KEY pour filtrer par objet associé
+
+```php
+use App\Models\Offer;
+
+// Filtrer les offres par pharmacie (relation stockée dans le cluster)
+$offers = Offer::whereCluster('clusters', 'EXTRACT_KEY(slug, pharmacy) = pharma-a')->get();
+
+// Filtrer par propriété imbriquée
+$offers = Offer::whereCluster('clusters', 'EXTRACT_KEY(profile.name, pharmacy) = "Jean Dupont"')->get();
+
+// Combinaison avec d'autres conditions
+$offers = Offer::whereCluster('clusters', 'EXTRACT_KEY(slug, pharmacy) = pharma-a & status=active')->get();
+
+// Utilisation avec OR
+$offers = Offer::whereCluster(
+    'clusters', 
+    'EXTRACT_KEY(slug, pharmacy) = pharma-a | EXTRACT_KEY(slug, pharmacy) = pharma-b'
+)->get();
+```
+
+### Cas 4 : Utiliser CONTAINS avec Eloquent
 
 ```php
 use App\Models\User;
@@ -642,7 +806,7 @@ $users = User::whereCluster('clusters', 'CONTAINS(languages, fr) = true')->get()
 $users = User::whereCluster('clusters', 'CONTAINS(languages, fr) = false')->get();
 ```
 
-### Cas 4 : Filtrage avec expression régulière
+### Cas 5 : Filtrage avec expression régulière
 
 ```php
 // Utilisateurs dont le nom commence par "John"
@@ -658,7 +822,7 @@ $users = User::whereCluster('clusters', 'REGEXP(name, "^[A-Za-z]+$")')->get();
 $users = User::whereCluster('clusters', 'REGEXP(name, "^John.*") & status=active')->get();
 ```
 
-### Cas 5 : Combinaison de fonctions
+### Cas 6 : Combinaison de fonctions
 
 ```php
 // Combinaison de fonctions d'agrégation
@@ -677,6 +841,28 @@ $users = User::whereCluster('clusters', 'COUNT(addresses) > 2 & status=active & 
 $users = User::whereCluster('clusters', '(COUNT(addresses) > 2 | SUM(prices) > 500) & status=active')->get();
 ```
 
+### Cas 7 : Combinaison avec EXTRACT_KEY
+
+```php
+// Offres d'une pharmacie spécifique avec prix élevé
+$offers = Offer::whereCluster(
+    'clusters', 
+    'EXTRACT_KEY(slug, pharmacy) = pharma-a & price > 100'
+)->get();
+
+// Offres d'une pharmacie spécifique avec plusieurs conditions
+$offers = Offer::whereCluster(
+    'clusters', 
+    'EXTRACT_KEY(slug, pharmacy) = pharma-a & status=active & quantity >= 10'
+)->get();
+
+// Offres d'une pharmacie avec des tags spécifiques
+$offers = Offer::whereCluster(
+    'clusters', 
+    'EXTRACT_KEY(slug, pharmacy) = pharma-a & CONTAINS(tags, promo)'
+)->get();
+```
+
 ---
 
 ## Gestion des erreurs
@@ -688,6 +874,8 @@ $users = User::whereCluster('clusters', '(COUNT(addresses) > 2 | SUM(prices) > 5
 | Arguments invalides pour REGEXP | - | Retourne `false` |
 | CONTAINS avec moins de 2 arguments | - | Retourne `false` dans `execute()` |
 | CONTAINS avec path vide | - | `validateArgs()` retourne `false` |
+| EXTRACT_KEY avec moins de 2 arguments | - | Retourne `null` |
+| EXTRACT_KEY avec arguments vides | - | `validateArgs()` retourne `false` |
 
 ---
 
@@ -721,11 +909,11 @@ Les fonctions SQL sont utilisées par :
 
 ## Drivers supportés
 
-| Driver | JSON Extraction | COUNT | SUM/AVG/MIN/MAX | LENGTH | REGEXP | CONTAINS |
-|--------|-----------------|-------|-----------------|--------|--------|----------|
-| **SQLite** | `json_extract()` | `json_array_length()` | Sous-requête `json_each()` | `LENGTH(json_extract())` | `REGEXP` (enregistré) | `json_each()` |
-| **MySQL** | `JSON_EXTRACT()` | `JSON_LENGTH()` | Sous-requête `JSON_TABLE()` | `LENGTH(JSON_EXTRACT())` | `REGEXP` | `JSON_SEARCH()` |
-| **PostgreSQL** | `->>` | `jsonb_array_length()` | Sous-requête `json_array_elements()` | `LENGTH(->>)` | `~` | `json_array_elements_text()` |
+| Driver | JSON Extraction | COUNT | SUM/AVG/MIN/MAX | LENGTH | REGEXP | CONTAINS | EXTRACT_KEY |
+|--------|-----------------|-------|-----------------|--------|--------|----------|-------------|
+| **SQLite** | `json_extract()` | `json_array_length()` | Sous-requête `json_each()` | `LENGTH(json_extract())` | `REGEXP` (enregistré) | `json_each()` | `json_extract()` |
+| **MySQL** | `JSON_EXTRACT()` | `JSON_LENGTH()` | Sous-requête `JSON_TABLE()` | `LENGTH(JSON_EXTRACT())` | `REGEXP` | `JSON_SEARCH()` | `JSON_EXTRACT()` |
+| **PostgreSQL** | `->>` | `jsonb_array_length()` | Sous-requête `json_array_elements()` | `LENGTH(->>)` | `~` | `json_array_elements_text()` | `->>` |
 
 ---
 
@@ -736,6 +924,7 @@ Les fonctions SQL sont utilisées par :
 - **Cache :** Les expressions SQL sont générées à la volée
 - **Recommandation :** Utiliser les fonctions SQL directement dans les requêtes pour de grands volumes de données, plutôt que d'utiliser les fonctions d'agrégation en mémoire
 - **CONTAINS vs languages_fr=yes :** `CONTAINS` est plus lisible mais peut être plus lent sur SQLite. Pour de très grands volumes, privilégier les clés aplaties (`languages_fr=yes`)
+- **EXTRACT_KEY vs JSON_EXTRACT direct :** `EXTRACT_KEY` offre une syntaxe plus intuitive et un support multi-driver unifié
 
 ---
 
@@ -767,7 +956,9 @@ use AndyDefer\LaravelCluster\SqlFunctions\CountFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\AvgFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\RegexpFunction;
 use AndyDefer\LaravelCluster\SqlFunctions\ContainsFunction;
+use AndyDefer\LaravelCluster\SqlFunctions\ExtractKeyFunction;
 use App\Models\User;
+use App\Models\Offer;
 
 // Création de l'instance
 $clusterQuery = new ClusterQuery;
@@ -783,6 +974,10 @@ $sql = $count->toSql('clusters', 'addresses', DatabaseDriver::SQLITE);
 $avg = new AvgFunction();
 $sql = $avg->toSql('clusters', 'scores', DatabaseDriver::MYSQL);
 // (SELECT AVG(JSON_EXTRACT(value, '$')) FROM JSON_TABLE(...))
+
+$extract = new ExtractKeyFunction();
+$sql = $extract->toSql('clusters', 'pharmacy', DatabaseDriver::SQLITE, ['slug', 'pharmacy']);
+// json_extract(clusters, '$.pharmacy.slug')
 
 $regexp = new RegexpFunction();
 $sql = $regexp->toSql('clusters', 'name', DatabaseDriver::MYSQL, ['name', '^John.*']);
@@ -839,6 +1034,36 @@ $clusterQuery->applyToEloquent(
 );
 
 // ============================================================
+// Utilisation avec EXTRACT_KEY sur les offres
+// ============================================================
+
+$offerQuery = Offer::query();
+
+// Filtrer les offres par pharmacie
+$clusterQuery->applyToEloquent(
+    $offerQuery,
+    'clusters',
+    'EXTRACT_KEY(slug, pharmacy) = pharma-a',
+    DatabaseDriver::SQLITE
+);
+
+// Filtrer par propriété imbriquée
+$clusterQuery->applyToEloquent(
+    $offerQuery,
+    'clusters',
+    'EXTRACT_KEY(profile.name, pharmacy) = "Jean Dupont"',
+    DatabaseDriver::SQLITE
+);
+
+// Combinaison EXTRACT_KEY + autres conditions
+$clusterQuery->applyToEloquent(
+    $offerQuery,
+    'clusters',
+    'EXTRACT_KEY(slug, pharmacy) = pharma-a & status=active & price > 100',
+    DatabaseDriver::SQLITE
+);
+
+// ============================================================
 // Expression combinée avec valeurs booléennes et CONTAINS
 // ============================================================
 
@@ -860,9 +1085,15 @@ $collection->add(new ClusterVO([
     'scores' => [80, 90, 85],
     'languages' => ['fr', 'en'],
     'verified' => 'yes',
+    'pharmacy' => [
+        'slug' => 'pharma-a',
+        'name' => 'Pharmacie A',
+    ],
 ]));
 
 $filtered = $collection->whereQuery('COUNT(addresses) > 2 & AVG(scores) >= 85 & CONTAINS(languages, fr)');
+
+$filtered = $collection->whereQuery('EXTRACT_KEY(slug, pharmacy) = pharma-a');
 
 // ============================================================
 // Récupération des résultats
@@ -885,5 +1116,6 @@ foreach ($results as $user) {
 - [`DatabaseDriver`](Enums/DatabaseDriver.md) - Énumération des drivers supportés
 - [`ContainsFunction`](SqlFunctions/ContainsFunction.md) - Fonction CONTAINS détaillée
 - [`RegexpFunction`](SqlFunctions/RegexpFunction.md) - Fonction REGEXP détaillée
+- [`ExtractKeyFunction`](SqlFunctions/ExtractKeyFunction.md) - Fonction EXTRACT_KEY détaillée
 - [`SqliteFunctionRegistrar`](Utilities/SqliteFunctionRegistrar.md) - Enregistrement des fonctions SQLite
 - [`ClusterMacroRegistrar`](Utilities/ClusterMacroRegistrar.md) - Enregistrement des macros

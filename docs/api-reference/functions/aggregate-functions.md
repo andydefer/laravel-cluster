@@ -15,6 +15,7 @@ AggregateFunctionInterface
             ├── AvgFunction
             ├── CountFunction
             ├── ExistsFunction
+            ├── ExtractKeyFunction
             ├── GroupFunction
             ├── HasFunction
             ├── IsEmptyFunction
@@ -437,7 +438,38 @@ $noDescription = $collection->whereAggregate('{IS_EMPTY(description)}');
 
 ---
 
-### 12. GroupFunction - Grouper des expressions
+### 12. ExtractKeyFunction - Extraire une clé
+
+**Description :** Extrait une valeur d'un objet en utilisant un chemin de clé.
+
+**Signatures :**
+- `EXTRACT_KEY(key, objectPath)` - Extrait une clé d'un objet
+- `EXTRACT_KEY(key)` - Extrait une clé à la racine
+
+**Exemple :**
+```php
+// Extraire le slug de pharmacy
+$result = $collection->whereAggregate('{EXTRACT_KEY(slug, pharmacy) = pharma-a}');
+
+// Extraire une clé imbriquée
+$result = $collection->whereAggregate('{EXTRACT_KEY(profile.name, pharmacy) = "Jean Dupont"}');
+
+// Extraire à la racine
+$result = $collection->whereAggregate('{EXTRACT_KEY(slug) = pharma-a}');
+```
+
+**Cas d'utilisation :**
+```php
+// Offres avec pharmacie spécifique
+$offers = $collection->whereAggregate('{EXTRACT_KEY(slug, pharmacy) = pharma-a}');
+
+// Utilisateurs avec profil nommé
+$users = $collection->whereAggregate('{EXTRACT_KEY(profile.name, user) = "Jean Dupont"}');
+```
+
+---
+
+### 13. GroupFunction - Grouper des expressions
 
 **Description :** Permet de grouper des expressions pour la logique booléenne.
 
@@ -867,6 +899,77 @@ $matches = $collection->getAggregateValue($cluster, 'MATCHES', ['tags', '/^ja.*/
 
 echo "John: COUNT={$count}, AVG={$avg}, HAS_PHP=" . ($hasPhp ? 'yes' : 'no') . ", MATCHES=" . ($matches ? 'yes' : 'no') . "\n";
 // John: COUNT=3, AVG=85, HAS_PHP=yes, MATCHES=yes
+
+// 16. Utilisation de EXTRACT_KEY
+$offers = new ClusterVOCollection();
+$offers->add(new ClusterVO([
+    'id' => 1,
+    'name' => 'Offer 1',
+    'pharmacy' => [
+        'name' => 'Pharmacie A',
+        'slug' => 'pharma-a',
+    ],
+]));
+$offers->add(new ClusterVO([
+    'id' => 2,
+    'name' => 'Offer 2',
+    'pharmacy' => [
+        'name' => 'Pharmacie B',
+        'slug' => 'pharma-b',
+    ],
+]));
+$offers->add(new ClusterVO([
+    'id' => 3,
+    'name' => 'Offer 3',
+    'pharmacy' => [
+        'name' => 'Pharmacie A',
+        'slug' => 'pharma-a',
+    ],
+]));
+
+$result = $offers->whereAggregate('{EXTRACT_KEY(slug, pharmacy) = pharma-a}');
+// Offer 1, Offer 3
+
+$result = $offers->whereAggregate('{EXTRACT_KEY(name, pharmacy) = "Pharmacie A"}');
+// Offer 1, Offer 3
+
+// Avec chemin imbriqué
+$users = new ClusterVOCollection();
+$users->add(new ClusterVO([
+    'id' => 1,
+    'name' => 'User 1',
+    'pharmacy' => [
+        'profile' => [
+            'name' => 'Jean Dupont',
+        ],
+    ],
+]));
+$users->add(new ClusterVO([
+    'id' => 2,
+    'name' => 'User 2',
+    'pharmacy' => [
+        'profile' => [
+            'name' => 'Marie Martin',
+        ],
+    ],
+]));
+
+$result = $users->whereAggregate('{EXTRACT_KEY(profile.name, pharmacy) = "Jean Dupont"}');
+// User 1
+
+// Sans objectPath
+$items = new ClusterVOCollection();
+$items->add(new ClusterVO([
+    'id' => 1,
+    'slug' => 'pharma-a',
+]));
+$items->add(new ClusterVO([
+    'id' => 2,
+    'slug' => 'pharma-b',
+]));
+
+$result = $items->whereAggregate('{EXTRACT_KEY(slug) = pharma-a}');
+// Item 1
 ```
 
 ---
@@ -877,3 +980,5 @@ echo "John: COUNT={$count}, AVG={$avg}, HAS_PHP=" . ($hasPhp ? 'yes' : 'no') . "
 - [`ClusterVO`](ValueObjects/ClusterVO.md) - Conteneur de données
 - [`ClusterQuery`](ClusterQuery.md) - Moteur de requêtes
 - [`AggregateFunctionRegistry`](Registry/AggregateFunctionRegistry.md) - Registre des fonctions
+- [`ExtractKeyFunction`](Functions/ExtractKeyFunction.md) - Fonction d'extraction de clé
+```
