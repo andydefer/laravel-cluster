@@ -134,9 +134,15 @@ final class FunctionNode extends Node
             ComparisonOperator::GREATER_THAN_OR_EQUAL => sprintf('%s >= %s', $sqlExpression, $castedValue),
             ComparisonOperator::LESS_THAN => sprintf('%s < %s', $sqlExpression, $castedValue),
             ComparisonOperator::LESS_THAN_OR_EQUAL => sprintf('%s <= %s', $sqlExpression, $castedValue),
+            ComparisonOperator::LIKE => sprintf('%s LIKE %s', $sqlExpression, $castedValue),
+            ComparisonOperator::NOT_LIKE => sprintf('%s NOT LIKE %s', $sqlExpression, $castedValue),
             ComparisonOperator::EXISTS => sprintf('%s IS NOT NULL', $sqlExpression),
             ComparisonOperator::NOT_EXISTS => sprintf('%s IS NULL', $sqlExpression),
-            default => throw new InvalidArgumentException('Unsupported operator for SQL function'),
+            default => throw new InvalidArgumentException(sprintf(
+                'Unsupported operator "%s" for SQL function %s',
+                $this->operator->value,
+                $this->functionName
+            )),
         };
     }
 
